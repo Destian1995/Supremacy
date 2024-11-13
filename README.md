@@ -1,25 +1,3 @@
-## Скрины из игры:
-выбор государства (у каждого свои юниты и своя экономика):
-![image](https://github.com/user-attachments/assets/2a8177f2-5498-47de-94ae-4c0d95fa95eb)
-мир игры:
-![Скриншот 12-11-2024 101013](https://github.com/user-attachments/assets/0882245c-c760-4aba-8c59-9ba34dd946d9)
-биржевые торги:
-![Скриншот 12-11-2024 101203](https://github.com/user-attachments/assets/2ae8f8ad-310d-4f36-8eb2-01b6d33e0f0c)
-найм юнитов (Аркадия):
-![Скриншот 12-11-2024 101044](https://github.com/user-attachments/assets/80662b69-cae3-49e1-9a04-69eaa0a836b3)
-состояние поселений, сколько зданий и каких построенно и кто охраняет город:
-![Скриншот 12-11-2024 101119](https://github.com/user-attachments/assets/cf48c8c8-4c7c-4542-8a6b-054500e3ffc5)
-противника тоже видно:
-![Скриншот 12-11-2024 101146](https://github.com/user-attachments/assets/441b6b3e-d7c7-42b4-aa3b-a8dc04574cf1)
-
-
-
-
-
-
-
-
-
 
 
 ### План разработки пошаговой глобальной стратегии:
