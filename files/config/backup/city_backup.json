@@ -1,0 +1,58 @@
+{
+    "kingdoms": {
+        "Аркадия": {
+            "color": [0, 0, 0.5],
+            "fortresses": [
+                {"coordinates": [80, 460], "name": "Бастион Милитель"},
+                {"coordinates": [100, 630], "name": "Аргенвилль"},
+                {"coordinates": [400, 500], "name": "Толирен"},
+                {"coordinates": [370, 600], "name": "Тарпин"},
+                {"coordinates": [200, 560], "name": "Владонск"}
+            ]
+        },
+        "Селестия": {
+            "color": [0, 0.5, 0],
+            "fortresses": [
+                {"coordinates": [130, 400], "name": "Эледрин"},
+                {"coordinates": [260, 140], "name": "Селария"},
+                {"coordinates": [100, 250], "name": "Миреллия"},
+                {"coordinates": [190, 220], "name": "Каландор"}
+            ]
+        },
+        "Хиперион": {
+            "color": [0.5, 0, 0.5],
+            "fortresses": [
+                {"coordinates": [523, 505], "name": "Валориан"},
+                {"coordinates": [519, 370], "name": "Солисграад"},
+                {"coordinates": [410, 320], "name": "Штормград"},
+                {"coordinates": [510, 200], "name": "Элдирия"},
+                {"coordinates": [310, 170], "name": "Форт Бастария"},
+                {"coordinates": [520, 620], "name": "Башня Малергейна"},
+                {"coordinates": [750, 540], "name": "Арданис"},
+                {"coordinates": [660, 380], "name": "Ауренбург "},
+                {"coordinates": [890, 520], "name": "Феррадан"},
+                {"coordinates": [720, 150], "name": "Бальтарис"},
+                {"coordinates": [790, 300], "name": "Терранора"},
+                {"coordinates": [940, 660], "name": "Цитадель Последней Надежды"}
+            ]
+        },
+        "Халидон": {
+            "color": [0.5, 0.25, 0],
+            "fortresses": [
+                {"coordinates": [820, 160], "name": "Аль-Шахара"},
+                {"coordinates": [940, 280], "name": "Тамир"},
+                {"coordinates": [1020, 100], "name": "Эркан"},
+                {"coordinates": [1000, 480], "name": "Рамшад"}
+            ]
+        },
+        "Этерия": {
+            "color": [0, 0.5, 0.5],
+            "fortresses": [
+                {"coordinates": [960, 370], "name": "Лунчжоу"},
+                {"coordinates": [1070, 610], "name": "Юншань"},
+                {"coordinates": [1120, 310], "name": "Фэйху"},
+                {"coordinates": [1070, 440], "name": "Тяньчжоу"}
+            ]
+        }
+    }
+}

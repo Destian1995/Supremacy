@@ -1,0 +1,76 @@
+{
+    "Штормград": [
+        {
+            "coordinates": "[410, 320]",
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/pretorian.jpg",
+                    "unit_name": "Преторианцы",
+                    "unit_count": 1500,
+                    "units_stats": {
+                        "Урон": 262500,
+                        "Защита": 120000,
+                        "Живучесть": 180000.0,
+                        "Класс юнита": "1"
+                    }
+                },
+                {
+                    "unit_image": "files/army/giperion/BM390.jpg",
+                    "unit_name": "Цезарь",
+                    "unit_count": 1000,
+                    "units_stats": {
+                        "Урон": 1177000,
+                        "Защита": 90000,
+                        "Живучесть": 140000.0,
+                        "Класс юнита": "3"
+                    }
+                },
+                {
+                    "unit_image": "files/army/giperion/varvar.jpg",
+                    "unit_name": "Центурион - W",
+                    "unit_count": 500,
+                    "units_stats": {
+                        "Урон": 325000,
+                        "Защита": 200000,
+                        "Живучесть": 270000.0,
+                        "Класс юнита": "2"
+                    }
+                },
+                {
+                    "unit_image": "files/army/giperion/valkirya.jpg",
+                    "unit_name": "WS.54 - Валькирия",
+                    "unit_count": 400,
+                    "units_stats": {
+                        "Урон": 360000,
+                        "Защита": 44000,
+                        "Живучесть": 132000.0,
+                        "Класс юнита": "4"
+                    }
+                },
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "CPS - 40",
+                    "unit_count": 300,
+                    "units_stats": {
+                        "Урон": 24000,
+                        "Защита": 375000,
+                        "Живучесть": 66000.0,
+                        "Класс юнита": "3"
+                    }
+                },
+                {
+                    "unit_image": "files/army/giperion/k-17.jpg",
+                    "unit_name": "К-17",
+                    "unit_count": 10,
+                    "units_stats": {
+                        "Урон": 423000,
+                        "Защита": 287000,
+                        "Живучесть": 374900.0,
+                        "Класс юнита": "4"
+                    }
+                }
+            ]
+        }
+    ],
+    "units": []
+}
