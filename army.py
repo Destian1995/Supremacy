@@ -20,13 +20,35 @@ import json
 import os
 import time
 
-faction_translation = {
+translation_dict = {
     "Аркадия": "arkadia",
     "Селестия": "celestia",
     "Этерия": "eteria",
     "Хиперион": "giperion",
     "Халидон": "halidon",
 }
+
+
+def transform_filename(file_path):
+    path_parts = file_path.split('/')
+    for i, part in enumerate(path_parts):
+        for ru_name, en_name in translation_dict.items():
+            if ru_name in part:
+                path_parts[i] = part.replace(ru_name, en_name)
+    return '/'.join(path_parts)
+
+def get_faction_of_city(city_name):
+    try:
+        with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
+            diplomacies = json.load(file)
+        for faction, data in diplomacies.items():
+            if city_name in data.get("города", []):
+                return faction
+        print(f"Город '{city_name}' не принадлежит ни одной фракции.")
+        return None
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Ошибка при загрузке diplomacies.json: {e}")
+        return None
 
 
 class ArmyCash:
@@ -139,7 +161,7 @@ def load_unit_data(english_faction):
 
 def show_unit_selection(faction, army_hire):
     """Показать окно выбора юнитов для найма"""
-    english_faction = faction_translation.get(faction, faction)
+    english_faction = translation_dict.get(faction, faction)
     unit_data = load_unit_data(english_faction)
 
     unit_popup = Popup(title="Выбор юнитов", size_hint=(0.9, 0.9))
@@ -258,13 +280,14 @@ def switch_to_politics(faction, game_area):
 
 class GeneralStaff:
     def __init__(self, faction, cities):
+        self.garrison_file = None
         self.faction = faction
         self.cities = cities
-        self.garrison_file = 'files/config/arms/army_in_city.json'
         self.units = self.load_garrison_data()
 
     def load_garrison_data(self):
         """Загружает данные о гарнизонах из файла."""
+        self.garrison_file = transform_filename(f'files/config/manage_ii/{self.faction}_in_city.json')
         if os.path.exists(self.garrison_file):
             try:
                 with open(self.garrison_file, 'r', encoding='utf-8') as file:
@@ -319,7 +342,7 @@ class Separator(Widget):
 # Основная функция для отображения интерфейса генштаба
 def show_army_headquarters(faction, cities):
     units_data = load_units_data()
-
+    load_units_fraction_city = transform_filename(f'files/config/manage_ii/{faction}_in_city.json')
     unit_popup = Popup(title=f"Генштаб - {faction}", size_hint=(0.9, 0.9))
     tab_panel = TabbedPanel(do_default_tab=False, size_hint=(1, 1))
 
@@ -368,7 +391,7 @@ def show_army_headquarters(faction, cities):
     garrison_button = Button(text='Расквартировать', size_hint=(1, None), height=50)
     garrison_button.bind(on_release=lambda instance: garrison_units(
         select_city_button.text, unit_count_input.text, select_unit_button.text, unassigned_layout, assigned_layout,
-        cities))
+        cities, load_units_fraction_city))
     button_layout.add_widget(garrison_button)
 
     unassigned_layout.add_widget(button_layout)
@@ -381,15 +404,16 @@ def show_army_headquarters(faction, cities):
     assigned_tab.add_widget(assigned_layout)
 
     # Загружаем данные для таблицы гарнизонов
-    update_assigned_units_tab(assigned_layout)
+    update_assigned_units_tab(assigned_layout, load_units_fraction_city)
 
     tab_panel.add_widget(assigned_tab)
     unit_popup.content = tab_panel
     unit_popup.open()
 
 
-def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout, assigned_layout, cities):
+def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout, assigned_layout, cities, load_units_fraction_city):
     """Обработка расквартирования юнитов и обновление данных о наличии."""
+    global unit_key
 
     units_data = load_units_data()
     print("Данные о загруженных юнитах:", units_data)
@@ -439,8 +463,7 @@ def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout
         unit_stats = unit_data.get("stats")
         print(f"Запись в город {city_name}: {unit_image}, {unit_name}, {unit_count}, {unit_stats}")
         save_army_in_city(city_name, city_coords, unit_image, unit_name, unit_count, unit_stats)
-        update_assigned_units_tab(assigned_layout)
-
+        update_assigned_units_tab(assigned_layout, load_units_fraction_city)
         # Полная очистка `unassigned_layout` и повторная загрузка виджетов и кнопок
         unassigned_layout.clear_widgets()
 
@@ -502,7 +525,7 @@ def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout
         print(f"Произошла непредвиденная ошибка: {e}")
 
 
-def update_assigned_units_tab(assigned_layout):
+def update_assigned_units_tab(assigned_layout, load_units_fraction_city):
     assigned_layout.clear_widgets()  # Очищаем виджет
 
     # Создаем ScrollView для таблицы
@@ -514,7 +537,7 @@ def update_assigned_units_tab(assigned_layout):
     table_layout.add_widget(Label(text="Город", bold=True, size_hint_y=None, height=40))
     table_layout.add_widget(Label(text="Состав гарнизона", bold=True, size_hint_y=None, height=40))
 
-    army_data = load_assigned_units_data()
+    army_data = load_assigned_units_data(load_units_fraction_city)
     # Заполнение таблицы данными
     for city_name, garrisons in army_data.items():
         for garrison in garrisons:
@@ -551,10 +574,9 @@ def update_assigned_units_tab(assigned_layout):
     assigned_layout.add_widget(table_scroll_view)
 
 
-def load_assigned_units_data():
-    """Загружает данные о расквартированных юнитах из файла army_in_city.json."""
-    army_data = {}
-    army_file_path = 'files/config/arms/army_in_city.json'  # Путь к файлу с данными о гарнизонах
+def load_assigned_units_data(army_file_path):
+    """Загружает данные о расквартированных юнитах из файла ."""
+    global army_data
 
     if os.path.exists(army_file_path):
         try:
@@ -609,7 +631,8 @@ def save_units_data(units_data):
 
 # Сохранение данных о расквартированных юнитах в файле
 def save_army_in_city(city_name, city_coords, unit_image, unit_name, unit_count, unit_stats):
-    army_in_city_file = 'files/config/arms/army_in_city.json'
+    fraction = get_faction_of_city(city_name)
+    army_in_city_file = transform_filename(f'files/config/manage_ii/{fraction}_in_city.json')
 
     # Проверка существования файла
     if os.path.exists(army_in_city_file):
@@ -618,7 +641,7 @@ def save_army_in_city(city_name, city_coords, unit_image, unit_name, unit_count,
                 army_data = json.load(file)
                 print(f"Содержимое файла до обновления: {army_data}")  # Логируем текущее содержимое
             except json.JSONDecodeError:
-                print("Ошибка при чтении army_in_city.json. Файл может быть пуст или повреждён.")
+                print(f"Ошибка при чтении {army_in_city_file}. Файл может быть пуст или повреждён.")
                 army_data = {}  # Если файл не читается, инициализируем пустой словарь
     else:
         army_data = {}  # Если файла не существует, инициализируем пустой словарь
@@ -1036,7 +1059,7 @@ def select_weapon_from_list(button, weapon_name):
 
 # Функция для получения данных юнитов
 def get_weapons(faction):
-    english_faction = faction_translation.get(faction, faction)
+    english_faction = translation_dict.get(faction, faction)
     weapons_file_path = f"files/config/weapon/{english_faction}.json"
     if os.path.exists(weapons_file_path):
         with open(weapons_file_path, 'r', encoding='utf-8') as f:

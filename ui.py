@@ -11,7 +11,7 @@ from collections import defaultdict
 from ast import literal_eval
 import fight
 
-army_file_path = "files/config/arms/army_in_city.json"
+
 arkadia_file_path = "files/config/manage_ii/arkadia_in_city.json"
 celestia_file_path = "files/config/manage_ii/celestia_in_city.json"
 eteria_file_path = "files/config/manage_ii/eteria_in_city.json"
@@ -31,7 +31,6 @@ translation_dict = {
 def merge_army_and_ii_files():
     # Список всех файлов, которые нужно объединить
     file_paths = [
-        army_file_path,
         arkadia_file_path,
         celestia_file_path,
         eteria_file_path,
