@@ -1,34 +1,50 @@
 {
     "arkadia_in_city": {
-        "Аргенвилль": [],
-        "Штормград": [
+        "Аргенвилль": [
             {
-                "coordinates": "[410, 320]",
+                "coordinates": "[100, 630]",
                 "units": [
+                    {
+                        "unit_image": "files/army/arkadia/sso.jpg",
+                        "unit_name": "Спецназ",
+                        "unit_count": 1300,
+                        "units_stats": {
+                            "Урон": 357000,
+                            "Защита": 297500,
+                            "Живучесть": 123250,
+                            "Класс юнита": "1"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/arkadia/gvardia.jpg",
+                        "unit_name": "Гвардия",
+                        "unit_count": 2100,
+                        "units_stats": {
+                            "Урон": 156750,
+                            "Защита": 128250,
+                            "Живучесть": 95000,
+                            "Класс юнита": "1"
+                        }
+                    },
                     {
                         "unit_image": "files/army/arkadia/ciclon-s.jpg",
                         "unit_name": "Циклон",
-                        "unit_count": 389,
+                        "unit_count": 950,
                         "units_stats": {
-                            "Урон": 377330,
-                            "Защита": 42790,
-                            "Живучесть": 93360,
+                            "Урон": 921500,
+                            "Защита": 104500,
+                            "Живучесть": 228000,
                             "Класс юнита": "3"
                         }
-                    }
-                ]
-            },
-            {
-                "coordinates": "[410, 320]",
-                "units": [
+                    },
                     {
                         "unit_image": "files/army/arkadia/mig-90.jpg",
                         "unit_name": "МИГ - 90",
-                        "unit_count": 626,
+                        "unit_count": 800,
                         "units_stats": {
-                            "Урон": 2798220,
-                            "Защита": 1126800,
-                            "Живучесть": 306740,
+                            "Урон": 3576000,
+                            "Защита": 1440000,
+                            "Живучесть": 392000,
                             "Класс юнита": "4"
                         }
                     }
@@ -36,5 +52,79 @@
             }
         ]
     },
-    "giperion_in_city": {}
+    "giperion_in_city": {
+        "Штормград": [
+            {
+                "coordinates": "[410, 320]",
+                "units": [
+                    {
+                        "unit_image": "files/army/giperion/pretorian.jpg",
+                        "unit_name": "Преторианцы",
+                        "unit_count": 3500,
+                        "units_stats": {
+                            "Урон": 647500,
+                            "Защита": 280000,
+                            "Живучесть": 420000,
+                            "Класс юнита": "1"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/giperion/BM390.jpg",
+                        "unit_name": "Цезарь",
+                        "unit_count": 1000,
+                        "units_stats": {
+                            "Урон": 1177000,
+                            "Защита": 90000,
+                            "Живучесть": 140000,
+                            "Класс юнита": "3"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/giperion/varvar.jpg",
+                        "unit_name": "Центурион",
+                        "unit_count": 1300,
+                        "units_stats": {
+                            "Урон": 845000,
+                            "Защита": 520000,
+                            "Живучесть": 702000,
+                            "Класс юнита": "2"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/giperion/valkirya.jpg",
+                        "unit_name": "Валькирия",
+                        "unit_count": 1200,
+                        "units_stats": {
+                            "Урон": 1896000,
+                            "Защита": 132000,
+                            "Живучесть": 396000,
+                            "Класс юнита": "4"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 1500,
+                        "units_stats": {
+                            "Урон": 120000,
+                            "Защита": 2325000,
+                            "Живучесть": 330000,
+                            "Класс юнита": "3"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/giperion/k-17.jpg",
+                        "unit_name": "К-17",
+                        "unit_count": 50,
+                        "units_stats": {
+                            "Урон": 4115000,
+                            "Защита": 1435000,
+                            "Живучесть": 1874500,
+                            "Класс юнита": "4"
+                        }
+                    }
+                ]
+            }
+        ]
+    }
 }

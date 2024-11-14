@@ -12,8 +12,7 @@ from kivy.app import App
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.treeview import TreeView, TreeViewLabel
 
-
-# Глобальные переменные для армий
+# временные массивы для армий
 defence_units = []
 attack_units = []
 
@@ -25,6 +24,7 @@ translation_dict = {
     "Халидон": "halidon",
 }
 
+
 def transform_filename(file_path, translation_dict):
     path_parts = file_path.split('/')
     for i, part in enumerate(path_parts):
@@ -32,6 +32,7 @@ def transform_filename(file_path, translation_dict):
             if ru_name in part:
                 path_parts[i] = part.replace(ru_name, en_name)
     return '/'.join(path_parts)
+
 
 def get_faction_of_city(city_name):
     try:
@@ -47,16 +48,17 @@ def get_faction_of_city(city_name):
         return None
 
 
-
 # Функция для сохранения данных в файл
 def save_json(filepath, data):
     with open(filepath, 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
 
+
 # Функция для записи данных в файл
 def save_report_to_file(report_data, file_path='files/config/reports/report_fight.json'):
     with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(report_data, f, ensure_ascii=False, indent=4)
+
 
 # Функция для пересчета характеристик юнита
 def update_unit_stats(unit, new_count):
@@ -68,6 +70,7 @@ def update_unit_stats(unit, new_count):
                 value_per_unit = value / original_count
                 unit['units_stats'][stat] = math.floor(value_per_unit * new_count)
     unit['unit_count'] = new_count
+
 
 def update_diplomacy_data(attacking_fraction, defending_fraction, city_name):
     with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
@@ -122,6 +125,7 @@ def update_city_data(attacking_fraction, defending_fraction, city_name, city_coo
 
     # Обновляем дипломатию
     update_diplomacy_data(attacking_fraction, defending_fraction, city_name)
+
 
 # Окно отчета боя
 def show_battle_report(report_data):
@@ -184,10 +188,12 @@ def show_battle_report(report_data):
     totals_layout.add_widget(Label(text="Общие потери:", bold=True, size_hint_y=None, height=30))
 
     # Потери атакующей стороны
-    totals_layout.add_widget(Label(text=f"Для атакующей стороны: {total_attacking_losses}", size_hint_y=None, height=30))
+    totals_layout.add_widget(
+        Label(text=f"Для атакующей стороны: {total_attacking_losses}", size_hint_y=None, height=30))
 
     # Потери обороняющейся стороны
-    totals_layout.add_widget(Label(text=f"Для обороняющейся стороны: {total_defending_losses}", size_hint_y=None, height=30))
+    totals_layout.add_widget(
+        Label(text=f"Для обороняющейся стороны: {total_defending_losses}", size_hint_y=None, height=30))
 
     # Добавляем итоговый блок в content
     content.add_widget(totals_layout)
@@ -201,11 +207,30 @@ def show_battle_report(report_data):
     popup = Popup(title="Отчет о потере войск", content=content, size_hint=(0.7, 0.7))
     popup.open()
 
-# Функция для боя
+
 # Функция для боя
 def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, defending_city,
           attacking_city_coords, defending_army, attacking_army, attacking_fraction, defending_fraction):
     global remaining_attacker_units, remaining_defender_units
+
+    starting_attacking_army = [
+        {
+            "user_name": unit['unit_name'],
+            "user_count": unit['unit_count'],
+            "side": "attacking"
+        }
+        for unit in attacking_army
+    ]  # Новый словарь для дальнейших расчетов потерь
+    starting_defending_army = [
+        {
+            "user_name": unit['unit_name'],
+            "user_count": unit['unit_count'],
+            "side": "defending"
+        }
+        for unit in defending_army
+    ] # Новый словарь для дальнейших расчетов потерь
+    print('starting_attacking_army', starting_attacking_army)
+    print('starting_defending_army', starting_defending_army)
 
     print('attacking_army ', attacking_army)
     print('defending_army ', defending_army)
@@ -272,13 +297,15 @@ def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, d
         if attacking_army:
             attacker_unit = attacking_army.pop(0)
         else:
-            attacker_unit = {'unit_image': '', 'unit_name': '', 'unit_count': 1, 'units_stats': {'Урон': 0, 'Защита': 0, 'Живучесть': 0, 'Класс юнита': '1'}}
+            attacker_unit = {'unit_image': '', 'unit_name': '', 'unit_count': 1,
+                             'units_stats': {'Урон': 0, 'Защита': 0, 'Живучесть': 0, 'Класс юнита': '1'}}
 
         # Проверяем, если есть юниты в обороняющей армии
         if defending_army:
             defender_unit = defending_army.pop(0)
         else:
-            defender_unit = {'unit_image': '', 'unit_name': '', 'unit_count': 1, 'units_stats': {'Урон': 0, 'Защита': 0, 'Живучесть': 0, 'Класс юнита': '1'}}
+            defender_unit = {'unit_image': '', 'unit_name': '', 'unit_count': 1,
+                             'units_stats': {'Урон': 0, 'Защита': 0, 'Живучесть': 0, 'Класс юнита': '1'}}
 
         # Если есть оба юнита, начинаем бой
         if attacker_unit and defender_unit:
@@ -291,6 +318,10 @@ def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, d
                 attack_units.append(attacker_unit)
                 print(f'Оставшиеся юниты в массиве атаки: {attack_units}')
                 print(f'Обновляем данные по атаке: {attacker_unit}')
+            else:
+                print(f"Юнит {attacker_unit['unit_name']} уничтожен и будет удален из временного массива.")
+                if attacker_unit in attack_units:
+                    attack_units.remove(attacker_unit)
 
             # Обновляем данные защитников
             if remaining_defender_units > 0:
@@ -298,6 +329,11 @@ def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, d
                 defence_units.append(defender_unit)
                 print(f'Оставшиеся юниты в массиве защиты: {defence_units}')
                 print(f"Обновляем данные по обороне: {defender_unit}")
+            else:
+                print(f"Юнит {defender_unit['unit_name']} уничтожен и будет удален из временного массива.")
+                if defender_unit in defence_units:
+                    defence_units.remove(defender_unit)
+
 
         # Если нет пары для атакующего юнита, добавляем его в файл
         elif attacker_unit:
@@ -346,7 +382,6 @@ def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, d
 
             defending_data = json.load(open(ii_file_path, 'r', encoding='utf-8'))
             print(f"Defending data: {defending_data}")
-
 
             # Очистка гарнизона атакующего города
             if attacking_city in attacking_data:
@@ -416,12 +451,36 @@ def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, d
             print(f"Город {defending_city} успешно защищен, данные обновлены.")
         else:
             print(f"Все защитные юниты уничтожены, бой завершен.")
+    # Собираем данные для отчета об атакующих
+    attacking_report = []
+    for unit in attack_units:
+        attacking_report.append({
+            'side': 'attacking',
+            'unit_name': unit['unit_name'],
+            'initial_count': unit['unit_count'],
+            'final_count': unit['remaining_count'],  # предполагается, что 'remaining_count' обновляется после боя
+            'losses': unit['unit_count'] - unit['remaining_count']
+        })
 
-    # Очистка массивов после завершения боя, когда уже обработаны все данные
-    defence_units.clear()  # Очищаем массив обороны
-    attack_units.clear()  # Очищаем массив атаки
+    # Собираем данные для отчета об обороняющихся
+    defending_report = []
+    for unit in defence_units:
+        defending_report.append({
+            'side': 'defending',
+            'unit_name': unit['unit_name'],
+            'initial_count': unit['unit_count'],
+            'final_count': unit['remaining_count'],  # предполагается, что 'remaining_count' обновляется после боя
+            'losses': unit['unit_count'] - unit['remaining_count']
+        })
 
-    print("Массивы после боя очищены.")
+    if not attack_units or not defence_units:
+        # Объединяем данные для передачи в отчет (уже собраны ранее)
+        full_report_data = attacking_report + defending_report
+        print('full_report_data', full_report_data)
+        # Проверяем, чтобы функция вызвалась один раз после завершения боя
+        if full_report_data:
+            show_battle_report(full_report_data)
+
 
 # Рекурсивная функция боя
 def recursive_fight(attacker_unit, defender_unit):
@@ -464,7 +523,8 @@ def recursive_fight(attacker_unit, defender_unit):
     if koef_attack == 0 or koef_defense == 0:
         return 0, 0
     else:
-        return max(0, math.floor(defender_alls * (-1) / koef_attack)), max(0, math.floor(attacker_alls * (-1) / koef_defense))
+        return max(0, math.floor(defender_alls * (-1) / koef_attack)), max(0, math.floor(
+            attacker_alls * (-1) / koef_defense))
 
 
 def damage_to_infrastructure(city_name, all_damage):
