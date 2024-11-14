@@ -1,0 +1,37 @@
+[
+    {
+        "unit_name": "Спецназ",
+        "initial_count": 207,
+        "final_count": 0,
+        "losses": 207,
+        "side": "attacking"
+    },
+    {
+        "unit_name": "Циклон",
+        "initial_count": 465,
+        "final_count": 389,
+        "losses": 76,
+        "side": "attacking"
+    },
+    {
+        "unit_name": "МИГ - 90",
+        "initial_count": 760,
+        "final_count": 626,
+        "losses": 134,
+        "side": "attacking"
+    },
+    {
+        "unit_name": "К-17",
+        "initial_count": 10,
+        "final_count": 0,
+        "losses": 10,
+        "side": "defending"
+    },
+    {
+        "unit_name": "Цезарь",
+        "initial_count": 318,
+        "final_count": 0,
+        "losses": 318,
+        "side": "defending"
+    }
+]

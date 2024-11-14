@@ -508,7 +508,7 @@ def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout
         garrison_button = Button(text='Расквартировать', size_hint=(1, None), height=50)
         garrison_button.bind(on_release=lambda instance: garrison_units(
             select_city_button.text, unit_count_input.text, select_unit_button.text, unassigned_layout, assigned_layout,
-            cities))
+            cities, load_units_fraction_city))
         button_layout.add_widget(garrison_button)
 
         unassigned_layout.add_widget(button_layout)

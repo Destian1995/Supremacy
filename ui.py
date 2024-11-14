@@ -1,6 +1,8 @@
 import json
 import os
 import re
+import shutil
+
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.image import Image
@@ -27,6 +29,25 @@ translation_dict = {
     "Халидон": "halidon",
 }
 
+def backup_files():
+    # Определяем путь к исходным и резервным файлам
+    backup_dir = 'files/config/backup'
+    city_file_path = 'files/config/city.json'
+    diplomaties_file_path = 'files/config/status/diplomaties.json'
+
+    # Проверяем, существует ли директория для резервных копий, если нет - создаем её
+    if not os.path.exists(backup_dir):
+        os.makedirs(backup_dir)
+
+    # Определяем пути для резервных копий
+    city_backup_path = os.path.join(backup_dir, 'city_backup.json')
+    diplomaties_backup_path = os.path.join(backup_dir, 'diplomaties_backup.json')
+
+    # Копируем файлы в каталог backup
+    shutil.copy(city_file_path, city_backup_path)
+    shutil.copy(diplomaties_file_path, diplomaties_backup_path)
+
+    print("Резервные копии файлов сохранены в:", backup_dir)
 
 def merge_army_and_ii_files():
     # Список всех файлов, которые нужно объединить
@@ -224,6 +245,7 @@ class FortressInfoPopup(Popup):
 
         # Создание макета для выбора гарнизона
         garrison_selection_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+
         # Загружаем данные гарнизонов из файла
         with open(self.garrison, 'r', encoding='utf-8') as file:
             try:
@@ -249,7 +271,8 @@ class FortressInfoPopup(Popup):
 
                 # Привязываем действие к кнопке, чтобы при нажатии вызвать метод передачи войск
                 garrison_button.bind(
-                    on_press=lambda btn, name=city_name, coords=coordinates: self.choose_garrison(name, coords)
+                    on_press=lambda btn, name=city_name, coords=coordinates: self.choose_garrison(name, coords,
+                                                                                                  garrison_selection_popup)
                 )
 
                 # Добавляем кнопку в макет
@@ -264,7 +287,8 @@ class FortressInfoPopup(Popup):
         garrison_selection_popup.content = garrison_selection_layout
         garrison_selection_popup.open()
 
-    def choose_garrison(self, source_city_name, coordinates):
+    def choose_garrison(self, source_city_name, coordinates, garrison_selection_popup):
+        backup_files()  # Делаем бэкап данных
         # Получаем фракции источника и назначения
         source_faction = self.get_faction_of_city(source_city_name)
         destination_faction = self.get_faction_of_city(self.city_name)
@@ -327,7 +351,8 @@ class FortressInfoPopup(Popup):
                 print(
                     f"Фракции '{source_faction}' и '{destination_faction}' находятся в состоянии '{relationship}'. Войска не могут быть введены.")
 
-        # Закрыть всплывающее окно
+        # Закрыть всплывающее окно после выполнения выбора
+        garrison_selection_popup.dismiss()
         self.dismiss()
 
     def get_faction_of_city(self, city_name):

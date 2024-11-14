@@ -2,11 +2,15 @@ import math
 import json
 import os
 import shutil
+
+from kivy.uix.gridlayout import GridLayout
 from kivy.uix.popup import Popup
 from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.app import App
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.treeview import TreeView, TreeViewLabel
 
 
 # Глобальные переменные для армий
@@ -42,31 +46,17 @@ def get_faction_of_city(city_name):
         print(f"Ошибка при загрузке diplomacies.json: {e}")
         return None
 
-def backup_files():
-    # Определяем путь к исходным и резервным файлам
-    backup_dir = 'files/config/backup'
-    city_file_path = 'files/config/city.json'
-    diplomaties_file_path = 'files/config/status/diplomaties.json'
 
-    # Проверяем, существует ли директория для резервных копий, если нет - создаем её
-    if not os.path.exists(backup_dir):
-        os.makedirs(backup_dir)
-
-    # Определяем пути для резервных копий
-    city_backup_path = os.path.join(backup_dir, 'city_backup.json')
-    diplomaties_backup_path = os.path.join(backup_dir, 'diplomaties_backup.json')
-
-    # Копируем файлы в каталог backup
-    shutil.copy(city_file_path, city_backup_path)
-    shutil.copy(diplomaties_file_path, diplomaties_backup_path)
-
-    print("Резервные копии файлов сохранены в:", backup_dir)
 
 # Функция для сохранения данных в файл
 def save_json(filepath, data):
     with open(filepath, 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
 
+# Функция для записи данных в файл
+def save_report_to_file(report_data, file_path='files/config/reports/report_fight.json'):
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(report_data, f, ensure_ascii=False, indent=4)
 
 # Функция для пересчета характеристик юнита
 def update_unit_stats(unit, new_count):
@@ -133,12 +123,89 @@ def update_city_data(attacking_fraction, defending_fraction, city_name, city_coo
     # Обновляем дипломатию
     update_diplomacy_data(attacking_fraction, defending_fraction, city_name)
 
+# Окно отчета боя
+def show_battle_report(report_data):
+    'Тут все работает нормально больше ничего не трогаем'
+    print('================================================================')
+    print('report_data', report_data)
+    print('================================================================')
+    content = BoxLayout(orientation='vertical')
 
+    # Создаем ScrollView для отображения таблиц
+    scroll_view = ScrollView()
+
+    # Создаем основной GridLayout для размещения таблиц
+    main_layout = BoxLayout(orientation='vertical', size_hint_y=None)
+    main_layout.bind(minimum_height=main_layout.setter('height'))
+
+    # Функция для создания таблицы с данными
+    def create_battle_table(side_data, title):
+        grid_layout = GridLayout(cols=4, size_hint_y=None)
+        grid_layout.bind(minimum_height=grid_layout.setter('height'))
+
+        # Заголовки таблицы
+        grid_layout.add_widget(Label(text="Тип Юнита", bold=True))
+        grid_layout.add_widget(Label(text="На начало боя", bold=True))
+        grid_layout.add_widget(Label(text="Осталось юнитов", bold=True))
+        grid_layout.add_widget(Label(text="Потери", bold=True))
+
+        # Заполнение данных
+        for unit_data in side_data:
+            grid_layout.add_widget(Label(text=unit_data['unit_name']))
+            grid_layout.add_widget(Label(text=str(unit_data["initial_count"])))
+            grid_layout.add_widget(Label(text=str(unit_data["final_count"])))
+            grid_layout.add_widget(Label(text=str(unit_data["losses"])))
+
+        return grid_layout
+
+    # Разделение данных по сторонам (атакующие и обороняющиеся)
+    attacking_data = [item for item in report_data if item['side'] == 'attacking']
+    defending_data = [item for item in report_data if item['side'] == 'defending']
+
+    # Создаем таблицы для атакующих и обороняющихся
+    attacking_table = create_battle_table(attacking_data, "атакующей стороны")
+    defending_table = create_battle_table(defending_data, "обороняющейся стороны")
+
+    # Добавляем таблицы в основной layout
+    main_layout.add_widget(Label(text="Отчет о потере войск", bold=True, size_hint_y=None, height=40))
+    main_layout.add_widget(attacking_table)
+    main_layout.add_widget(defending_table)
+
+    # Добавляем основной layout в ScrollView
+    scroll_view.add_widget(main_layout)
+    content.add_widget(scroll_view)
+
+    # Вычисление общих потерь
+    total_attacking_losses = sum(item['losses'] for item in attacking_data)
+    total_defending_losses = sum(item['losses'] for item in defending_data)
+
+    # Добавляем раздел для итоговых потерь
+    totals_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=100)
+    totals_layout.add_widget(Label(text="Общие потери:", bold=True, size_hint_y=None, height=30))
+
+    # Потери атакующей стороны
+    totals_layout.add_widget(Label(text=f"Для атакующей стороны: {total_attacking_losses}", size_hint_y=None, height=30))
+
+    # Потери обороняющейся стороны
+    totals_layout.add_widget(Label(text=f"Для обороняющейся стороны: {total_defending_losses}", size_hint_y=None, height=30))
+
+    # Добавляем итоговый блок в content
+    content.add_widget(totals_layout)
+
+    # Кнопка для закрытия окна
+    close_button = Button(text="Закрыть", size_hint_y=None, height=50)
+    close_button.bind(on_release=lambda instance: popup.dismiss())
+    content.add_widget(close_button)
+
+    # Открытие всплывающего окна
+    popup = Popup(title="Отчет о потере войск", content=content, size_hint=(0.7, 0.7))
+    popup.open()
+
+# Функция для боя
 # Функция для боя
 def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, defending_city,
           attacking_city_coords, defending_army, attacking_army, attacking_fraction, defending_fraction):
     global remaining_attacker_units, remaining_defender_units
-    backup_files()  # Делаем бэкап данных
 
     print('attacking_army ', attacking_army)
     print('defending_army ', defending_army)
@@ -356,8 +423,6 @@ def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, d
 
     print("Массивы после боя очищены.")
 
-
-
 # Рекурсивная функция боя
 def recursive_fight(attacker_unit, defender_unit):
     print(f"Начинаем бой с юнитами: {attacker_unit['unit_name']} и {defender_unit['unit_name']}")
@@ -397,13 +462,9 @@ def recursive_fight(attacker_unit, defender_unit):
             print(f"Осталось сил у атакующей стороны {defender_alls * (-1)}")
 
     if koef_attack == 0 or koef_defense == 0:
-        remaining_attacker_units = 0
-        remaining_defender_units = 0
-        return remaining_attacker_units, remaining_defender_units
+        return 0, 0
     else:
-        remaining_attacker_units = max(0, math.floor(defender_alls * (-1) / koef_attack))
-        remaining_defender_units = max(0, math.floor(attacker_alls * (-1) / koef_defense))
-        return remaining_attacker_units, remaining_defender_units
+        return max(0, math.floor(defender_alls * (-1) / koef_attack)), max(0, math.floor(attacker_alls * (-1) / koef_defense))
 
 
 def damage_to_infrastructure(city_name, all_damage):

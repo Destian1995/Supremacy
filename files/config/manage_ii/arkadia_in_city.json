@@ -1,0 +1,37 @@
+{
+    "Аргенвилль": [],
+    "Штормград": [
+        {
+            "coordinates": "[410, 320]",
+            "units": [
+                {
+                    "unit_image": "files/army/arkadia/ciclon-s.jpg",
+                    "unit_name": "Циклон",
+                    "unit_count": 389,
+                    "units_stats": {
+                        "Урон": 377330,
+                        "Защита": 42790,
+                        "Живучесть": 93360,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        },
+        {
+            "coordinates": "[410, 320]",
+            "units": [
+                {
+                    "unit_image": "files/army/arkadia/mig-90.jpg",
+                    "unit_name": "МИГ - 90",
+                    "unit_count": 626,
+                    "units_stats": {
+                        "Урон": 2798220,
+                        "Защита": 1126800,
+                        "Живучесть": 306740,
+                        "Класс юнита": "4"
+                    }
+                }
+            ]
+        }
+    ]
+}
