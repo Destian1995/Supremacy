@@ -1,24 +1,4 @@
 {
-    "arkadia_in_city": {
-        "Владонск": [
-            {
-                "coordinates": "[200, 560]",
-                "units": [
-                    {
-                        "unit_image": "files/army/arkadia/sso.jpg",
-                        "unit_name": "Спецназ",
-                        "unit_count": 150,
-                        "units_stats": {
-                            "Урон": 63000,
-                            "Защита": 52500,
-                            "Живучесть": 21750,
-                            "Класс юнита": "1"
-                        }
-                    }
-                ]
-            }
-        ]
-    },
     "giperion_in_city": {
         "Штормград": [
             {
@@ -93,6 +73,24 @@
                 ]
             }
         ],
-        "units": []
+        "units": [],
+        "Толирен": [
+            {
+                "coordinates": "[400, 500]",
+                "units": [
+                    {
+                        "unit_image": "files/army/arkadia/sso.jpg",
+                        "unit_name": "Спецназ",
+                        "unit_count": 150,
+                        "units_stats": {
+                            "Урон": 63000,
+                            "Защита": 52500,
+                            "Живучесть": 21750,
+                            "Класс юнита": "1"
+                        }
+                    }
+                ]
+            }
+        ]
     }
 }

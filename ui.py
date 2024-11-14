@@ -85,6 +85,9 @@ class FortressInfoPopup(Popup):
         self.player_fraction = player_fraction
         self.file_path2 = None
         self.file_path1 = None
+        self.garrison = transform_filename(f'files/config/manage_ii/{self.player_fraction}_in_city.json',
+                                           translation_dict)
+        print('Путь garrison', self.garrison)
 
         # Загрузка данных о городах
         with open('files/config/cities.json', 'r', encoding='utf-8') as file:
@@ -161,7 +164,7 @@ class FortressInfoPopup(Popup):
         try:
             with open(log_file, 'r', encoding='utf-8') as file:
                 army_data = json.load(file)
-                for army_type in ['army_in_city', 'arkadia_in_city', 'celestia_in_city', 'halidon_in_city', 'giperion_in_city', 'eteria_in_city']:  # Проверка всех разделов
+                for army_type in ['arkadia_in_city', 'celestia_in_city', 'halidon_in_city', 'giperion_in_city', 'eteria_in_city']:  # Проверка всех разделов
                     if city_name in army_data.get(army_type, {}):
                         for entry in army_data[army_type][city_name]:
                             for unit in entry.get('units', []):
@@ -221,9 +224,8 @@ class FortressInfoPopup(Popup):
 
         # Создание макета для выбора гарнизона
         garrison_selection_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
-
         # Загружаем данные гарнизонов из файла
-        with open('files/config/arms/army_in_city.json', 'r', encoding='utf-8') as file:
+        with open(self.garrison, 'r', encoding='utf-8') as file:
             try:
                 army_data = json.load(file)
             except json.JSONDecodeError:
@@ -267,24 +269,15 @@ class FortressInfoPopup(Popup):
         source_faction = self.get_faction_of_city(source_city_name)
         destination_faction = self.get_faction_of_city(self.city_name)
 
-        # Создаем словарь перевода для фракций
-        translation_dict = {
-            "Аркадия": "arkadia",
-            "Селестия": "celestia",
-            "Этерия": "eteria",
-            "Хиперион": "giperion",
-            "Халидон": "halidon",
-        }
-
         # Обработка путей в зависимости от фракций
         if source_faction == self.player_fraction:
-            self.file_path1 = army_file_path
+            self.file_path1 = self.garrison
             self.file_path2 = transform_filename(f'files/config/manage_ii/{destination_faction}_in_city.json',
                                                  translation_dict)
         elif destination_faction == self.player_fraction:
             self.file_path1 = transform_filename(f'files/config/manage_ii/{source_faction}_in_city.json',
                                                  translation_dict)
-            self.file_path2 = army_file_path
+            self.file_path2 = self.garrison
         else:
             self.file_path1 = transform_filename(f'files/config/manage_ii/{source_faction}_in_city.json',
                                                  translation_dict)
@@ -366,7 +359,7 @@ class FortressInfoPopup(Popup):
         try:
             with open(log_file, 'r', encoding='utf-8') as file:
                 army_data = json.load(file)
-                for army_type in ['army_in_city', 'arkadia_in_city', 'celestia_in_city', 'halidon_in_city', 'giperion_in_city', 'eteria_in_city']:  # Проверка всех разделов
+                for army_type in ['arkadia_in_city', 'celestia_in_city', 'halidon_in_city', 'giperion_in_city', 'eteria_in_city']:  # Проверка всех разделов
                     if city_name in army_data.get(army_type, {}):
                         for entry in army_data[army_type][city_name]:
                             return entry.get('units', [])  # Возвращаем список юнитов
@@ -380,9 +373,8 @@ class FortressInfoPopup(Popup):
             return None
 
     def update_city_data(self, source_city_name):
-        log_file = 'files/config/arms/army_in_city.json'
         try:
-            with open(log_file, 'r+', encoding='utf-8') as file:
+            with open(self.garrison, 'r+', encoding='utf-8') as file:
                 army_data = json.load(file)
 
                 # Проверка наличия данных о выбранном гарнизоне
