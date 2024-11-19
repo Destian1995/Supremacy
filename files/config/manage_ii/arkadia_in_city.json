@@ -1,55 +1,5 @@
 {
-    "Аргенвилль": [
-        {
-            "coordinates": "[100, 630]",
-            "units": [
-                {
-                    "unit_image": "files/army/arkadia/gvardia.jpg",
-                    "unit_name": "Гвардия",
-                    "unit_count": 4000,
-                    "units_stats": {
-                        "Урон": 640000,
-                        "Защита": 440000,
-                        "Живучесть": 400000,
-                        "Класс юнита": "1"
-                    }
-                },
-                {
-                    "unit_image": "files/army/arkadia/sso.jpg",
-                    "unit_name": "Спецназ",
-                    "unit_count": 3500,
-                    "units_stats": {
-                        "Урон": 1470000,
-                        "Защита": 1295000,
-                        "Живучесть": 507500,
-                        "Класс юнита": "1"
-                    }
-                },
-                {
-                    "unit_image": "files/army/arkadia/ciclon-s.jpg",
-                    "unit_name": "Циклон",
-                    "unit_count": 3500,
-                    "units_stats": {
-                        "Урон": 3395000,
-                        "Защита": 385000,
-                        "Живучесть": 420000,
-                        "Класс юнита": "3"
-                    }
-                },
-                {
-                    "unit_image": "files/army/arkadia/mig-90.jpg",
-                    "unit_name": "МИГ - 90",
-                    "unit_count": 1000,
-                    "units_stats": {
-                        "Урон": 4000000,
-                        "Защита": 1800000,
-                        "Живучесть": 490000,
-                        "Класс юнита": "4"
-                    }
-                }
-            ]
-        }
-    ],
+    "Аргенвилль": [],
     "Тарпин": [
         {
             "coordinates": "[370, 600]",
@@ -63,6 +13,72 @@
                         "Защита": 185000,
                         "Живучесть": 72500,
                         "Класс юнита": "1"
+                    }
+                }
+            ]
+        }
+    ],
+    "Штормград": [
+        {
+            "coordinates": "[410, 320]",
+            "units": [
+                {
+                    "unit_image": "files/army/arkadia/gvardia.jpg",
+                    "unit_name": "Гвардия",
+                    "unit_count": 2614,
+                    "units_stats": {
+                        "Урон": 418240,
+                        "Защита": 287540,
+                        "Живучесть": 261400,
+                        "Класс юнита": "1"
+                    }
+                }
+            ]
+        },
+        {
+            "coordinates": "[410, 320]",
+            "units": [
+                {
+                    "unit_image": "files/army/arkadia/sso.jpg",
+                    "unit_name": "Спецназ",
+                    "unit_count": 2288,
+                    "units_stats": {
+                        "Урон": 960960,
+                        "Защита": 846560,
+                        "Живучесть": 331760,
+                        "Класс юнита": "1"
+                    }
+                }
+            ]
+        },
+        {
+            "coordinates": "[410, 320]",
+            "units": [
+                {
+                    "unit_image": "files/army/arkadia/ciclon-s.jpg",
+                    "unit_name": "Циклон",
+                    "unit_count": 1318,
+                    "units_stats": {
+                        "Урон": 1278460,
+                        "Защита": 144980,
+                        "Живучесть": 158160,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        },
+        {
+            "coordinates": "[410, 320]",
+            "units": [
+                {
+                    "unit_image": "files/army/arkadia/mig-90.jpg",
+                    "unit_name": "МИГ - 90",
+                    "unit_count": 168,
+                    "units_stats": {
+                        "Урон": 672000,
+                        "Защита": 302400,
+                        "Живучесть": 82320,
+                        "Класс юнита": "4"
                     }
                 }
             ]

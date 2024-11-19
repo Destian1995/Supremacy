@@ -120,9 +120,10 @@ class Faction:
         self.tax_effects = 0
         self.food_price_history = []  # История цен на еду
         self.current_food_price = 0  # Текущая цена на еду
+        self.current_tax_rate = 0  # Начальная ставка налога — по умолчанию 0%
         self.turns = 0  # Счетчик ходов
         self.tax_set = False  # Флаг, установлен ли налог
-        self.custom_tax_rate = None  # Новый атрибут для хранения пользовательской ставки налога
+        self.custom_tax_rate = 0  # Новый атрибут для хранения пользовательской ставки налога
         self.cities_buildings = {city['name']: {'Больница': 0, 'Фабрика': 0} for city in self.cities}
 
         self.resources = {
