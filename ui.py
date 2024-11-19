@@ -342,11 +342,9 @@ class FortressInfoPopup(Popup):
                     attacking_fraction=source_faction,
                     defending_fraction=destination_faction,
                     defending_city_coords=self.city_coords,  # Координаты города-защитника
-                    attacking_city_coords=literal_eval(coordinates),
                     defending_city=self.city_name,
                     defending_army=defending_army,
-                    attacking_army=attacking_army,
-                    check_round=True
+                    attacking_army=attacking_army
                 )
             else:
                 print(

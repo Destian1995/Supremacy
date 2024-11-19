@@ -16,8 +16,6 @@ from kivy.uix.treeview import TreeView, TreeViewLabel
 defence_units = []
 attack_units = []
 
-
-
 translation_dict = {
     "Аркадия": "arkadia",
     "Селестия": "celestia",
@@ -55,6 +53,20 @@ def save_json(filepath, data):
     with open(filepath, 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
 
+def update_army_file(file_path, city_name, updated_units):
+    # Загружаем данные из файла
+    with open(file_path, 'r', encoding='utf-8') as file:
+        data = json.load(file)
+
+    # Проверяем, есть ли город в данных
+    if city_name in data:
+        # Обновляем информацию о юнитах города
+        for city_info in data[city_name]:
+            city_info['units'] = updated_units
+
+    # Перезаписываем файл с обновленными данными
+    with open(file_path, 'w', encoding='utf-8') as file:
+        json.dump(data, file, ensure_ascii=False, indent=4)
 
 # Функция для записи данных в файл
 def save_report_to_file(report_data, file_path='files/config/reports/report_fight.json'):
@@ -129,6 +141,42 @@ def update_city_data(attacking_fraction, defending_fraction, city_name, city_coo
     update_diplomacy_data(attacking_fraction, defending_fraction, city_name)
 
 
+def not_found_def_army(attacking_army, ii_file_path, user_file_path, attacking_city, attacking_fraction,
+                       defending_fraction, defending_city, defending_city_coords):
+    print(f"В городе {defending_city} нет защитной армии. Атакующие занимают город без боя.")
+
+    # Загрузка данных атакующего и защитника
+    attacking_data = json.load(open(user_file_path, 'r', encoding='utf-8'))
+    defending_data = json.load(open(ii_file_path, 'r', encoding='utf-8'))
+
+    # Удаление города из данных защитников
+    if defending_city in defending_data:
+        del defending_data[defending_city]
+
+    # Очистка гарнизона атакующего города
+    if attacking_city in attacking_data:
+        attacking_data[attacking_city] = []  # Полная очистка гарнизона
+
+    # Добавление атакующих юнитов в занятый город
+    if defending_city not in attacking_data:
+        attacking_data[defending_city] = []
+
+    attacking_data[defending_city].append({
+        "coordinates": str(defending_city_coords),
+        "units": attacking_army
+    })
+
+    # Сохранение данных в файлы
+    save_json(user_file_path, attacking_data)
+    save_json(ii_file_path, defending_data)
+
+    # Обновляем данные о захваченном городе
+    update_city_data(attacking_fraction, defending_fraction, defending_city, defending_city_coords)
+
+    print(f"Атакующие успешно заняли город {defending_city}.")
+    return  # Завершение функции, так как бой не нужен
+
+
 # Окно отчета боя
 def show_battle_report(report_data):
     'Тут все работает нормально больше ничего не трогаем'
@@ -152,15 +200,15 @@ def show_battle_report(report_data):
         # Заголовки таблицы
         grid_layout.add_widget(Label(text="Тип Юнита", bold=True))
         grid_layout.add_widget(Label(text="На начало боя", bold=True))
-        grid_layout.add_widget(Label(text="Осталось юнитов", bold=True))
         grid_layout.add_widget(Label(text="Потери", bold=True))
+        grid_layout.add_widget(Label(text="Осталось юнитов", bold=True))
 
         # Заполнение данных
         for unit_data in side_data:
             grid_layout.add_widget(Label(text=unit_data['unit_name']))
             grid_layout.add_widget(Label(text=str(unit_data["initial_count"])))
-            grid_layout.add_widget(Label(text=str(unit_data["final_count"])))
             grid_layout.add_widget(Label(text=str(unit_data["losses"])))
+            grid_layout.add_widget(Label(text=str(unit_data["final_count"])))
 
         return grid_layout
 
@@ -205,360 +253,247 @@ def show_battle_report(report_data):
     content.add_widget(close_button)
 
     # Открытие всплывающего окна
-    popup = Popup(title="Отчет о потере войск", content=content, size_hint=(0.7, 0.7))
+    popup = Popup(title="Итоги боя", content=content, size_hint=(0.7, 0.7))
     popup.open()
 
 
-# Функция для боя
-def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, defending_city,
-          attacking_city_coords, defending_army, attacking_army, attacking_fraction, defending_fraction,
-          check_round=False):
+def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, defending_city, defending_army,
+          attacking_army, attacking_fraction, defending_fraction):
     global remaining_attacker_units, remaining_defender_units, report_check, full_report_data
 
-    if check_round:
-        global starting_attacking_army, starting_defending_army
-        report_check = False
-        starting_attacking_army = [
-            {
-                "user_name": unit['unit_name'],
-                "unit_count": unit['unit_count'],
-                "side": "attacking"
-            }
-            for unit in attacking_army
-        ]  # Новый словарь для дальнейших расчетов потерь
-        starting_defending_army = [
-            {
-                "user_name": unit['unit_name'],
-                "unit_count": unit['unit_count'],
-                "side": "defending"
-            }
-
-            for unit in defending_army
-        ]  # Новый словарь для дальнейших расчетов потерь
-
-        print('starting_attacking_army', starting_attacking_army)
-        print('starting_defending_army', starting_defending_army)
-
-    print('attacking_army ', attacking_army)
-    print('defending_army ', defending_army)
     all_damage = 0
     for damage in attacking_army:
         all_damage += damage['units_stats']['Урон']
 
-    print('Общий урон армии атаки:', all_damage)
     damage_to_infrastructure(defending_city, all_damage)
+
     # Проверка, если в городе отсутствует защитная армия
     if not defending_army:
-        print(f"В городе {defending_city} нет защитной армии. Атакующие занимают город без боя.")
+        not_found_def_army(attacking_army, ii_file_path, user_file_path, attacking_city, attacking_fraction,
+                           defending_fraction, defending_city, defending_city_coords)
 
-        # Загрузка данных атакующего и защитника
-        attacking_data = json.load(open(user_file_path, 'r', encoding='utf-8'))
-        defending_data = json.load(open(ii_file_path, 'r', encoding='utf-8'))
+    # Коэффициенты для классов юнитов
+    class_coefficients = {
+        '1': 1.0,  # Пехота
+        '2': 1.4,  # Бронетехника
+        '3': 1.8,  # Артиллерия
+        '4': 2.4  # Авиация
+    }
 
-        # Удаление города из данных защитников
+    # Вычисление коэффициентов и процентов вклада для каждого юнита в атакующей армии
+    unit_koefs_attack = {}
+    total_damage = 0
+    total_units = 0
+    damage_info = []
+    surviving_units_def = []
+
+    for unit in attacking_army:
+        unit_damage = unit['units_stats']['Урон']
+        unit_count = unit['unit_count']
+        unit_type = unit['units_stats']['Класс юнита']
+        coefficient = class_coefficients.get(unit_type)
+
+        # Коэффициент для юнита: Урон / Количество юнитов
+        unit_koefs_attack[unit['unit_name']] = unit_damage / unit_count
+        total_damage += unit_damage * unit_count * coefficient
+        total_units += unit_count
+    print('unit_koefs_attack', unit_koefs_attack)
+    # Рассчитываем процент вклада каждого юнита в общую силу атаки
+    unit_percent_contributions_attack = {}
+    for unit in attacking_army:
+        unit_damage = unit['units_stats']['Урон']
+        unit_count = unit['unit_count']
+        unit_type = unit['units_stats']['Класс юнита']
+        coefficient = class_coefficients.get(unit_type)
+
+        # Процент вклада юнита в общую силу атаки
+        unit_strength = unit_damage * unit_count * coefficient
+        unit_percent_contributions_attack[unit['unit_name']] = unit_strength / total_damage
+
+    print('Процент атаки юнитов', unit_percent_contributions_attack)
+    print('Общая сила атаки', total_damage)
+    # Вычисление коэффициентов и процентов вклада для каждого юнита
+    unit_koefs_def = {}
+    total_health = 0
+    total_defense = 0
+    total_units = 0
+    damage_info = []
+    surviving_units_attack = []
+    destroyed_units_count = 0
+
+    for unit in defending_army:
+        unit_health = unit['units_stats']['Живучесть']
+        unit_defense = unit['units_stats']['Защита']
+        unit_count = unit['unit_count']
+
+        # Коэффициент для юнита: (Живучесть + Защита) / Количество юнитов
+        unit_koefs_def[unit['unit_name']] = (unit_health + unit_defense) / unit_count
+        total_health += unit_health * unit_count
+        total_defense += unit_defense * unit_count
+        total_units += unit_count
+
+    # Рассчитываем процент вклада каждого юнита в общую силу
+    unit_percent_contributions_defense = {}
+    total_strength = total_health + total_defense
+    for unit in defending_army:
+        unit_health = unit['units_stats']['Живучесть']
+        unit_defense = unit['units_stats']['Защита']
+        unit_count = unit['unit_count']
+
+        # Процент вклада юнита в общую силу
+        unit_strength = (unit_health + unit_defense) * unit_count
+        unit_percent_contributions_defense[unit['unit_name']] = unit_strength / total_strength
+        print(unit_percent_contributions_defense)
+
+    print('Общая защита защитной армии:', total_defense)
+    attacking_data = json.load(open(user_file_path, 'r', encoding='utf-8'))
+    defending_data = json.load(open(ii_file_path, 'r', encoding='utf-8'))
+    # Вычисление максимальной и минимальной величины урона и защиты и НАНОСИМ УРОН
+    effective_army_damage = total_damage - total_defense
+    print('Эффективный чистый урон', effective_army_damage)
+    # Наносим урон по каждому юниту отдельно
+    # ЗАЩИТА ПОБЕДИЛА
+    if total_damage < total_defense:
+        # Наносим урон по каждому юниту отдельно
+        # Удаление старых данных о городе защиты
         if defending_city in defending_data:
             del defending_data[defending_city]
+            print(f"Город {defending_city} удален из защитников.")
 
-        # Очистка гарнизона атакующего города
-        if attacking_city in attacking_data:
-            attacking_data[attacking_city] = []  # Полная очистка гарнизона
+        for unit in defending_army:
+            unit_health = unit['units_stats']['Живучесть']
+            unit_defense = unit['units_stats']['Защита']
+            unit_count = unit['unit_count']
+            unit_name = unit['unit_name']
+            unit_koef = unit_koefs_def.get(unit['unit_name'])
+            unit_percent = unit_percent_contributions_defense.get(unit['unit_name'])
 
-        # Добавление атакующих юнитов в занятый город
-        if defending_city not in attacking_data:
-            attacking_data[defending_city] = []
+            if not unit_koef or not unit_percent:
+                print(f"Нет коэффициента или процента для юнита {unit['unit_name']}")
+                continue
 
-        attacking_data[defending_city].append({
-            "coordinates": str(defending_city_coords),
-            "units": attacking_army
-        })
+            # Сохраняем начальное количество юнитов
+            initial_unit_count = unit_count
 
-        # Сохранение данных в файлы
-        save_json(user_file_path, attacking_data)
-        save_json(ii_file_path, defending_data)
+            # Распределяем урон пропорционально проценту вклада юнита в общую силу
+            damage_per_unit = total_damage * unit_percent  # Распределяем урон по юнитам
+            remaining_strength = (unit_health + unit_defense) * unit_count - damage_per_unit
 
-        # Обновляем данные о захваченном городе
-        update_city_data(attacking_fraction, defending_fraction, defending_city, defending_city_coords)
-
-        print(f"Атакующие успешно заняли город {defending_city}.")
-        return  # Завершение функции, так как бой не нужен
-
-    at_count = len(attacking_army)
-    def_count = len(defending_army)
-
-    if 0 < at_count != def_count > 0:
-        if at_count > def_count:
-            last_unit = attacking_army[-1]  # Получаем последнее значение
-            attack_units.append(last_unit)  # Добавляем его в массив
-            print("Последний юнит атакующих добавлен в массив:", attack_units)
-        elif at_count < def_count:
-            last_unit = defending_army[-1]  # Получаем последнее значение
-            defence_units.append(last_unit)  # Добавляем его в массив
-            print("Последний юнит обороняющих добавлен в массив:", defence_units)
-
-    print("Начало боя между городами.")
-    print(f"Атакующий город: {attacking_city}, координаты: {attacking_city_coords}")
-    print(f"Защитник: {defending_city}, координаты: {defending_city_coords}")
-
-    while attacking_army or defending_army:
-        # Проверяем, если есть юниты в атакующей армии
-        if attacking_army:
-            attacker_unit = attacking_army.pop(0)
-        else:
-            attacker_unit = {'unit_image': '', 'unit_name': '', 'unit_count': 1,
-                             'units_stats': {'Урон': 0, 'Защита': 0, 'Живучесть': 0, 'Класс юнита': '1'}}
-
-        # Проверяем, если есть юниты в обороняющей армии
-        if defending_army:
-            defender_unit = defending_army.pop(0)
-        else:
-            defender_unit = {'unit_image': '', 'unit_name': '', 'unit_count': 1,
-                             'units_stats': {'Урон': 0, 'Защита': 0, 'Живучесть': 0, 'Класс юнита': '1'}}
-
-        # Если есть оба юнита, начинаем бой
-        if attacker_unit and defender_unit:
-            print(f"Начинаем бой с юнитами: {attacker_unit['unit_name']} и {defender_unit['unit_name']}")
-            remaining_attacker_units, remaining_defender_units = recursive_fight(attacker_unit, defender_unit)
-
-            # Обновляем данные атакующих
-            if remaining_attacker_units > 0:
-                update_unit_stats(attacker_unit, remaining_attacker_units)
-                attack_units.append(attacker_unit)
-                print(f'Оставшиеся юниты в массиве атаки: {attack_units}')
-                print(f'Обновляем данные по атаке: {attacker_unit}')
-            else:
-                print(f"Юнит {attacker_unit['unit_name']} уничтожен и будет удален из временного массива.")
-                if attacker_unit in attack_units:
-                    attack_units.remove(attacker_unit)
-
-            # Обновляем данные защитников
-            if remaining_defender_units > 0:
-                update_unit_stats(defender_unit, remaining_defender_units)
-                defence_units.append(defender_unit)
-                print(f'Оставшиеся юниты в массиве защиты: {defence_units}')
-                print(f"Обновляем данные по обороне: {defender_unit}")
-            else:
-                print(f"Юнит {defender_unit['unit_name']} уничтожен и будет удален из временного массива.")
-                if defender_unit in defence_units:
-                    defence_units.remove(defender_unit)
-
-
-        # Если нет пары для атакующего юнита, добавляем его в файл
-        elif attacker_unit:
-            print(f"Юнит {attacker_unit['unit_name']} не имеет пары, добавляем в файл.")
-            # Добавляем атакующего юнита в файл
-            attacking_data = json.load(open(user_file_path, 'r', encoding='utf-8'))
-            if attacking_city not in attacking_data:
-                attacking_data[attacking_city] = []
-            attacking_data[attacking_city].append({
-                "coordinates": str(attacking_city_coords),
-                "units": [attacker_unit]
-            })
-            save_json(user_file_path, attacking_data)
-            print(f"Атакующий юнит {attacker_unit['unit_name']} добавлен в файл.")
-
-        # Если нет пары для защитного юнита, добавляем его в файл
-        elif defender_unit:
-            print(f"Юнит {defender_unit['unit_name']} не имеет пары, добавляем в файл.")
-            # Добавляем защитного юнита в файл
-            defending_data = json.load(open(ii_file_path, 'r', encoding='utf-8'))
-            if defending_city not in defending_data:
-                defending_data[defending_city] = []
-            defending_data[defending_city].append({
-                "coordinates": str(defending_city_coords),
-                "units": [defender_unit]
-            })
-            save_json(ii_file_path, defending_data)
-            print(f"Защитный юнит {defender_unit['unit_name']} добавлен в файл.")
-
-        # Если есть только один юнит в армии, а другой был уничтожен
-        ldef = len(defence_units)
-        latack = len(attack_units)
-
-        if ldef > 0 and latack > 0 and (len(attacking_army) == 0 or len(defending_army) == 0):
-            # Вызов функции, передаем текущие данные по оставшимся юнитам
-            fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, defending_city,
-                  attacking_city_coords, defending_army=defence_units, attacking_army=attack_units,
-                  attacking_fraction=attacking_fraction,
-                  defending_fraction=defending_fraction, check_round=False)
-
-        print('Юнитов в защите', ldef)
-        print('Юнитов в атаке', latack)
-
-        # Обработка результата боя
-        if remaining_attacker_units > 0 and remaining_defender_units == 0:
-            attacking_data = json.load(open(user_file_path, 'r', encoding='utf-8'))
-            defending_data = json.load(open(ii_file_path, 'r', encoding='utf-8'))
+            remaining_units = int(remaining_strength // (unit_health + unit_defense))  # Пересчитываем остаток
+            # Пересчитываем остаток
+            if remaining_units < 0:
+                remaining_units = 0
+            print('remaining_units', remaining_units)
+            destroyed_count_for_unit = initial_unit_count - remaining_units
+            unit_info = calculate_losses(unit_name, starting_army=initial_unit_count, final_army=remaining_units,
+                                         destroyed_count_for_unit=destroyed_count_for_unit, side='defending')
+            unit['unit_count'] = remaining_units  # Обновляем количество оставшихся юнитов
+            surviving_units_def += unit_info
 
             # Очистка гарнизона атакующего города
             if attacking_city in attacking_data:
                 attacking_data[attacking_city] = []  # Полная очистка гарнизона
 
-            # Удаление старых данных о городе защиты
-            if defending_city in defending_data:
-                del defending_data[defending_city]
-                print(f"Город {defending_city} удален из защитников.")
+            # Если город защиты не существует в данных защиты, создаем его
+            if defending_city not in defending_data:
+                defending_data[defending_city] = []
+
+            update_unit_stats(unit, remaining_units)
+            # Добавляем новый защитный юнит
+            defending_data[defending_city].append({
+                "coordinates": str(defending_city_coords),
+                "units": [unit]  # Для каждого города защита или атака должна добавлять актуальные войска
+            })
+            # Сохраняем обновленные данные в файлы
+            save_json(user_file_path, attacking_data)
+            save_json(ii_file_path, defending_data)
+
+        # Удаляем атакующих после битвы
+        for unit in attacking_army:
+            unit_count = unit['unit_count']
+            unit_name = unit['unit_name']
+            unit_info = calculate_losses(unit_name, unit_count, final_army=0, destroyed_count_for_unit=unit_count,
+                                         side='attacking')
+            surviving_units_attack += unit_info
+
+    elif total_damage > total_defense:
+        # Логика для победы армии атаки
+        # Удаление старых данных о городе защиты
+        if defending_city in defending_data:
+            del defending_data[defending_city]
+            print(f"Город {defending_city} удален из защитников.")
+
+        for unit in attacking_army:
+            unit_damage = unit['units_stats']['Урон']
+            unit_count = unit['unit_count']
+            unit_koef = unit_koefs_attack.get(unit['unit_name'])
+            unit_name = unit['unit_name']
+            unit_percent = unit_percent_contributions_attack.get(unit['unit_name'])
+
+            if not unit_koef or not unit_percent:
+                print(f"Нет коэффициента или процента для юнита {unit['unit_name']}")
+                continue
+
+            # Сохраняем начальное количество юнитов
+            initial_unit_count = unit_count
+
+            # Распределяем урон пропорционально проценту вклада юнита в общую силу
+            damage_per_unit = effective_army_damage * unit_percent  # Распределяем урон по юнитам
+            remaining_strength = unit_damage * unit_count - damage_per_unit
+            remaining_units = int(remaining_strength // unit_damage)
+            # Пересчитываем остаток
+            if remaining_units < 0:
+                remaining_units = 0
+            destroyed_count_for_unit = initial_unit_count - remaining_units
+            unit_info = calculate_losses(unit_name, starting_army=initial_unit_count, final_army=remaining_units,
+                                         destroyed_count_for_unit=destroyed_count_for_unit, side='attacking')
+            surviving_units_attack += unit_info
+
+            # Очистка гарнизона атакующего города
+            if attacking_city in attacking_data:
+                attacking_data[attacking_city] = []  # Полная очистка гарнизона
 
             # Если атакующий город не существует в данных, создаем его
             if defending_city not in attacking_data:
                 attacking_data[defending_city] = []
 
-            # Удаление старых данных об атакующих юнитах
-            attacking_data[defending_city] = [
-                u for u in attacking_data[defending_city]
-                if not any(unit["unit_name"] == attacker_unit["unit_name"] for unit in u["units"])]
-
+            update_unit_stats(unit, remaining_units)
+            print('Осталось', unit, destroyed_count_for_unit)
+            print('Обновление', update_unit_stats)
             # Добавляем новый атакующий юнит
             attacking_data[defending_city].append({
                 "coordinates": str(defending_city_coords),
-                "units": [attacker_unit]
+                "units": [unit]  # Для каждого города защита или атака должна добавлять актуальные войска
             })
-
+            # Обновляем данные о захваченном городе
+            update_city_data(attacking_fraction, defending_fraction, defending_city, defending_city_coords)
             # Сохраняем обновленные данные в файлы
             save_json(user_file_path, attacking_data)
             save_json(ii_file_path, defending_data)
-            # Обновляем данные о захваченном городе
-            update_city_data(attacking_fraction, defending_fraction, defending_city, defending_city_coords)
-            attacking_losses_report = calculate_losses(starting_attacking_army, attacking_army, 'attacking')
-            defending_losses_report = calculate_losses(starting_defending_army, defending_army, 'defending')
-            full_report_data = attacking_losses_report + defending_losses_report
+        # Удаляем защитников после битвы
+        for unit in defending_army:
+            unit_count = unit['unit_count']
+            unit_name = unit['unit_name']
+            unit_info = calculate_losses(unit_name, unit_count, final_army=0, destroyed_count_for_unit=unit_count,
+                                         side='defending')
+            surviving_units_def += unit_info
 
-            print(f"Атакующие заняли город {defending_city}, данные обновлены.")
-        else:
-            print(f"Все юниты уничтожены, бой завершен.")
-
-        if remaining_defender_units > 0 and remaining_attacker_units == 0:
-            user_data = json.load(open(user_file_path, 'r', encoding='utf-8'))
-            ii_data = json.load(open(ii_file_path, 'r', encoding='utf-8'))
-
-            # Очистка гарнизона атакующего города
-            if attacking_city in user_data:
-                user_data[attacking_city] = []  # Полная очистка гарнизона
-
-            # Удаление старых данных о городе защиты из данных атакующих
-            if defending_city in user_data:
-                del user_data[defending_city]
-                print(f"Город {defending_city} удален из данных атакующих.")
-
-            # Если город защиты не существует в данных защиты, создаем его
-            if defending_city not in ii_data:
-                ii_data[defending_city] = []
-
-            # Удаление старых данных об защитных юнитах в городе защиты
-            ii_data[defending_city] = [
-                u for u in ii_data[defending_city]
-                if not any(unit["unit_name"] == defender_unit["unit_name"] for unit in u["units"])
-            ]
-
-            # Добавляем новый защитный юнит
-            ii_data[defending_city].append({
-                "coordinates": str(defending_city_coords),
-                "units": [defender_unit]
-            })
-            # Сохраняем обновленные данные в файлы
-            save_json(user_file_path, user_data)
-            save_json(ii_file_path, ii_data)
-            attacking_losses_report = calculate_losses(starting_attacking_army, attacking_army, 'attacking')
-            defending_losses_report = calculate_losses(starting_defending_army, defending_army, 'defending')
-            full_report_data = attacking_losses_report + defending_losses_report
-
-            print(f"Город {defending_city} успешно защищен, данные обновлены.")
-        else:
-            print(f"Все защитные юниты уничтожены, бой завершен.")
-
-    print('defence_units', defence_units)
-    print('attack_units', attack_units)
-
-    if full_report_data and not report_check:
-        show_battle_report(full_report_data)
-        report_check = True
+    surviving_units = surviving_units_attack + surviving_units_def
+    show_battle_report(surviving_units)
 
 
-def calculate_losses(starting_army, final_army, side):
-    losses_report = []
-
-    for start_unit in starting_army:
-        final_unit = next((unit for unit in final_army if unit['unit_name'] == start_unit['user_name']), None)
-
-        if final_unit:
-            initial_count = start_unit['unit_count']
-            final_count = final_unit['unit_count']
-            losses = initial_count - final_count
-
-            losses_report.append({
-                'unit_name': start_unit['user_name'],
-                'initial_count': initial_count,
-                'final_count': final_count,
-                'losses': losses,
-                'side': side
-            })
-        else:
-            # Если юнит не найден в финальной армии, значит он полностью уничтожен
-            losses_report.append({
-                'unit_name': start_unit['user_name'],
-                'initial_count': start_unit['unit_count'],
-                'final_count': 0,
-                'losses': start_unit['unit_count'],
-                'side': side
-            })
-
-    # Проверяем, были ли потери
-    if not losses_report:
-        # Если потерь нет, возвращаем информацию о всех юнитах с нулевыми потерями
-        for start_unit in starting_army:
-            losses_report.append({
-                'unit_name': start_unit['user_name'],
-                'initial_count': start_unit['unit_count'],
-                'final_count': 0,
-                'losses': start_unit['unit_count'],
-                'side': side
-            })
+# Тут все ок не трогаем
+def calculate_losses(unit_name, starting_army, final_army, destroyed_count_for_unit, side):
+    losses_report = [{
+        'unit_name': unit_name,
+        'initial_count': starting_army,
+        'final_count': final_army,
+        'losses': destroyed_count_for_unit,
+        'side': side
+    }]
 
     return losses_report
 
-
-# Рекурсивная функция боя
-def recursive_fight(attacker_unit, defender_unit):
-    print(f"Начинаем бой с юнитами: {attacker_unit['unit_name']} и {defender_unit['unit_name']}")
-
-    # Параметры для расчета
-    attacker_damage = attacker_unit['units_stats']['Урон']
-    defender_damage = defender_unit['units_stats']['Защита']
-    defender_health = defender_unit['units_stats']['Живучесть']
-
-    defender_alls = defender_health + defender_damage
-    attacker_alls = attacker_damage
-
-    koef_attack = attacker_alls / attacker_unit['unit_count']
-    koef_defense = defender_alls / defender_unit['unit_count']
-
-    print(f"Начальные параметры атакующих: урон {attacker_damage}")
-    print(f"Начальные параметры защитников: здоровье {defender_health}, защита {defender_damage}")
-    print(f'Полученные коэфы атак: {koef_attack}')
-    print(f'Полученные коэфы дэфа: {koef_defense}')
-
-    while attacker_alls > 0 and defender_alls > 0:
-        if attacker_alls >= defender_alls:
-            defender_alls -= attacker_alls
-            print(f"Осталось сил у атакующей стороны {defender_alls * (-1)}")
-            if defender_alls <= 0:
-                print("Защитники побеждены!")
-                break  # Защитники побеждены
-            attacker_alls -= defender_alls
-            print(f"Осталось сил у защищающей стороны {attacker_alls * (-1)}")
-        else:
-            attacker_alls -= defender_alls
-            print(f"Осталось сил у защищающей стороны {attacker_alls * (-1)}")
-            if attacker_alls <= 0:
-                print("Атакующие побеждены!")
-                break  # Атакующие побеждены
-            defender_alls -= attacker_alls
-            print(f"Осталось сил у атакующей стороны {defender_alls * (-1)}")
-
-    if koef_attack == 0 or koef_defense == 0:
-        return 0, 0
-    else:
-        return max(0, math.floor(defender_alls * (-1) / koef_attack)), max(0, math.floor(
-            attacker_alls * (-1) / koef_defense))
 
 
 def damage_to_infrastructure(city_name, all_damage):
