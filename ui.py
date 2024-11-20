@@ -315,38 +315,35 @@ class FortressInfoPopup(Popup):
                 return True
             elif status == 'False':
                 return False
-
     def choose_garrison(self, source_city_name, coordinates, garrison_selection_popup):
-        if self.check_city_attack():
-            backup_files()  # Делаем бэкап данных
-            # Получаем фракции источника и назначения
-            source_faction = get_faction_of_city(source_city_name)
-            destination_faction = get_faction_of_city(self.city_name)
+        # Получаем фракции источника и назначения
+        source_faction = get_faction_of_city(source_city_name)
+        destination_faction = get_faction_of_city(self.city_name)
+        if source_faction != destination_faction:
+            if self.check_city_attack():
+                backup_files()  # Делаем бэкап данных
+                # Получаем фракции источника и назначения
+                source_faction = get_faction_of_city(source_city_name)
+                destination_faction = get_faction_of_city(self.city_name)
 
-            # Обработка путей в зависимости от фракций
-            if source_faction == self.player_fraction:
-                self.file_path1 = self.garrison
-                self.file_path2 = transform_filename(f'files/config/manage_ii/{destination_faction}_in_city.json')
-            elif destination_faction == self.player_fraction:
-                self.file_path1 = transform_filename(f'files/config/manage_ii/{source_faction}_in_city.json')
-                self.file_path2 = self.garrison
-            else:
-                self.file_path1 = transform_filename(f'files/config/manage_ii/{source_faction}_in_city.json')
-                self.file_path2 = transform_filename(f'files/config/manage_ii/{destination_faction}_in_city.json')
+                # Обработка путей в зависимости от фракций
+                if source_faction == self.player_fraction:
+                    self.file_path1 = self.garrison
+                    self.file_path2 = transform_filename(f'files/config/manage_ii/{destination_faction}_in_city.json')
+                elif destination_faction == self.player_fraction:
+                    self.file_path1 = transform_filename(f'files/config/manage_ii/{source_faction}_in_city.json')
+                    self.file_path2 = self.garrison
+                else:
+                    self.file_path1 = transform_filename(f'files/config/manage_ii/{source_faction}_in_city.json')
+                    self.file_path2 = transform_filename(f'files/config/manage_ii/{destination_faction}_in_city.json')
 
-            if not source_faction:
-                print(f"Фракция для города '{source_city_name}' не найдена.")
-                return
-            if not destination_faction:
-                print(f"Фракция для города '{self.city_name}' не найдена.")
-                return
+                if not source_faction:
+                    print(f"Фракция для города '{source_city_name}' не найдена.")
+                    return
+                if not destination_faction:
+                    print(f"Фракция для города '{self.city_name}' не найдена.")
+                    return
 
-            # Если фракции совпадают, объединяем войска
-            if source_faction == destination_faction:
-                self.update_city_data(source_city_name)
-                print(f"Войска из гарнизона '{source_city_name}' объединены с гарнизоном города '{self.city_name}'.")
-            else:
-                # Проверяем отношения между фракциями
                 relationship = self.get_relationship(source_faction, destination_faction)
                 if relationship == "война":
                     print(f"Фракции '{source_faction}' и '{destination_faction}' находятся в состоянии войны.")
@@ -362,41 +359,45 @@ class FortressInfoPopup(Popup):
 
                     # Передаем данные в модуль боя независимо от наличия армий
                     fight.fight(
-                        user_file_path=self.file_path1,
-                        ii_file_path=self.file_path2,
-                        attacking_city=source_city_name,
-                        attacking_fraction=source_faction,
-                        defending_fraction=destination_faction,
-                        defending_city_coords=self.city_coords,  # Координаты города-защитника
-                        defending_city=self.city_name,
-                        defending_army=defending_army,
-                        attacking_army=attacking_army
-                    )
+                            user_file_path=self.file_path1,
+                            ii_file_path=self.file_path2,
+                            attacking_city=source_city_name,
+                            attacking_fraction=source_faction,
+                            defending_fraction=destination_faction,
+                            defending_city_coords=self.city_coords,  # Координаты города-защитника
+                            defending_city=self.city_name,
+                            defending_army=defending_army,
+                            attacking_army=attacking_army
+                        )
                 else:
                     print(
                         f"Фракции '{source_faction}' и '{destination_faction}' находятся в состоянии '{relationship}'. Войска не могут быть введены.")
 
-            # Закрыть всплывающее окно после выполнения выбора
+                # Закрыть всплывающее окно после выполнения выбора
+                garrison_selection_popup.dismiss()
+                self.dismiss()
+            else:
+                # Создание и отображение всплывающего окна
+                layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+                message = Label(text='На этом ходу уже была атака на один из городов')
+                close_button = Button(text='ОК', size_hint=(1, 0.3))
+
+                layout.add_widget(message)
+                layout.add_widget(close_button)
+
+                popup = Popup(title='Предупреждение',
+                              content=layout,
+                              size_hint=(0.6, 0.4),
+                              auto_dismiss=False)
+
+                close_button.bind(on_release=popup.dismiss)
+
+                popup.open()
+                return
+        else:
+            self.update_city_data(source_city_name)
             garrison_selection_popup.dismiss()
             self.dismiss()
-        else:
-            # Создание и отображение всплывающего окна
-            layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
-            message = Label(text='На этом ходу уже была атака на один из городов')
-            close_button = Button(text='ОК', size_hint=(1, 0.3))
-
-            layout.add_widget(message)
-            layout.add_widget(close_button)
-
-            popup = Popup(title='Предупреждение',
-                          content=layout,
-                          size_hint=(0.6, 0.4),
-                          auto_dismiss=False)
-
-            close_button.bind(on_release=popup.dismiss)
-
-            popup.open()
-            return
 
     def get_relationship(self, faction1, faction2):
         try:
