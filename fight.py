@@ -269,12 +269,10 @@ def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, d
           attacking_army, attacking_fraction, defending_fraction):
     global remaining_attacker_units, remaining_defender_units, report_check, full_report_data
     check_attack_city(defending_city)
-    all_damage = 0
-    for damage in attacking_army:
-        all_damage += damage['units_stats']['Урон']
+    all_damage = sum(damage['units_stats']['Урон'] for damage in attacking_army)
 
     damage_to_infrastructure(defending_city, all_damage)
-
+    print('defending_army', defending_army)
     # Проверка, если в городе отсутствует защитная армия
     if not defending_army:
         not_found_def_army(attacking_army, ii_file_path, user_file_path, attacking_city, attacking_fraction,
@@ -357,6 +355,7 @@ def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, d
     print('Общая защита защитной армии:', total_defense)
     attacking_data = json.load(open(user_file_path, 'r', encoding='utf-8'))
     defending_data = json.load(open(ii_file_path, 'r', encoding='utf-8'))
+    print('defe', defending_data)
     # Вычисление максимальной и минимальной величины урона и защиты и НАНОСИМ УРОН
     effective_army_damage = total_damage - total_defense
     print('Эффективный чистый урон', effective_army_damage)
@@ -409,13 +408,18 @@ def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, d
 
             update_unit_stats(unit, remaining_units)
             # Добавляем новый защитный юнит
-            defending_data[defending_city].append({
-                "coordinates": str(defending_city_coords),
-                "units": [unit]  # Для каждого города защита или атака должна добавлять актуальные войска
-            })
-            # Сохраняем обновленные данные в файлы
-            save_json(user_file_path, attacking_data)
-            save_json(ii_file_path, defending_data)
+            city_coords = str(defending_city_coords)
+            # Убедитесь, что attacking_data не пустой
+            if defending_data[defending_city]:
+                for entry in defending_data[defending_city]:
+                    if entry['coordinates'] == city_coords:
+                        entry['units'].append(unit)
+            else:
+                # Добавляем новые данные для города
+                defending_data[defending_city].append({
+                    "coordinates": city_coords,
+                    "units": [unit]  # Для каждого города защита или атака должна добавлять актуальные войска
+                })
 
         # Удаляем атакующих после битвы
         for unit in attacking_army:
@@ -465,28 +469,38 @@ def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, d
             # Если атакующий город не существует в данных, создаем его
             if defending_city not in attacking_data:
                 attacking_data[defending_city] = []
-
             update_unit_stats(unit, remaining_units)
             print('Осталось', unit, destroyed_count_for_unit)
             print('Обновление', update_unit_stats)
+            print('str(defending_city_coords)',str(defending_city_coords))
             # Добавляем новый атакующий юнит
-            attacking_data[defending_city].append({
-                "coordinates": str(defending_city_coords),
-                "units": [unit]  # Для каждого города защита или атака должна добавлять актуальные войска
-            })
-            # Обновляем данные о захваченном городе
+            city_coords = str(defending_city_coords)
+
+            # Убедитесь, что attacking_data не пустой
+            if attacking_data[defending_city]:
+                for entry in attacking_data[defending_city]:
+                    if entry['coordinates'] == city_coords:
+                        entry['units'].append(unit)
+            else:
+                # Добавляем новые данные для города
+                attacking_data[defending_city].append({
+                    "coordinates": city_coords,
+                    "units": [unit]  # Для каждого города защита или атака должна добавлять актуальные войска
+                })
             update_city_data(attacking_fraction, defending_fraction, defending_city, defending_city_coords)
-            # Сохраняем обновленные данные в файлы
-            save_json(user_file_path, attacking_data)
-            save_json(ii_file_path, defending_data)
-        # Удаляем защитников после битвы
+
+        # Удаляем всех защитников после битвы
         for unit in defending_army:
             unit_count = unit['unit_count']
             unit_name = unit['unit_name']
-            unit_info = calculate_losses(unit_name, unit_count, final_army=0, destroyed_count_for_unit=unit_count,
+            unit_info = calculate_losses(unit_name, unit_count, final_army=0,
+                                         destroyed_count_for_unit=unit_count,
                                          side='defending')
             surviving_units_def += unit_info
 
+    # Сохраняем обновленные данные в файлы
+    save_json(user_file_path, attacking_data)
+    save_json(ii_file_path, defending_data)
     surviving_units = surviving_units_attack + surviving_units_def
     show_battle_report(surviving_units)
 
@@ -502,7 +516,6 @@ def calculate_losses(unit_name, starting_army, final_army, destroyed_count_for_u
     }]
 
     return losses_report
-
 
 
 def damage_to_infrastructure(city_name, all_damage):

@@ -382,7 +382,7 @@ class FortressInfoPopup(Popup):
         else:
             # Создание и отображение всплывающего окна
             layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
-            message = Label(text='На этом ходу уже была атака на город.')
+            message = Label(text='На этом ходу уже была атака на один из городов')
             close_button = Button(text='ОК', size_hint=(1, 0.3))
 
             layout.add_widget(message)
