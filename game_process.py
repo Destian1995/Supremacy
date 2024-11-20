@@ -1,3 +1,5 @@
+import os
+
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
@@ -22,6 +24,23 @@ from ii import AIController
 # Список всех фракций
 FACTIONS = ["Аркадия", "Селестия", "Хиперион", "Халидон", "Этерия"]
 global_resource_manager = {}
+translation_dict = {
+    "Аркадия": "arkadia",
+    "Селестия": "celestia",
+    "Этерия": "eteria",
+    "Хиперион": "giperion",
+    "Халидон": "halidon",
+}
+
+
+def transform_filename(file_path):
+    path_parts = file_path.split('/')
+    for i, part in enumerate(path_parts):
+        for ru_name, en_name in translation_dict.items():
+            if ru_name in part:
+                path_parts[i] = part.replace(ru_name, en_name)
+    return '/'.join(path_parts)
+
 
 class ResourceBox(BoxLayout):
     def __init__(self, resource_manager, **kwargs):
@@ -100,9 +119,12 @@ class GameScreen(Screen):
         self.mode_panel = BoxLayout(orientation='vertical', size_hint=(0.2, 1), pos_hint={'x': -0.06, 'y': 0})
 
         # Уменьшенные иконки
-        btn_economy = ImageButton(source='files/status/economy.jpg', size_hint_y=None, height=50, width=50, on_press=self.switch_to_economy)
-        btn_army = ImageButton(source='files/status/army.jpg', size_hint_y=None, height=65, width=30, on_press=self.switch_to_army)
-        btn_politics = ImageButton(source='files/status/politic.jpg', size_hint_y=None, height=65, width=40, on_press=self.switch_to_politics)
+        btn_economy = ImageButton(source='files/status/economy.jpg', size_hint_y=None, height=50, width=50,
+                                  on_press=self.switch_to_economy)
+        btn_army = ImageButton(source='files/status/army.jpg', size_hint_y=None, height=65, width=30,
+                               on_press=self.switch_to_army)
+        btn_politics = ImageButton(source='files/status/politic.jpg', size_hint_y=None, height=65, width=40,
+                                   on_press=self.switch_to_politics)
 
         self.mode_panel.add_widget(btn_economy)
         self.mode_panel.add_widget(btn_army)
@@ -166,6 +188,15 @@ class GameScreen(Screen):
         """Обработка хода игрока и ИИ"""
         # Собираем налоги перед обновлением интерфейса
         self.faction.update_resources()
-
         # Обновляем отображение в ResourceBox
         self.resource_box.update_resources()
+
+        # Путь к каталогу с файлами
+        attack_in_city_dir = r'C:\Users\lerdo\IdeaProjects\Empire_s_Rise\files\config\attack_in_city'
+
+        # Проставляем 'True' во всех файлах в каталоге
+        for filename in os.listdir(attack_in_city_dir):
+            if filename.endswith('_check.txt'):
+                file_path = os.path.join(attack_in_city_dir, filename)
+                with open(file_path, 'w', encoding='utf-8') as file:
+                    file.write("True")

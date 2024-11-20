@@ -25,7 +25,7 @@ translation_dict = {
 }
 
 
-def transform_filename(file_path, translation_dict):
+def transform_filename(file_path):
     path_parts = file_path.split('/')
     for i, part in enumerate(path_parts):
         for ru_name, en_name in translation_dict.items():
@@ -48,10 +48,17 @@ def get_faction_of_city(city_name):
         return None
 
 
+def check_attack_city(defending_city):
+    fractions = get_faction_of_city(defending_city)
+    with open(f'files/config/attack_in_city/{transform_filename(fractions)}_check.txt', 'w', encoding='utf-8') as file:
+        file.write(f"False")
+
+
 # Функция для сохранения данных в файл
 def save_json(filepath, data):
     with open(filepath, 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
+
 
 def update_army_file(file_path, city_name, updated_units):
     # Загружаем данные из файла
@@ -67,6 +74,7 @@ def update_army_file(file_path, city_name, updated_units):
     # Перезаписываем файл с обновленными данными
     with open(file_path, 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
+
 
 # Функция для записи данных в файл
 def save_report_to_file(report_data, file_path='files/config/reports/report_fight.json'):
@@ -260,7 +268,7 @@ def show_battle_report(report_data):
 def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, defending_city, defending_army,
           attacking_army, attacking_fraction, defending_fraction):
     global remaining_attacker_units, remaining_defender_units, report_check, full_report_data
-
+    check_attack_city(defending_city)
     all_damage = 0
     for damage in attacking_army:
         all_damage += damage['units_stats']['Урон']
@@ -271,6 +279,7 @@ def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, d
     if not defending_army:
         not_found_def_army(attacking_army, ii_file_path, user_file_path, attacking_city, attacking_fraction,
                            defending_fraction, defending_city, defending_city_coords)
+        return
 
     # Коэффициенты для классов юнитов
     class_coefficients = {
@@ -499,8 +508,7 @@ def calculate_losses(unit_name, starting_army, final_army, destroyed_count_for_u
 def damage_to_infrastructure(city_name, all_damage):
     print('Начинаем расчет урона по инфраструктуре')
     fraction = get_faction_of_city(city_name)
-    path_to_buildings = transform_filename(f'files/config/buildings_in_city/{fraction}_buildings_city.json',
-                                           translation_dict)
+    path_to_buildings = transform_filename(f'files/config/buildings_in_city/{fraction}_buildings_city.json')
     # Чтение данных о зданиях
     try:
         with open(path_to_buildings, 'r', encoding='utf-8') as file:

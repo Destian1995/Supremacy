@@ -13,7 +13,6 @@ from collections import defaultdict
 from ast import literal_eval
 import fight
 
-
 arkadia_file_path = "files/config/manage_ii/arkadia_in_city.json"
 celestia_file_path = "files/config/manage_ii/celestia_in_city.json"
 eteria_file_path = "files/config/manage_ii/eteria_in_city.json"
@@ -28,6 +27,21 @@ translation_dict = {
     "Хиперион": "giperion",
     "Халидон": "halidon",
 }
+
+
+def get_faction_of_city(city_name):
+    try:
+        with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
+            diplomacies = json.load(file)
+        for faction, data in diplomacies.items():
+            if city_name in data.get("города", []):
+                return faction
+        print(f"Город '{city_name}' не принадлежит ни одной фракции.")
+        return None
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Ошибка при загрузке diplomacies.json: {e}")
+        return None
+
 
 def backup_files():
     # Определяем путь к исходным и резервным файлам
@@ -48,6 +62,7 @@ def backup_files():
     shutil.copy(diplomaties_file_path, diplomaties_backup_path)
 
     print("Резервные копии файлов сохранены в:", backup_dir)
+
 
 def merge_army_and_ii_files():
     # Список всех файлов, которые нужно объединить
@@ -81,7 +96,8 @@ def merge_army_and_ii_files():
         json.dump(merged_data, all_arms_file, ensure_ascii=False, indent=4)
         print(f"Данные успешно объединены и сохранены в {all_arms_file_path}.")
 
-def transform_filename(file_path, translation_dict):
+
+def transform_filename(file_path):
     # Разбиваем путь на части
     path_parts = file_path.split('/')
 
@@ -99,15 +115,14 @@ def transform_filename(file_path, translation_dict):
 class FortressInfoPopup(Popup):
     def __init__(self, kingdom, city_coords, player_fraction, **kwargs):
         super(FortressInfoPopup, self).__init__(**kwargs)
-        self.fraction= kingdom
+        self.fraction = kingdom
         self.city_name = ''
         self.city_coords = city_coords
         self.size_hint = (0.8, 0.8)
         self.player_fraction = player_fraction
         self.file_path2 = None
         self.file_path1 = None
-        self.garrison = transform_filename(f'files/config/manage_ii/{self.player_fraction}_in_city.json',
-                                           translation_dict)
+        self.garrison = transform_filename(f'files/config/manage_ii/{self.player_fraction}_in_city.json')
         print('Путь garrison', self.garrison)
 
         # Загрузка данных о городах
@@ -175,7 +190,8 @@ class FortressInfoPopup(Popup):
         for unit in attacking_units:
             unit_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=70)
             unit_image = Image(source=unit['unit_image'], size_hint=(1, 0.7))
-            unit_name_label = Label(text=f"{unit['unit_name']} (кол-во: {unit['unit_count']})", size_hint_y=None, height=30)
+            unit_name_label = Label(text=f"{unit['unit_name']} (кол-во: {unit['unit_count']})", size_hint_y=None,
+                                    height=30)
             unit_layout.add_widget(unit_image)
             unit_layout.add_widget(unit_name_label)
             self.attacking_units_box.add_widget(unit_layout)
@@ -185,7 +201,8 @@ class FortressInfoPopup(Popup):
         try:
             with open(log_file, 'r', encoding='utf-8') as file:
                 army_data = json.load(file)
-                for army_type in ['arkadia_in_city', 'celestia_in_city', 'halidon_in_city', 'giperion_in_city', 'eteria_in_city']:  # Проверка всех разделов
+                for army_type in ['arkadia_in_city', 'celestia_in_city', 'halidon_in_city', 'giperion_in_city',
+                                  'eteria_in_city']:  # Проверка всех разделов
                     if city_name in army_data.get(army_type, {}):
                         for entry in army_data[army_type][city_name]:
                             for unit in entry.get('units', []):
@@ -208,8 +225,7 @@ class FortressInfoPopup(Popup):
     def get_buildings(self):
         """Получает количество зданий в указанном городе из JSON-файла."""
         # Формируем путь к файлу зданий фракции
-        path_to_buildings = transform_filename(f'files/config/buildings_in_city/{self.fraction}_buildings_city.json',
-                                               translation_dict)
+        path_to_buildings = transform_filename(f'files/config/buildings_in_city/{self.fraction}_buildings_city.json')
 
         # Инициализируем словарь для подсчета зданий
         buildings_count = defaultdict(int)
@@ -287,85 +303,100 @@ class FortressInfoPopup(Popup):
         garrison_selection_popup.content = garrison_selection_layout
         garrison_selection_popup.open()
 
+    def check_city_attack(self):
+        fractions = get_faction_of_city(self.city_name)
+        flag_path = f'files/config/attack_in_city/{transform_filename(fractions)}_check.txt'
+        print('flag_path', flag_path)
+        with open(flag_path, 'r',
+                  encoding='utf-8') as file:
+            status = file.read()
+            print('status', status)
+            if status == 'True':
+                return True
+            elif status == 'False':
+                return False
+
     def choose_garrison(self, source_city_name, coordinates, garrison_selection_popup):
-        backup_files()  # Делаем бэкап данных
-        # Получаем фракции источника и назначения
-        source_faction = self.get_faction_of_city(source_city_name)
-        destination_faction = self.get_faction_of_city(self.city_name)
+        if self.check_city_attack():
+            backup_files()  # Делаем бэкап данных
+            # Получаем фракции источника и назначения
+            source_faction = get_faction_of_city(source_city_name)
+            destination_faction = get_faction_of_city(self.city_name)
 
-        # Обработка путей в зависимости от фракций
-        if source_faction == self.player_fraction:
-            self.file_path1 = self.garrison
-            self.file_path2 = transform_filename(f'files/config/manage_ii/{destination_faction}_in_city.json',
-                                                 translation_dict)
-        elif destination_faction == self.player_fraction:
-            self.file_path1 = transform_filename(f'files/config/manage_ii/{source_faction}_in_city.json',
-                                                 translation_dict)
-            self.file_path2 = self.garrison
-        else:
-            self.file_path1 = transform_filename(f'files/config/manage_ii/{source_faction}_in_city.json',
-                                                 translation_dict)
-            self.file_path2 = transform_filename(f'files/config/manage_ii/{destination_faction}_in_city.json',
-                                                 translation_dict)
-
-        if not source_faction:
-            print(f"Фракция для города '{source_city_name}' не найдена.")
-            return
-        if not destination_faction:
-            print(f"Фракция для города '{self.city_name}' не найдена.")
-            return
-
-        # Если фракции совпадают, объединяем войска
-        if source_faction == destination_faction:
-            self.update_city_data(source_city_name)
-            print(f"Войска из гарнизона '{source_city_name}' объединены с гарнизоном города '{self.city_name}'.")
-        else:
-            # Проверяем отношения между фракциями
-            relationship = self.get_relationship(source_faction, destination_faction)
-            if relationship == "война":
-                print(f"Фракции '{source_faction}' и '{destination_faction}' находятся в состоянии войны.")
-                # Загружаем армии
-                attacking_army = self.get_army_from_city(source_city_name)
-                defending_army = self.get_army_from_city(self.city_name)
-
-                # Печать предупреждений, если одна из армий не найдена
-                if not attacking_army:
-                    print(f"Атакующая армия для города '{source_city_name}' не найдена.")
-                if not defending_army:
-                    print(f"Армия для города '{self.city_name}' не найдена.")
-
-                # Передаем данные в модуль боя независимо от наличия армий
-                fight.fight(
-                    user_file_path=self.file_path1,
-                    ii_file_path=self.file_path2,
-                    attacking_city=source_city_name,
-                    attacking_fraction=source_faction,
-                    defending_fraction=destination_faction,
-                    defending_city_coords=self.city_coords,  # Координаты города-защитника
-                    defending_city=self.city_name,
-                    defending_army=defending_army,
-                    attacking_army=attacking_army
-                )
+            # Обработка путей в зависимости от фракций
+            if source_faction == self.player_fraction:
+                self.file_path1 = self.garrison
+                self.file_path2 = transform_filename(f'files/config/manage_ii/{destination_faction}_in_city.json')
+            elif destination_faction == self.player_fraction:
+                self.file_path1 = transform_filename(f'files/config/manage_ii/{source_faction}_in_city.json')
+                self.file_path2 = self.garrison
             else:
-                print(
-                    f"Фракции '{source_faction}' и '{destination_faction}' находятся в состоянии '{relationship}'. Войска не могут быть введены.")
+                self.file_path1 = transform_filename(f'files/config/manage_ii/{source_faction}_in_city.json')
+                self.file_path2 = transform_filename(f'files/config/manage_ii/{destination_faction}_in_city.json')
 
-        # Закрыть всплывающее окно после выполнения выбора
-        garrison_selection_popup.dismiss()
-        self.dismiss()
+            if not source_faction:
+                print(f"Фракция для города '{source_city_name}' не найдена.")
+                return
+            if not destination_faction:
+                print(f"Фракция для города '{self.city_name}' не найдена.")
+                return
 
-    def get_faction_of_city(self, city_name):
-        try:
-            with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
-                diplomacies = json.load(file)
-            for faction, data in diplomacies.items():
-                if city_name in data.get("города", []):
-                    return faction
-            print(f"Город '{city_name}' не принадлежит ни одной фракции.")
-            return None
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"Ошибка при загрузке diplomacies.json: {e}")
-            return None
+            # Если фракции совпадают, объединяем войска
+            if source_faction == destination_faction:
+                self.update_city_data(source_city_name)
+                print(f"Войска из гарнизона '{source_city_name}' объединены с гарнизоном города '{self.city_name}'.")
+            else:
+                # Проверяем отношения между фракциями
+                relationship = self.get_relationship(source_faction, destination_faction)
+                if relationship == "война":
+                    print(f"Фракции '{source_faction}' и '{destination_faction}' находятся в состоянии войны.")
+                    # Загружаем армии
+                    attacking_army = self.get_army_from_city(source_city_name)
+                    defending_army = self.get_army_from_city(self.city_name)
+
+                    # Печать предупреждений, если одна из армий не найдена
+                    if not attacking_army:
+                        print(f"Атакующая армия для города '{source_city_name}' не найдена.")
+                    if not defending_army:
+                        print(f"Армия для города '{self.city_name}' не найдена.")
+
+                    # Передаем данные в модуль боя независимо от наличия армий
+                    fight.fight(
+                        user_file_path=self.file_path1,
+                        ii_file_path=self.file_path2,
+                        attacking_city=source_city_name,
+                        attacking_fraction=source_faction,
+                        defending_fraction=destination_faction,
+                        defending_city_coords=self.city_coords,  # Координаты города-защитника
+                        defending_city=self.city_name,
+                        defending_army=defending_army,
+                        attacking_army=attacking_army
+                    )
+                else:
+                    print(
+                        f"Фракции '{source_faction}' и '{destination_faction}' находятся в состоянии '{relationship}'. Войска не могут быть введены.")
+
+            # Закрыть всплывающее окно после выполнения выбора
+            garrison_selection_popup.dismiss()
+            self.dismiss()
+        else:
+            # Создание и отображение всплывающего окна
+            layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+            message = Label(text='На этом ходу уже была атака на город.')
+            close_button = Button(text='ОК', size_hint=(1, 0.3))
+
+            layout.add_widget(message)
+            layout.add_widget(close_button)
+
+            popup = Popup(title='Предупреждение',
+                          content=layout,
+                          size_hint=(0.6, 0.4),
+                          auto_dismiss=False)
+
+            close_button.bind(on_release=popup.dismiss)
+
+            popup.open()
+            return
 
     def get_relationship(self, faction1, faction2):
         try:
@@ -383,7 +414,8 @@ class FortressInfoPopup(Popup):
         try:
             with open(log_file, 'r', encoding='utf-8') as file:
                 army_data = json.load(file)
-                for army_type in ['arkadia_in_city', 'celestia_in_city', 'halidon_in_city', 'giperion_in_city', 'eteria_in_city']:  # Проверка всех разделов
+                for army_type in ['arkadia_in_city', 'celestia_in_city', 'halidon_in_city', 'giperion_in_city',
+                                  'eteria_in_city']:  # Проверка всех разделов
                     if city_name in army_data.get(army_type, {}):
                         for entry in army_data[army_type][city_name]:
                             return entry.get('units', [])  # Возвращаем список юнитов
@@ -411,7 +443,8 @@ class FortressInfoPopup(Popup):
 
                 # Добавляем войска в целевой город
                 if self.city_name in army_data:
-                    army_data[self.city_name][0].setdefault("units", []).extend(source_units)  # Добавляем юниты в существующий список
+                    army_data[self.city_name][0].setdefault("units", []).extend(
+                        source_units)  # Добавляем юниты в существующий список
                 else:
                     army_data[self.city_name] = [{"coordinates": str(self.city_coords), "units": source_units}]
 
@@ -442,8 +475,7 @@ class FortressInfoPopup(Popup):
         return None  # Если город не найден
 
     def strike_with_dbs(self, instance):
-        path_to_army_strike = transform_filename(f'files/config/manage_ii/{self.fraction}_in_city.json',
-                                                 translation_dict)
+        path_to_army_strike = transform_filename(f'files/config/manage_ii/{self.fraction}_in_city.json')
         data = {
             "city_name": self.city_name,
             "coordinates": self.city_coords,
