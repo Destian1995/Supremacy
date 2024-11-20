@@ -46,7 +46,6 @@ def clear_temp_files():
     temp_files = ['files/config/arms/arms.json',
                   'files/config/resources/cash.json',
                   'files/config/arms/weapons.json',
-                  #'files/config/arms/army_in_city.json',
                   'files/config/arms/coordinates_weapons.json',
                   'files/config/buildings_in_city/arkadia_buildings_city.json',
                   'files/config/buildings_in_city/celestia_buildings_city.json',

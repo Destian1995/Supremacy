@@ -95,27 +95,28 @@ def update_unit_stats(unit, new_count):
 
 
 def update_diplomacy_data(attacking_fraction, defending_fraction, city_name):
-    with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
-        diplomacies = json.load(file)
+    try:
+        with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
+            diplomacies = json.load(file)
 
-    city_moved = False  # Флаг для отслеживания перемещения города
+        # Проверяем и удаляем город из защитников
+        if city_name in diplomacies[defending_fraction]["города"]:
+            diplomacies[defending_fraction]["города"].remove(city_name)
+            print(f"{city_name} удален из списка защитников в дипломатии.")
 
-    for kingdom, data in diplomacies.items():
-        if city_name in data["города"]:
-            # Удаляем город из защитников
-            if kingdom == defending_fraction:
-                data["города"].remove(city_name)
-                print(f"{city_name} удален из списка защитников в дипломатии.")
-                city_moved = True
+        # Добавляем город к атакующим
+        if city_name not in diplomacies[attacking_fraction]["города"]:
+            diplomacies[attacking_fraction]["города"].append(city_name)
+            print(f"{city_name} добавлен в список атакующих фракций в дипломатии.")
 
-        # Добавляем город в список атакующей фракции
-        if kingdom == attacking_fraction and city_moved:
-            if city_name not in data["города"]:
-                data["города"].append(city_name)
-                print(f"{city_name} добавлен в список атакующих фракций в дипломатии.")
+        # Сохраняем обновленные данные
+        with open('files/config/status/diplomaties.json', 'w', encoding='utf-8') as file:
+            json.dump(diplomacies, file, ensure_ascii=False, indent=4)
+    except KeyError as e:
+        print(f"Ошибка: указана несуществующая фракция - {e}")
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Ошибка при работе с файлом дипломатии: {e}")
 
-    with open('files/config/status/diplomaties.json', 'w', encoding='utf-8') as file:
-        json.dump(diplomacies, file, ensure_ascii=False, indent=4)
 
 
 def update_city_data(attacking_fraction, defending_fraction, city_name, city_coords):
@@ -153,9 +154,18 @@ def not_found_def_army(attacking_army, ii_file_path, user_file_path, attacking_c
                        defending_fraction, defending_city, defending_city_coords):
     print(f"В городе {defending_city} нет защитной армии. Атакующие занимают город без боя.")
 
-    # Загрузка данных атакующего и защитника
-    attacking_data = json.load(open(user_file_path, 'r', encoding='utf-8'))
-    defending_data = json.load(open(ii_file_path, 'r', encoding='utf-8'))
+    # Проверяем, существует ли файл и если он пустой, присваиваем пустой словарь
+    if os.path.exists(user_file_path) and os.path.getsize(user_file_path) > 0:
+        with open(user_file_path, 'r', encoding='utf-8') as f:
+            attacking_data = json.load(f)
+    else:
+        attacking_data = {}
+
+    if os.path.exists(ii_file_path) and os.path.getsize(ii_file_path) > 0:
+        with open(ii_file_path, 'r', encoding='utf-8') as f:
+            defending_data = json.load(f)
+    else:
+        defending_data = {}
 
     # Удаление города из данных защитников
     if defending_city in defending_data:
@@ -183,7 +193,6 @@ def not_found_def_army(attacking_army, ii_file_path, user_file_path, attacking_c
 
     print(f"Атакующие успешно заняли город {defending_city}.")
     return  # Завершение функции, так как бой не нужен
-
 
 # Окно отчета боя
 def show_battle_report(report_data):

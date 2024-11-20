@@ -112,12 +112,31 @@ def transform_filename(file_path):
     return '/'.join(path_parts)
 
 
+def load_json_file(filepath):
+    if not os.path.exists(filepath):
+        print(f"Файл {filepath} не существует.")
+        return {}
+
+    try:
+        with open(filepath, 'r', encoding='utf-8') as file:
+            if os.stat(filepath).st_size == 0:  # Проверяем, пуст ли файл
+                print(f"Файл {filepath} пустой.")
+                return {}
+            return json.load(file)
+    except json.JSONDecodeError as e:
+        print(f"Ошибка чтения JSON из файла {filepath}: {e}")
+        return {}
+    except Exception as e:
+        print(f"Ошибка при открытии файла {filepath}: {e}")
+        return {}
+
 class FortressInfoPopup(Popup):
     def __init__(self, kingdom, city_coords, player_fraction, **kwargs):
         super(FortressInfoPopup, self).__init__(**kwargs)
         self.fraction = kingdom
         self.city_name = ''
-        self.city_coords = city_coords
+        self.city_coords = list(city_coords)
+        print(self.city_coords)
         self.size_hint = (0.8, 0.8)
         self.player_fraction = player_fraction
         self.file_path2 = None
@@ -128,13 +147,14 @@ class FortressInfoPopup(Popup):
         # Загрузка данных о городах
         with open('files/config/cities.json', 'r', encoding='utf-8') as file:
             cities_data = json.load(file)["cities"]
-            for coords, city_name in cities_data.items():
+            for city in cities_data:
                 try:
-                    if literal_eval(coords) == self.city_coords:
-                        self.city_name = city_name
+                    if city["coordinates"] == self.city_coords:
+                        self.city_name = city["name"]
+                        print('name', self.city_name)
                         break
                 except Exception as e:
-                    print(f"Ошибка при разборе координат: {e}")
+                    print(f"Ошибка при обработке данных города: {e}")
 
         self.title = f"Информация о поселении {self.city_name}"
         main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
@@ -315,6 +335,7 @@ class FortressInfoPopup(Popup):
                 return True
             elif status == 'False':
                 return False
+
     def choose_garrison(self, source_city_name, coordinates, garrison_selection_popup):
         # Получаем фракции источника и назначения
         source_faction = get_faction_of_city(source_city_name)
@@ -431,49 +452,39 @@ class FortressInfoPopup(Popup):
 
     def update_city_data(self, source_city_name):
         try:
-            with open(self.garrison, 'r+', encoding='utf-8') as file:
-                army_data = json.load(file)
+            army_data = load_json_file(self.garrison)
+            if not army_data:
+                print("Не удалось загрузить данные гарнизонов.")
+                return
 
-                # Проверка наличия данных о выбранном гарнизоне
-                if source_city_name not in army_data:
-                    print(f"Гарнизон '{source_city_name}' не существует в данных.")
-                    return
+            # Проверяем наличие исходного города
+            if source_city_name not in army_data or not army_data[source_city_name]:
+                print(f"Гарнизон '{source_city_name}' не содержит данных или отсутствует.")
+                return
 
-                # Получаем войска из выбранного гарнизона
-                source_units = army_data[source_city_name][0].get("units", [])
+            source_units = army_data[source_city_name][0].get("units", [])
+            if not isinstance(source_units, list):
+                print(f"Некорректная структура данных гарнизона '{source_city_name}'.")
+                return
 
-                # Добавляем войска в целевой город
-                if self.city_name in army_data:
-                    army_data[self.city_name][0].setdefault("units", []).extend(
-                        source_units)  # Добавляем юниты в существующий список
-                else:
-                    army_data[self.city_name] = [{"coordinates": str(self.city_coords), "units": source_units}]
+            # Добавляем данные в целевой город
+            if self.city_name in army_data:
+                army_data[self.city_name][0].setdefault("units", []).extend(source_units)
+            else:
+                army_data[self.city_name] = [{"coordinates": str(self.city_coords), "units": source_units}]
 
-                # Удаляем данные о старом гарнизоне
-                del army_data[source_city_name]
+            # Удаляем данные исходного города
+            del army_data[source_city_name]
 
-                # Записываем обновленные данные в файл
-                file.seek(0)
+            # Сохраняем обновленные данные
+            with open(self.garrison, 'w', encoding='utf-8') as file:
                 json.dump(army_data, file, ensure_ascii=False, indent=4)
-                file.truncate()  # Удаляем старые данные, если новые короче
+
         except KeyError as e:
-            print(f"Ошибка при обновлении данных о городе: '{e}' не существует в данных.")
+            print(f"Ошибка при обновлении данных о городе: '{e}' не найден.")
         except Exception as e:
             print(f"Ошибка при обновлении данных о городе: {e}")
 
-    # Пример для поиска имени города по координатам
-    def get_city_name_by_coordinates(self, coordinates):
-        try:
-            with open('files/config/cities.json', 'r', encoding='utf-8') as file:
-                cities_data = json.load(file)
-
-                for city, data in cities_data.items():
-                    if data['coordinates'] == coordinates:
-                        return city
-        except (FileNotFoundError, json.JSONDecodeError):
-            print("Ошибка при загрузке файла cities.json.")
-
-        return None  # Если город не найден
 
     def strike_with_dbs(self, instance):
         path_to_army_strike = transform_filename(f'files/config/manage_ii/{self.fraction}_in_city.json')
