@@ -457,29 +457,35 @@ class FortressInfoPopup(Popup):
                 print("Не удалось загрузить данные гарнизонов.")
                 return
 
-            # Проверяем наличие исходного города
+            # Проверяем, есть ли исходный город в данных
             if source_city_name not in army_data or not army_data[source_city_name]:
                 print(f"Гарнизон '{source_city_name}' не содержит данных или отсутствует.")
                 return
 
-            # Проверяем, есть ли данные в массиве для города
             source_city_data = army_data[source_city_name]
-            if not source_city_data:
-                print(f"Данные для города '{source_city_name}' отсутствуют.")
-                return
-
             source_units = source_city_data[0].get("units", []) if len(source_city_data) > 0 else []
-            if not isinstance(source_units, list):
-                print(f"Некорректная структура данных гарнизона '{source_city_name}'.")
-                return
 
-            # Добавляем данные в целевой город
+            # Проверяем, есть ли гарнизон в целевом городе
             if self.city_name in army_data and len(army_data[self.city_name]) > 0:
-                army_data[self.city_name][0].setdefault("units", []).extend(source_units)
+                destination_units = army_data[self.city_name][0].setdefault("units", [])
+
+                # Объединяем юниты из двух городов
+                for source_unit in source_units:
+                    matching_unit = next(
+                        (unit for unit in destination_units if unit["unit_name"] == source_unit["unit_name"]),
+                        None
+                    )
+                    if matching_unit:
+                        # Обновляем количество юнитов
+                        matching_unit["unit_count"] += source_unit["unit_count"]
+                    else:
+                        # Добавляем новый тип юнита
+                        destination_units.append(source_unit)
             else:
+                # Если гарнизона нет, создаем его
                 army_data[self.city_name] = [{"coordinates": str(self.city_coords), "units": source_units}]
 
-            # Удаляем данные исходного города
+            # Удаляем исходный город
             del army_data[source_city_name]
 
             # Сохраняем обновленные данные
