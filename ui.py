@@ -130,6 +130,7 @@ def load_json_file(filepath):
         print(f"Ошибка при открытии файла {filepath}: {e}")
         return {}
 
+
 class FortressInfoPopup(Popup):
     def __init__(self, kingdom, city_coords, player_fraction, **kwargs):
         super(FortressInfoPopup, self).__init__(**kwargs)
@@ -307,8 +308,7 @@ class FortressInfoPopup(Popup):
 
                 # Привязываем действие к кнопке, чтобы при нажатии вызвать метод передачи войск
                 garrison_button.bind(
-                    on_press=lambda btn, name=city_name, coords=coordinates: self.choose_garrison(name, coords,
-                                                                                                  garrison_selection_popup)
+                    on_press=lambda btn, name=city_name: self.choose_garrison(name, garrison_selection_popup)
                 )
 
                 # Добавляем кнопку в макет
@@ -336,7 +336,7 @@ class FortressInfoPopup(Popup):
             elif status == 'False':
                 return False
 
-    def choose_garrison(self, source_city_name, coordinates, garrison_selection_popup):
+    def choose_garrison(self, source_city_name, garrison_selection_popup):
         # Получаем фракции источника и назначения
         source_faction = get_faction_of_city(source_city_name)
         destination_faction = get_faction_of_city(self.city_name)
@@ -380,16 +380,16 @@ class FortressInfoPopup(Popup):
 
                     # Передаем данные в модуль боя независимо от наличия армий
                     fight.fight(
-                            user_file_path=self.file_path1,
-                            ii_file_path=self.file_path2,
-                            attacking_city=source_city_name,
-                            attacking_fraction=source_faction,
-                            defending_fraction=destination_faction,
-                            defending_city_coords=self.city_coords,  # Координаты города-защитника
-                            defending_city=self.city_name,
-                            defending_army=defending_army,
-                            attacking_army=attacking_army
-                        )
+                        user_file_path=self.file_path1,
+                        ii_file_path=self.file_path2,
+                        attacking_city=source_city_name,
+                        attacking_fraction=source_faction,
+                        defending_fraction=destination_faction,
+                        defending_city_coords=self.city_coords,  # Координаты города-защитника
+                        defending_city=self.city_name,
+                        defending_army=defending_army,
+                        attacking_army=attacking_army
+                    )
                 else:
                     print(
                         f"Фракции '{source_faction}' и '{destination_faction}' находятся в состоянии '{relationship}'. Войска не могут быть введены.")
@@ -462,13 +462,19 @@ class FortressInfoPopup(Popup):
                 print(f"Гарнизон '{source_city_name}' не содержит данных или отсутствует.")
                 return
 
-            source_units = army_data[source_city_name][0].get("units", [])
+            # Проверяем, есть ли данные в массиве для города
+            source_city_data = army_data[source_city_name]
+            if not source_city_data:
+                print(f"Данные для города '{source_city_name}' отсутствуют.")
+                return
+
+            source_units = source_city_data[0].get("units", []) if len(source_city_data) > 0 else []
             if not isinstance(source_units, list):
                 print(f"Некорректная структура данных гарнизона '{source_city_name}'.")
                 return
 
             # Добавляем данные в целевой город
-            if self.city_name in army_data:
+            if self.city_name in army_data and len(army_data[self.city_name]) > 0:
                 army_data[self.city_name][0].setdefault("units", []).extend(source_units)
             else:
                 army_data[self.city_name] = [{"coordinates": str(self.city_coords), "units": source_units}]
@@ -484,7 +490,6 @@ class FortressInfoPopup(Popup):
             print(f"Ошибка при обновлении данных о городе: '{e}' не найден.")
         except Exception as e:
             print(f"Ошибка при обновлении данных о городе: {e}")
-
 
     def strike_with_dbs(self, instance):
         path_to_army_strike = transform_filename(f'files/config/manage_ii/{self.fraction}_in_city.json')
