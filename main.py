@@ -222,7 +222,7 @@ class MenuWidget(FloatLayout):
         self.add_widget(Image(source='files/menu.jpg', allow_stretch=True, keep_ratio=False))  # Фон меню
 
         # Заголовок
-        title = Label(text="[b][color=000000]Расцвет Империи[/color][/b]", font_size='40sp', markup=True,
+        title = Label(text="[b][color=000000]Превосходство[/color][/b]", font_size='40sp', markup=True,
                       size_hint=(1, 0.2), pos_hint={'center_x': 0.5, 'center_y': 0.9})
         self.add_widget(title)
 
