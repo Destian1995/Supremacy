@@ -226,7 +226,12 @@ def strike_to_city(city_name, weapon_characteristics, path_to_army):
     fraction = get_faction_of_city(city_name)
     path_to_buildings = transform_filename(f'files/config/buildings_in_city/{fraction}_buildings_city.json',
                                            translation_dict)
-    strike_to_infrastructure(city_name, weapon_characteristics, path_to_buildings)
+    print('100 * effective_weapon_damage//total_strength', 100 * effective_weapon_damage//total_strength)
+    f_damage = 100 * effective_weapon_damage//total_strength
+    if 5 < f_damage:
+        effective_weapon_damage = effective_weapon_damage//f_damage*5
+        strike_to_infrastructure(city_name, path_to_buildings, effective_weapon_damage)
+
     # Обновляем данные армии
     city_data[0]['units'] = surviving_units
     # Сохраняем обновленную армию в исходный файл (например, в giperion_in_city.json)
@@ -240,7 +245,7 @@ def strike_to_city(city_name, weapon_characteristics, path_to_army):
 
 
 # Функция расчета урона по инфраструктуре
-def strike_to_infrastructure(city_name, weapon_characteristics, path_to_buildings):
+def strike_to_infrastructure(city_name, path_to_buildings, effective_weapon_damage):
     print('Начинаем расчет урона по инфраструктуре')
 
     # Чтение данных о зданиях
@@ -258,13 +263,7 @@ def strike_to_infrastructure(city_name, weapon_characteristics, path_to_building
         return
 
     print(f"Данные инфраструктуры до удара: {city_data}")
-
-    # Расчет урона по зданиям
-    weapon_damage = weapon_characteristics.get('all_damage', 0)
-    air_defense_coefficient = weapon_characteristics.get('koef', 1)
-    effective_weapon_damage = weapon_damage * air_defense_coefficient
-    print(f"Эффективный урон по инфраструктуре: {effective_weapon_damage}")
-
+    print('Урон остаточный:', effective_weapon_damage)
     # Константа для урона, необходимого для разрушения одного здания
     DAMAGE_PER_BUILDING = 1498500
 

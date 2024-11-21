@@ -452,8 +452,10 @@ def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout
         # Обновление расквартирования
         with open('files/config/cities.json', 'r', encoding='UTF-8') as f:
             cities_data = json.load(f)
-            city_coords = next((coords for coords, name in cities_data['cities'].items()
-                                if name.strip() == city_name.strip()), None)
+
+            # Поиск координат города
+            city_coords = next((city['coordinates'] for city in cities_data['cities']
+                                if city['name'].strip() == city_name.strip()), None)
 
         if city_coords is None:
             print(f"Город '{city_name}' не найден в данных.")

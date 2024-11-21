@@ -22,6 +22,7 @@ def load_kingdom_data(file_path):
         data = json.load(file)
     return data
 
+
 def restore_from_backup():
     # Определяем путь к исходным и резервным файлам
     backup_dir = 'files/config/backup'
