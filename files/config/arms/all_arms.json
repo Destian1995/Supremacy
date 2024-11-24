@@ -84,7 +84,7 @@
                     {
                         "unit_image": "files/army/giperion/pretorian.jpg",
                         "unit_name": "Преторианцы",
-                        "unit_count": 4000,
+                        "unit_count": 3687,
                         "units_stats": {
                             "Урон": 720000,
                             "Защита": 360000,
@@ -95,7 +95,7 @@
                     {
                         "unit_image": "files/army/giperion/BM390.jpg",
                         "unit_name": "Цезарь",
-                        "unit_count": 7000,
+                        "unit_count": 6452,
                         "units_stats": {
                             "Урон": 9170000,
                             "Защита": 665000,
@@ -106,7 +106,7 @@
                     {
                         "unit_image": "files/army/giperion/varvar.jpg",
                         "unit_name": "Центурион",
-                        "unit_count": 3500,
+                        "unit_count": 3226,
                         "units_stats": {
                             "Урон": 2275000,
                             "Защита": 1400000,
@@ -117,7 +117,7 @@
                     {
                         "unit_image": "files/army/giperion/valkirya.jpg",
                         "unit_name": "Валькирия",
-                        "unit_count": 1500,
+                        "unit_count": 1382,
                         "units_stats": {
                             "Урон": 2385000,
                             "Защита": 165000,
@@ -128,7 +128,7 @@
                     {
                         "unit_image": "files/army/giperion/CPS-12.jpg",
                         "unit_name": "HPAAL",
-                        "unit_count": 3000,
+                        "unit_count": 2765,
                         "units_stats": {
                             "Урон": 240000,
                             "Защита": 4650000,
@@ -139,7 +139,7 @@
                     {
                         "unit_image": "files/army/giperion/k-17.jpg",
                         "unit_name": "К-17",
-                        "unit_count": 60,
+                        "unit_count": 55,
                         "units_stats": {
                             "Урон": 5016000,
                             "Защита": 1722000,

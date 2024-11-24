@@ -710,7 +710,7 @@ class WeaponCash:
                 except json.JSONDecodeError:
                     print("Ошибка при загрузке ресурсов: файл пуст или повреждён.")
 
-    def hire_unit(self, unit_name, unit_cost, quantity, weapon_name, koef=0, class_weapon=""):
+    def hire_unit(self, unit_name, unit_cost, quantity, weapon_name, koef=0):
         """Нанимает юнита, если ресурсов достаточно, и обновляет данные о них."""
         crowns, workers = unit_cost  # Извлекаем стоимость юнита
         required_crowns = int(crowns) * int(quantity)  # Рассчитываем общее количество необходимых крон
@@ -752,7 +752,6 @@ class WeaponCash:
                 'name': unit_name,
                 'count': quantity,
                 'koef': koef,  # Сохранение коэффициента преодоления ПВО
-                'class_weapon': class_weapon,  # Сохранение класса оружия
                 'all_damage': all_damage  # Сохранение общего урона
             }
 
@@ -945,16 +944,15 @@ def select_weapon(weapon_name, weapons, faction, army_cash):
     quantity_input = TextInput(multiline=False)
     build_button = Button(text="Построить")
 
-    # Получаем коэффициент преодоления ПВО и класс оружия из weapon_info
+    # Получаем коэффициент преодоления ПВО
     koef = weapon_info.get('stats', {}).get('Коэфициент преодоления ПВО', 0)
-    class_weapon = weapon_info.get('stats', {}).get('Класс оружия', "")
 
     # Создаем новое всплывающее окно для деталей оружия
     weapon_details_popup = Popup(title=weapon_name, content=weapon_details_layout, size_hint=(0.8, 0.8))
 
     build_button.bind(
         on_release=lambda x: build_weapon(faction, weapon_name, quantity_input.text, weapon_info.get('cost', [0, 0]),
-                                          weapon_details_popup, army_cash, koef, class_weapon))
+                                          weapon_details_popup, army_cash, koef))
 
     info_layout.add_widget(quantity_label)
     info_layout.add_widget(quantity_input)
@@ -964,13 +962,13 @@ def select_weapon(weapon_name, weapons, faction, army_cash):
     weapon_details_popup.open()
 
 
-def build_weapon(faction, weapon_name, quantity_str, cost, weapon_details_popup, army_cash, koef, class_weapon):
+def build_weapon(faction, weapon_name, quantity_str, cost, weapon_details_popup, army_cash, koef):
     try:
         quantity = int(quantity_str)
         total_cost = [cost[0] * quantity, cost[1] * quantity]
 
         # Передаем параметры koef и class_weapon в hire_unit
-        if army_cash.hire_unit(weapon_name, cost, quantity, weapon_name, koef, class_weapon):
+        if army_cash.hire_unit(weapon_name, cost, quantity, weapon_name, koef):
             print(
                 f"Построено {quantity} юнитов {weapon_name}. Общая стоимость: {total_cost[0]} Крон, {total_cost[1]} Рабочих.")
 
