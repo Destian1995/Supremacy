@@ -1,7 +1,10 @@
 {
     "Аргенвилль": [
         {
-            "coordinates": "[100, 630]",
+            "coordinates": [
+                100,
+                630
+            ],
             "units": [
                 {
                     "unit_image": "files/army/arkadia/gvardia.jpg",
@@ -15,24 +18,13 @@
                     }
                 },
                 {
-                    "unit_image": "files/army/arkadia/sso.jpg",
-                    "unit_name": "Спецназ",
-                    "unit_count": 3500,
-                    "units_stats": {
-                        "Урон": 1470000,
-                        "Защита": 1295000,
-                        "Живучесть": 507500,
-                        "Класс юнита": "1"
-                    }
-                },
-                {
                     "unit_image": "files/army/arkadia/ciclon-s.jpg",
                     "unit_name": "Циклон",
-                    "unit_count": 3500,
+                    "unit_count": 2000,
                     "units_stats": {
-                        "Урон": 3395000,
-                        "Защита": 385000,
-                        "Живучесть": 420000,
+                        "Урон": 1940000,
+                        "Защита": 220000,
+                        "Живучесть": 240000,
                         "Класс юнита": "3"
                     }
                 },
@@ -50,19 +42,33 @@
             ]
         }
     ],
-    "Тарпин": [
+    "Бастион Милитель": [
         {
-            "coordinates": "[370, 600]",
+            "coordinates": [
+                80,
+                460
+            ],
             "units": [
                 {
-                    "unit_image": "files/army/arkadia/sso.jpg",
-                    "unit_name": "Спецназ",
-                    "unit_count": 500,
+                    "unit_image": "files/army/arkadia/vepr.jpg",
+                    "unit_name": "Вепрь",
+                    "unit_count": 4000,
                     "units_stats": {
-                        "Урон": 210000,
-                        "Защита": 185000,
-                        "Живучесть": 72500,
-                        "Класс юнита": "1"
+                        "Урон": 480000,
+                        "Защита": 1960000,
+                        "Живучесть": 1320000,
+                        "Класс юнита": "2"
+                    }
+                },
+                {
+                    "unit_image": "files/army/arkadia/pancir.jpg",
+                    "unit_name": "Панцирь - С4М",
+                    "unit_count": 1500,
+                    "units_stats": {
+                        "Урон": 330000,
+                        "Защита": 21450000,
+                        "Живучесть": 2175000,
+                        "Класс юнита": "3"
                     }
                 }
             ]
