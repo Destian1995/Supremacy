@@ -4,26 +4,12 @@ from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.popup import Popup
-from kivy.uix.gridlayout import GridLayout
-from kivy.uix.scrollview import ScrollView
 from kivy.uix.dropdown import DropDown
-from kivy.graphics import Color, Line
 from kivy.uix.textinput import TextInput
-from kivy.uix.widget import Widget
 from kivy.uix.image import Image
-from kivy.graphics.texture import Texture
-import datetime
 import os
 import json
-import re
 import random
-from kivymd.app import MDApp
-from kivymd.uix.screen import MDScreen
-from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDRaisedButton
-from kivymd.uix.card import MDCard
-from kivymd.uix.label import MDLabel
-from collections import defaultdict
 import matplotlib.pyplot as plt
 import io
 
@@ -42,7 +28,7 @@ translation_dict = {
     "Халидон": "halidon",
 }
 
-def transform_filename(file_path, translation_dict):
+def transform_filename(file_path):
     path_parts = file_path.split('/')
     for i, part in enumerate(path_parts):
         for ru_name, en_name in translation_dict.items():
@@ -76,7 +62,7 @@ def save_building_change(faction_name, city, building_type, amount):
         }
     }
     """
-    fraction_path = transform_filename(f'files/config/buildings_in_city/{faction_name}_buildings_city.json', translation_dict)
+    fraction_path = transform_filename(f'files/config/buildings_in_city/{faction_name}_buildings_city.json')
     print(fraction_path)
     # Читаем существующие данные из файла или создаем пустой словарь
     try:
@@ -180,45 +166,41 @@ class Faction:
         self.cities_buildings[city]['Больница'] += 1
         save_building_change(self.faction, city, "Больница", 1)  # Передаем в словарь постройку больницы
 
-
-    def get_city_buildings(self, city):
+    def get_city_buildings(self):
         """Получение информации о зданиях в указанном городе."""
-        return self.cities_buildings.get(city, {})
+        return self.cities_buildings.get
 
     def update_buildings(self):
-        """Обновляет количество госпиталей и фабрик для каждого города фракции по данным из JSON-файла."""
-        buildings_file = transform_filename(f'files/config/buildings_in_city/{self.faction}_buildings_city.json',
-                                            translation_dict)
+        """
+        Обновляет количество зданий для каждого города фракции по данным из JSON-файла.
+        """
+        buildings_file = transform_filename(f'files/config/buildings_in_city/{self.faction}_buildings_city.json')
 
-        # Сбрасываем значения перед обновлением
-        for city in self.cities_buildings:
-            self.cities_buildings[city]['Больница'] = 0
-            self.cities_buildings[city]['Фабрика'] = 0
-
-        # Проверяем, существует ли файл
+        # Проверяем существование файла
         if os.path.exists(buildings_file):
             try:
+                # Чтение данных из файла
                 with open(buildings_file, 'r', encoding='utf-8') as file:
                     data = json.load(file)
 
                 # Обновляем данные зданий для каждого города
                 for city, buildings in data.items():
-                    if city in self.cities_buildings:
-                        self.cities_buildings[city]['Больница'] = buildings['Здания'].get('Больница', 0)
-                        self.cities_buildings[city]['Фабрика'] = buildings['Здания'].get('Фабрика', 0)
+                    if city not in self.cities_buildings:
+                        self.cities_buildings[city] = {'Больница': 0, 'Фабрика': 0}
 
-                # Пересчитываем общее количество зданий
+                    # Обновляем данные из файла
+                    self.cities_buildings[city]['Больница'] += buildings.get('Здания', {}).get('Больница', 0)
+                    self.cities_buildings[city]['Фабрика'] += buildings.get('Здания', {}).get('Фабрика', 0)
+
+                # Пересчитываем общие показатели
                 self.hospitals = sum(city['Больница'] for city in self.cities_buildings.values())
                 self.factories = sum(city['Фабрика'] for city in self.cities_buildings.values())
 
-                # Вывод обновленного количества зданий для отладки
-                print(
-                    f"Обновлено количество зданий для {self.faction}: Госпиталей = {self.hospitals}, Фабрик = {self.factories}")
-
-            except (FileNotFoundError, json.JSONDecodeError) as e:
+            except (json.JSONDecodeError, FileNotFoundError) as e:
                 print(f"Ошибка при чтении файла {buildings_file}: {e}")
         else:
             print(f"Файл {buildings_file} не найден!")
+
 
 
     def cash_build(self, money):

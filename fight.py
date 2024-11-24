@@ -118,36 +118,93 @@ def update_diplomacy_data(attacking_fraction, defending_fraction, city_name):
         print(f"Ошибка при работе с файлом дипломатии: {e}")
 
 
+def update_city_data(attacking_fraction, defending_fraction, city_name):
+    fraction_def = transform_filename(defending_fraction)
+    fraction_off = transform_filename(attacking_fraction)
 
-def update_city_data(attacking_fraction, defending_fraction, city_name, city_coords):
     # Открываем файл city.json для чтения и записи
     with open('files/config/city.json', 'r', encoding='utf-8') as file:
         data = json.load(file)
 
-    city_data = None  # Переменная для хранения данных города
+    city_data = None  # Данные города, которые нужно перенести
 
-    # Проходим по всем фракциям и удаляем город из защитника
+    # Удаляем город из защитника
     for kingdom, details in data['kingdoms'].items():
-        for city in details['fortresses']:
-            if city['name'] == city_name and kingdom == defending_fraction:
-                city_data = city  # Сохраняем город для переноса
-                details['fortresses'].remove(city)
+        if kingdom == defending_fraction:
+            city_to_remove = next(
+                (city for city in details['fortresses'] if city['name'] == city_name), None
+            )
+            if city_to_remove:
+                city_data = city_to_remove
+                details['fortresses'].remove(city_to_remove)
                 print(f"{city_name} удален из {defending_fraction}.")
                 break
-        if city_data:
-            break
 
-    # Добавляем город в атакующую фракцию, если он был найден
+    # Если город найден, добавляем его к атакующей фракции
     if city_data:
         data['kingdoms'][attacking_fraction]['fortresses'].append(city_data)
         print(f"{city_name} добавлен в {attacking_fraction}.")
+    else:
+        print(f"Город {city_name} не найден в {defending_fraction}.")
+        return
 
-    # Сохраняем изменения обратно в файл
+    # Сохраняем изменения в city.json
     with open('files/config/city.json', 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
 
-    # Обновляем дипломатию
+    # Перемещение зданий
+    defending_buildings_file = f'files/config/buildings_in_city/{fraction_def}_buildings_city.json'
+    attacking_buildings_file = f'files/config/buildings_in_city/{fraction_off}_buildings_city.json'
+
+    # Читаем данные из файла защитника
+    if os.path.exists(defending_buildings_file):
+        try:
+            with open(defending_buildings_file, 'r', encoding='utf-8') as file:
+                defending_buildings_data = json.load(file) or {}
+        except json.JSONDecodeError:
+            print(f"Ошибка чтения файла {defending_buildings_file}. Файл может быть поврежден.")
+            defending_buildings_data = {}
+    else:
+        defending_buildings_data = {}
+
+    # Читаем данные из файла атакующего
+    if os.path.exists(attacking_buildings_file):
+        try:
+            with open(attacking_buildings_file, 'r', encoding='utf-8') as file:
+                attacking_buildings_data = json.load(file) or {}
+        except json.JSONDecodeError:
+            print(f"Ошибка чтения файла {attacking_buildings_file}. Файл может быть поврежден.")
+            attacking_buildings_data = {}
+    else:
+        attacking_buildings_data = {}
+
+    # Переносим здания города
+    if city_name in defending_buildings_data:
+        buildings_to_move = defending_buildings_data.pop(city_name)
+
+        # Добавляем здания в файл атакующей фракции
+        if city_name in attacking_buildings_data:
+            for building, count in buildings_to_move["Здания"].items():
+                attacking_buildings_data[city_name]["Здания"][building] = (
+                        attacking_buildings_data[city_name]["Здания"].get(building, 0) + count
+                )
+        else:
+            attacking_buildings_data[city_name] = buildings_to_move
+
+        # Сохраняем обновления
+        with open(defending_buildings_file, 'w', encoding='utf-8') as file:
+            json.dump(defending_buildings_data, file, ensure_ascii=False, indent=4)
+
+        with open(attacking_buildings_file, 'w', encoding='utf-8') as file:
+            json.dump(attacking_buildings_data, file, ensure_ascii=False, indent=4)
+
+        print(f"Здания города {city_name} перенесены из {fraction_def} в {fraction_off}.")
+    else:
+        print(f"Город {city_name} отсутствует в файле зданий для {fraction_def}.")
+
+    # Обновляем данные дипломатии
     update_diplomacy_data(attacking_fraction, defending_fraction, city_name)
+
 
 
 def not_found_def_army(attacking_army, ii_file_path, user_file_path, attacking_city, attacking_fraction,
@@ -189,7 +246,7 @@ def not_found_def_army(attacking_army, ii_file_path, user_file_path, attacking_c
     save_json(ii_file_path, defending_data)
 
     # Обновляем данные о захваченном городе
-    update_city_data(attacking_fraction, defending_fraction, defending_city, defending_city_coords)
+    update_city_data(attacking_fraction, defending_fraction, defending_city)
 
     print(f"Атакующие успешно заняли город {defending_city}.")
     return  # Завершение функции, так как бой не нужен
@@ -496,7 +553,7 @@ def fight(ii_file_path, user_file_path, attacking_city, defending_city_coords, d
                     "coordinates": city_coords,
                     "units": [unit]  # Для каждого города защита или атака должна добавлять актуальные войска
                 })
-            update_city_data(attacking_fraction, defending_fraction, defending_city, defending_city_coords)
+            update_city_data(attacking_fraction, defending_fraction, defending_city)
 
         # Удаляем всех защитников после битвы
         for unit in defending_army:
