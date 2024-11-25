@@ -192,7 +192,7 @@ class GameScreen(Screen):
         self.resource_box.update_resources()
 
         # Путь к каталогу с файлами
-        attack_in_city_dir = r'C:\Users\lerdo\IdeaProjects\Empire_s_Rise\files\config\attack_in_city'
+        attack_in_city_dir = r'files\config\attack_in_city'
 
         # Проставляем 'True' во всех файлах в каталоге
         for filename in os.listdir(attack_in_city_dir):

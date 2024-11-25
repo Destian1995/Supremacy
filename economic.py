@@ -50,7 +50,7 @@ def get_faction_of_city(city_name):
         return None
 
 
-def save_building_change(faction_name, city, building_type, amount):
+def save_building_change(faction_name, city, building_type, buildings):
     """Запись изменений в словарь и сохранение в файл.
     Формат -
     {
@@ -77,7 +77,7 @@ def save_building_change(faction_name, city, building_type, amount):
     if building_type not in data[city]['Здания']:
         data[city]['Здания'][building_type] = 0
 
-    data[city]['Здания'][building_type] += amount  # Обновляем количество зданий
+    data[city]['Здания'][building_type] = buildings  # Обновляем количество зданий
 
     # Записываем обновленные данные обратно в файл
     with open(fraction_path, 'w', encoding='utf-8') as file:
@@ -89,10 +89,10 @@ class Faction:
     def __init__(self, name):
         self.faction = name
         self.cities = self.load_cities_from_file()
-        self.money = 100000000
-        self.free_peoples = 10000000
-        self.food = 10000000
-        self.population = 10
+        self.money = 1000
+        self.free_peoples = 500
+        self.food = 200
+        self.population = 300
         self.hospitals = 0
         self.factories = 0
         self.taxes = 0
@@ -154,7 +154,7 @@ class Faction:
 
         self.factories += 1
         self.cities_buildings[city]['Фабрика'] += 1
-        save_building_change(self.faction, city, "Фабрика", 1)  # Передаем в словарь постройку фабрики
+        save_building_change(self.faction, city, "Фабрика", self.factories)  # Передаем в словарь постройку фабрики
 
     def build_hospital(self, city):
         """Увеличить количество больниц в определенном городе и обновить ресурсы."""
@@ -164,7 +164,7 @@ class Faction:
 
         self.hospitals += 1
         self.cities_buildings[city]['Больница'] += 1
-        save_building_change(self.faction, city, "Больница", 1)  # Передаем в словарь постройку больницы
+        save_building_change(self.faction, city, "Больница", self.hospitals)  # Передаем в словарь постройку больницы
 
     def get_city_buildings(self):
         """Получение информации о зданиях в указанном городе."""
@@ -189,8 +189,8 @@ class Faction:
                         self.cities_buildings[city] = {'Больница': 0, 'Фабрика': 0}
 
                     # Обновляем данные из файла
-                    self.cities_buildings[city]['Больница'] += buildings.get('Здания', {}).get('Больница', 0)
-                    self.cities_buildings[city]['Фабрика'] += buildings.get('Здания', {}).get('Фабрика', 0)
+                    self.cities_buildings[city]['Больница'] = buildings.get('Здания', {}).get('Больница', 0)
+                    self.cities_buildings[city]['Фабрика'] = buildings.get('Здания', {}).get('Фабрика', 0)
 
                 # Пересчитываем общие показатели
                 self.hospitals = sum(city['Больница'] for city in self.cities_buildings.values())
@@ -200,7 +200,6 @@ class Faction:
                 print(f"Ошибка при чтении файла {buildings_file}: {e}")
         else:
             print(f"Файл {buildings_file} не найден!")
-
 
 
     def cash_build(self, money):
@@ -497,17 +496,17 @@ def build_structure(building, city, faction):
         return
 
     if building == "Фабрика":
-        if faction.cash_build(100):
+        if faction.cash_build(200):
             faction.build_factory(city_found['name'])  # Передаем имя города
             show_success_message(building, city_found['name'])
         else:
-            show_error_message("Недостаточно денег для постройки фабрики! \n  Стоимость фабрики 100 крон")
+            show_error_message("Недостаточно денег для постройки фабрики! \n  Стоимость фабрики 200 крон")
     elif building == "Больница":
-        if faction.cash_build(50):
+        if faction.cash_build(300):
             faction.build_hospital(city_found['name'])  # Передаем имя города
             show_success_message(building, city_found['name'])
         else:
-            show_error_message("Недостаточно денег для постройки больницы! \n  Стоимость больницы 50 крон")
+            show_error_message("Недостаточно денег для постройки больницы! \n  Стоимость больницы 300 крон")
 
 
 

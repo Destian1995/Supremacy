@@ -40,16 +40,32 @@ class AIController:
         self.process_turn()
 
     def load_data(self, file_path):
+        """
+        Загружает данные из указанного JSON-файла.
+        Если файл отсутствует, пуст или некорректен, возвращается пустой словарь.
+        """
         if not os.path.exists(file_path):
             print(f"Файл {file_path} не найден. Данные будут инициализированы пустым словарем.")
             return {}
+
         try:
             with open(file_path, 'r', encoding='utf-8') as file:
-                data = json.load(file)
+                content = file.read().strip()  # Удаляем лишние пробелы и символы новой строки
+                if not content:  # Проверяем, пуст ли файл
+                    print(f"Файл {file_path} пуст. Инициализация пустым словарем.")
+                    return {}
+                data = json.loads(content)  # Загружаем JSON из содержимого файла
             return data
-        except (json.JSONDecodeError, FileNotFoundError) as e:
+        except UnicodeDecodeError as e:
+            print(f"Ошибка кодировки в файле {file_path}: {e}. Инициализация пустым словарем.")
+            return {}
+        except json.JSONDecodeError as e:
             print(f"Ошибка загрузки данных из {file_path}: {e}. Инициализация пустым словарем.")
             return {}
+        except Exception as e:
+            print(f"Неожиданная ошибка при загрузке {file_path}: {e}. Инициализация пустым словарем.")
+            return {}
+
 
     def load_data_fractions(self):
         self.bulidings = self.load_data(self.bulidings_path)
@@ -84,7 +100,6 @@ class AIController:
 
     def update_resources(self):
         """Обновление ресурсов для ИИ."""
-        # Коэффициенты для фракций
         faction_coefficients = {
             'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
                         'food_loss': 1.2},
@@ -98,12 +113,16 @@ class AIController:
                         'food_loss': 0.4},
         }
 
-        # Проверяем фракцию
         coeffs = faction_coefficients.get(self.faction)
         if not coeffs:
             raise ValueError(f"Фракция '{self.faction}' не найдена.")
 
-        # Пересчет ресурсов
+        # Инициализируем значения по умолчанию
+        self.resources.setdefault('Рабочие', 0)
+        self.resources.setdefault('Кроны', 0)
+        self.resources.setdefault('Еда', 0)
+        self.resources.setdefault('Население', 0)
+
         tax_rate = self.unqiue_fraction_tax_rate().get(self.faction, {}).get("tax_rate", 0)
         self.born_peoples = int(self.hospitals * 500)
         self.workers = int(self.factory * 200)
@@ -112,12 +131,10 @@ class AIController:
         self.resources['Рабочие'] += clear_up_peoples
         self.resources['Кроны'] += int(tax_rate * self.resources['Население'] - self.hospitals * coeffs['money_loss'])
 
-        # Производство еды фабриками
         food_production = int(self.factory * 1000)
         food_consumption = int(self.resources['Население'] * coeffs['food_loss'])
         self.resources['Еда'] += food_production - food_consumption
 
-        # Логика изменения населения
         if self.resources['Еда'] > 0:
             self.resources['Население'] += clear_up_peoples
         else:
@@ -128,25 +145,17 @@ class AIController:
             self.resources['Население'] -= loss
             self.resources['Рабочие'] = max(0, self.resources['Рабочие'] - loss)
 
-        # Проверка на отрицательные значения
         self.resources = {key: max(0, int(value)) for key, value in self.resources.items()}
 
-        # Сохранение обновленных данных
         self.save_resources()
         print(f"ИИ {self.faction}: ресурсы обновлены -> {self.resources}")
 
+
     def save_resources(self):
         """Записывает текущее состояние ресурсов в файл."""
-        resources_data = {
-            'Кроны': self.money,
-            'Рабочие': self.workers,
-            'Еда': self.food,
-            'Население': self.population
-        }
-
         try:
-            with open(self.resources_path, 'w') as file:
-                json.dump(resources_data, file, ensure_ascii=False, indent=4)  # Запись с индентацией для удобства
+            with open(self.resources_path, 'w', encoding='utf-8') as file:
+                json.dump(self.resources, file, ensure_ascii=False, indent=4)
         except Exception as e:
             print(f"Ошибка при сохранении ресурсов: {e}")
 
@@ -166,7 +175,6 @@ class AIController:
         # Дипломатические действия
         self.manage_politics()
 
-
     def build_buildings(self):
         """Построить экономические объекты"""
         if self.resources['Кроны'] >= 500:
@@ -174,60 +182,27 @@ class AIController:
             self.hospitals += 1
             self.resources['Кроны'] -= 500
 
-
     def build_army(self):
         pass
 
     def trade_resources(self):
         """Торговля ресурсами с другими фракциями"""
-        if self.resources['money'] >= 100:
-            self.resources['money'] -= 100
-            self.resources['people'] += 50
-            #print(f"{self.faction} торгует. Деньги: {self.resources['money']}, Люди: {self.resources['people']}")
-        else:
-            pass  #print(f"{self.faction} не хватает денег для торговли.")
+        pass
 
     def expand_economy(self):
         """Расширение экономики (например, колонизация или захват территорий)"""
-        if self.resources['people'] >= 100:
-            self.resources['people'] -= 100
-            self.economy_level += 0.5
-            #print(f"{self.faction} расширяет экономику. Новый уровень экономики: {self.economy_level}")
-        else:
-            pass  #print(f"{self.faction} не хватает людей для расширения экономики.")
+        pass
 
     def manage_army(self):
         """Управление армией ИИ"""
-        action = random.choice(['train', 'attack', 'defend'])
-        if action == 'train':
-            self.train_army()
-        elif action == 'attack':
-            self.attack_enemy()
-        elif action == 'defend':
-            self.defend_territory()
+        pass
 
     def train_army(self):
         """Тренировка войск"""
-        if self.resources['money'] >= 150:
-            self.army_strength += 1
-            self.resources['money'] -= 150
-            #print(f"{self.faction} тренирует войска. Сила армии: {self.army_strength}")
-        else:
-            pass  #print(f"{self.faction} не хватает средств для тренировки армии.")
-
+        pass
     def attack_enemy(self):
         """Атака на соседнюю фракцию"""
-        if self.army_strength > 2:
-            target = random.choice(list(self.diplomacy_status.keys()))
-            print(f"{self.faction} атакует {target}.")
-            # Логика успеха атаки
-            success = random.random() < 0.5
-            if success:
-                pass  #print(f"Атака {self.faction} на {target} была успешной!")
-            else:
-                pass  #print(f"Атака {self.faction} на {target} провалилась.")
-        else:
-            pass  #print(f"{self.faction} армия слишком слаба для атаки.")
+        pass
 
     def defend_territory(self):
         """Защита территории"""
@@ -235,15 +210,7 @@ class AIController:
 
     def manage_politics(self):
         """Управление дипломатией ИИ"""
-        if len(self.diplomacy_status) > 0:
-            target = random.choice(list(self.diplomacy_status.keys()))
-            action = random.choice(['ally', 'negotiate', 'betray'])
-            if action == 'ally':
-                self.form_alliance(target)
-            elif action == 'negotiate':
-                self.negotiate_peace(target)
-            elif action == 'betray':
-                self.betray_ally(target)
+        pass
 
     def form_alliance(self, target):
         """Создание альянса"""
