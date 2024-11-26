@@ -186,9 +186,8 @@ class GameScreen(Screen):
 
     def process_turn(self, instance=None):
         """Обработка хода игрока и ИИ"""
-        # Собираем налоги перед обновлением интерфейса
+        # Обновляем ресурсы игрока
         self.faction.update_resources()
-        # Обновляем отображение в ResourceBox
         self.resource_box.update_resources()
 
         # Путь к каталогу с файлами
@@ -200,3 +199,10 @@ class GameScreen(Screen):
                 file_path = os.path.join(attack_in_city_dir, filename)
                 with open(file_path, 'w', encoding='utf-8') as file:
                     file.write("True")
+
+        # Выполнение хода для всех ИИ
+        for ai_controller in self.ai_controllers.values():
+            ai_controller.make_turn()
+
+        # Логирование или обновление интерфейса после хода
+        print("Ход завершён")

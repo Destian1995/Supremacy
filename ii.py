@@ -37,7 +37,6 @@ class AIController:
         self.hospitals = self.bulidings.get('Больницы', 0)
         self.factory = self.bulidings.get('Фабрики', 0)
         self.born_peoples = 0
-        self.process_turn()
 
     def load_data(self, file_path):
         """
@@ -163,7 +162,7 @@ class AIController:
         with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
             self.diplomacy_status = json.load(file)
 
-    def process_turn(self):
+    def make_turn(self):
         """Обработка хода ИИ фракции"""
         #print(f"ИИ {self.faction} делает ход...")
         self.update_resources()
