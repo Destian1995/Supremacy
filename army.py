@@ -1,19 +1,21 @@
 # army.py
-from kivy.uix.widget import Widget
-from kivy.graphics import Color, Line
+from kivy.animation import Animation
+from kivy.graphics import Line
 from kivy.clock import Clock
-from kivy.graphics.svg import Window
-from kivy.uix.checkbox import CheckBox
 from kivy.uix.dropdown import DropDown
+from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
+from kivy.uix.popup import Popup
+from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.popup import Popup
-from kivy.uix.image import Image
-from kivy.uix.gridlayout import GridLayout
-from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
 from kivy.uix.textinput import TextInput
+from kivy.uix.image import Image
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.gridlayout import GridLayout
+from kivy.graphics import Color, RoundedRectangle
+from kivy.uix.behaviors import ButtonBehavior
+from kivy.uix.widget import Widget
 import threading
 import strike
 import json
@@ -164,48 +166,50 @@ def show_unit_selection(faction, army_hire):
     english_faction = translation_dict.get(faction, faction)
     unit_data = load_unit_data(english_faction)
 
-    unit_popup = Popup(title="Выбор юнитов", size_hint=(0.9, 0.9))
+    unit_popup = Popup(title="Выбор юнитов", size_hint=(0.9, 0.9), background_color=(0.1, 0.1, 0.1, 1))
+
     scroll_view = ScrollView(size_hint=(0.6, 1))
 
-    unit_layout = GridLayout(cols=2, padding=10, spacing=10, size_hint_y=None)
+    unit_layout = GridLayout(cols=2, padding=15, spacing=15, size_hint_y=None)
     unit_layout.bind(minimum_height=unit_layout.setter('height'))
 
-    stats_box = TextInput(readonly=True, size_hint=(0.3, 1), padding=(20, 10, 20, 10))
+    # Используем foreground_color вместо color
+    stats_box = TextInput(readonly=True, size_hint=(0.3, 1), padding=(20, 10, 20, 10),
+                          background_color=(0.2, 0.2, 0.2, 1), foreground_color=(1, 1, 1, 1), font_size=16)
 
     for unit_name, unit_info in unit_data.items():
         unit_box = BoxLayout(orientation='vertical', size_hint=(None, None), size=(200, 200))
 
         # Изображение юнита
-        unit_image = Image(source=unit_info["image"], size_hint=(1, 0.6))
+        unit_image = Image(source=unit_info["image"], size_hint=(1, 0.6), allow_stretch=True, keep_ratio=True)
         unit_box.add_widget(unit_image)
 
         # Стоимость юнита
-        cost_label = Label(text=f"Кроны: {unit_info['cost'][0]} \nРабочие: {unit_info['cost'][1]}", size_hint=(1, 0.2))
+        cost_label = Label(text=f"Кроны: {unit_info['cost'][0]} \nРабочие: {unit_info['cost'][1]}",
+                           size_hint=(1, 0.2), color=(1, 1, 1, 1), font_size=14)
         unit_box.add_widget(cost_label)
 
         # Кнопки управления
-        button_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.2))
-
-        # Кнопка для найма юнита
-        hire_btn = Button(text="Нанять", size_hint_x=0.5)
+        button_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.2), spacing=10)
 
         # Поле для ввода количества юнитов
-        quantity_input = TextInput(hint_text="Количество", size_hint_x=0.5)
+        quantity_input = TextInput(hint_text="Количество", size_hint_x=0.5, font_size=16,
+                                   multiline=False, background_color=(0.3, 0.3, 0.3, 1), foreground_color=(1, 1, 1, 1))
 
-        # Передаем характеристики юнита
-        unit_stats = unit_info['stats']
-
-        # Вызов hire_units с передачей всех необходимых параметров, включая характеристики
+        # Кнопка для найма юнита
+        hire_btn = Button(text="Нанять", size_hint_x=0.5, background_color=(0.4, 0.8, 0.4, 1),
+                          font_size=16, color=(1, 1, 1, 1))
         hire_btn.bind(on_release=lambda instance, name=unit_name, cost=unit_info['cost'],
-                                        input_box=quantity_input, img=unit_info['image'], stats=unit_stats:
+                                        input_box=quantity_input, img=unit_info['image'], stats=unit_info['stats']:
         broadcast_units(name, cost, input_box, army_hire, img, stats))
 
         button_layout.add_widget(hire_btn)
         button_layout.add_widget(quantity_input)
 
         # Кнопка для отображения информации о юните
-        info_btn = Button(text="Инфо", size_hint_x=0.5)
-        info_btn.bind(on_release=lambda x, name=unit_name, info=unit_stats:
+        info_btn = Button(text="Инфо", size_hint_x=0.5, background_color=(0.4, 0.6, 0.8, 1),
+                          font_size=16, color=(1, 1, 1, 1))
+        info_btn.bind(on_release=lambda x, name=unit_name, info=unit_info['stats']:
         display_unit_stats_info(name, info, stats_box))
         button_layout.add_widget(info_btn)
 
@@ -215,12 +219,14 @@ def show_unit_selection(faction, army_hire):
     scroll_view.add_widget(unit_layout)
 
     # Организуем содержимое попапа
-    popup_content = BoxLayout(orientation='horizontal', padding=(10, 10, 10, 10))
+    popup_content = BoxLayout(orientation='horizontal', padding=(10, 10, 10, 10), spacing=15)
     popup_content.add_widget(scroll_view)
     popup_content.add_widget(stats_box)
 
     unit_popup.content = popup_content
     unit_popup.open()
+
+
 
 
 def broadcast_units(unit_name, unit_cost, quantity_input, army_hire, image, unit_stats):
@@ -344,11 +350,14 @@ def show_army_headquarters(faction, cities):
     units_data = load_units_data()
     load_units_fraction_city = transform_filename(f'files/config/manage_ii/{faction}_in_city.json')
     unit_popup = Popup(title=f"Генштаб - {faction}", size_hint=(0.9, 0.9))
+    unit_popup.background_color = (0, 0, 0, 0.8)  # Сделаем фон прозрачным
+
     tab_panel = TabbedPanel(do_default_tab=False, size_hint=(1, 1))
 
     # Вкладка не расквартированных юнитов
     unassigned_tab = TabbedPanelItem(text="Штаб", size_hint=(1, 1))
     unassigned_layout = BoxLayout(orientation='vertical', size_hint=(1, 1))
+    unassigned_layout.padding = [10, 10, 10, 10]
 
     # Создаем ScrollView для отображения юнитов
     scroll_view = ScrollView(size_hint=(1, 1))
@@ -361,13 +370,14 @@ def show_army_headquarters(faction, cities):
         unit_count = unit_info.get('count', 0)
         unit_box = BoxLayout(orientation='vertical', size_hint_y=None, height=150)
 
+        # Добавляем стильное изображение
         if image and os.path.exists(image):
-            unit_image = Image(source=image)
+            unit_image = Image(source=image, size_hint=(None, None), width=120, height=120)
             unit_box.add_widget(unit_image)
         else:
-            unit_box.add_widget(Label(text="Изображение не найдено"))
+            unit_box.add_widget(Label(text="Изображение не найдено", color=(1, 0, 0, 1)))  # Красный цвет для ошибок
 
-        unit_label = Label(text=f"{unit_info['name']}: {unit_count} юнитов")
+        unit_label = Label(text=f"{unit_info['name']}: {unit_count} юнитов", font_size=16, color=(1, 1, 1, 1))
         unit_box.add_widget(unit_label)
 
         unassigned_content.add_widget(unit_box)
@@ -376,19 +386,29 @@ def show_army_headquarters(faction, cities):
 
     # Кнопки для управления расквартированием
     button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50)
+
+    # Стильные кнопки
     select_unit_button = Button(text='Выбрать юнит', size_hint=(1, None), height=50)
+    select_unit_button.background_color = (0.2, 0.6, 0.8, 1)  # Голубой фон
+    select_unit_button.font_size = 18
     select_unit_button.bind(on_release=lambda instance: open_unit_dropdown(select_unit_button))
     button_layout.add_widget(select_unit_button)
 
     select_city_button = Button(text='Выбрать город', size_hint=(1, None), height=50)
+    select_city_button.background_color = (0.8, 0.8, 0.2, 1)  # Желтый фон
+    select_city_button.font_size = 18
     select_city_button.bind(on_release=lambda instance: open_city_dropdown(select_city_button, cities))
     button_layout.add_widget(select_city_button)
 
-    unit_count_input = TextInput(hint_text='Количество юнитов', size_hint=(0.5, None), height=50)
+    unit_count_input = TextInput(hint_text='Количество юнитов', size_hint=(0.5, None), height=50, multiline=False)
+    unit_count_input.background_color = (0.1, 0.1, 0.1, 0.7)  # Темный фон для поля ввода
+    unit_count_input.foreground_color = (1, 1, 1, 1)  # Белый текст
     button_layout.add_widget(unit_count_input)
 
-    # Кнопка "Расквартировать" с обновлением данных вкладок
+    # Кнопка "Расквартировать"
     garrison_button = Button(text='Расквартировать', size_hint=(1, None), height=50)
+    garrison_button.background_color = (0.1, 0.8, 0.1, 1)  # Зеленый фон
+    garrison_button.font_size = 18
     garrison_button.bind(on_release=lambda instance: garrison_units(
         select_city_button.text, unit_count_input.text, select_unit_button.text, unassigned_layout, assigned_layout,
         cities, load_units_fraction_city))
@@ -841,53 +861,98 @@ current_weapon_selection_popup = None  # Окно выбора оружия
 
 
 # Функция для открытия окна управления оружием
+def animate_button(button):
+    animation = Animation(background_color=(0.2, 0.9, 0.2, 1), duration=0.3)
+    animation += Animation(background_color=(0.2, 0.6, 0.2, 1), duration=0.3)
+    animation.start(button)
+
+
 def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates_text='', path_to_army=''):
-    # Преобразуем coordinates_text в строку, если это список
     if isinstance(coordinates_text, list):
         coordinates_text = ', '.join(map(str, coordinates_text))
 
     global current_weapon_management_popup, current_weapon_selection_popup
 
-    layout = BoxLayout(orientation='horizontal')
-    weapon_data = load_weapon_data()  # Функция, которая загружает данные об оружии
+    # Используем FloatLayout для оптимизации интерфейса
+    layout = FloatLayout()
 
-    # Левая часть - Найм юнитов
-    weapon_selection_layout = BoxLayout(orientation='vertical', size_hint=(0.5, 1))
+    # Логика загрузки изображения фракции
+    faction_image_path = transform_filename(f'files/army/{faction}/stations_weapons.jpg')  # Путь к изображению фракции
+    faction_image = Image(source=faction_image_path, size_hint=(None, None),
+                          size=(240, 270))  # Размер изображения можно настроить
+    faction_image.opacity = 0.8  # Сделать изображение немного полупрозрачным
+
+    # Добавляем изображение с отступом снизу с использованием pos_hint для установки положения
+    faction_image.pos_hint = {'x': 0, 'y': 0.4}  # Установим его чуть выше низу
+    layout.add_widget(faction_image)
+
+    weapon_data = load_weapon_data()  # Загружаем данные оружия
+
+    # Левая часть - Найм оружия
+    weapon_selection_layout = BoxLayout(orientation='vertical', size_hint=(0.4, 0.6), padding=10, spacing=5)
     for weapon_name, weapon_info in weapon_data.items():
         if isinstance(weapon_info, dict):
-            weapon_label = Label(text=f"{weapon_name}: {weapon_info.get('count', 0)} шт.")
+            # Получаем количество для каждого типа оружия (если есть)
+            weapon_count = weapon_info.get('count', 0)
+
+            # Создаем метку для отображения типа оружия и его количества
+            weapon_label = Label(text=f"{weapon_name}: {weapon_count} шт.", size_hint_y=None, height=40,
+                                 color=(0.8, 0.8, 0.8, 1))
+
+            # Задаем позицию метки с помощью pos_hint (например, для первого оружия задаем расположение на высоте 0.8 от верхней границы)
+            weapon_label.pos_hint = {'x': 0.1, 'y': 0.1}  # С небольшим отступом от правого верхнего угла
+
             weapon_labels[weapon_name] = weapon_label
             weapon_selection_layout.add_widget(weapon_label)
 
-    # Лейбл и кнопки для найма юнитов
-    weapons = get_weapons(faction)  # Функция, которая возвращает список оружия по фракции
+    # Список оружия с кнопками для найма
+    weapons = get_weapons(faction)  # Получаем список оружия для фракции
 
     for weapon_name, weapon_info in weapons.items():
-        weapon_button = Button(text=weapon_name)
+        weapon_button = Button(text=weapon_name, size_hint_y=None, height=60, background_normal='', background_color=(0.3, 0.6, 0.3, 1), color=(1, 1, 1, 1), font_size=16)
         weapon_button.bind(on_release=lambda x, name=weapon_name: select_weapon(name, weapons, faction, army_cash))
+        weapon_button.radius = [10]  # Закругленные углы
+        weapon_button.bind(on_press=lambda x: animate_button(x))  # Добавляем анимацию при нажатии
         weapon_selection_layout.add_widget(weapon_button)
 
-    # Правая часть - Поля для данных и кнопка "Пуск"
-    mission_data_layout = BoxLayout(orientation='vertical', size_hint=(0.5, 1))
+    # Правая часть - Данные миссии и кнопки
+    mission_data_layout = BoxLayout(orientation='vertical', size_hint=(0.6, 0.6), padding=10, spacing=10)
 
-    # Поля для города и координат
-    city_name = TextInput(hint_text="Название города", text=city_name_text, multiline=False)
-    coord = TextInput(hint_text="Координаты", text=coordinates_text, multiline=False)
+    city_name_input = TextInput(hint_text="Название города", text=city_name_text, multiline=False, size_hint_y=None, height=40)
+    city_name_input.background_normal = ''
+    city_name_input.background_color = (0.9, 0.9, 0.9, 1)
+    city_name_input.foreground_color = (0, 0, 0, 1)
+    city_name_input.radius = [10]  # Закругленные углы для поля ввода
 
-    select_weapon_button = Button(text="Выбрать оружие")
+    coord_input = TextInput(hint_text="Координаты", text=coordinates_text, multiline=False, size_hint_y=None, height=40)
+    coord_input.background_normal = ''
+    coord_input.background_color = (0.9, 0.9, 0.9, 1)
+    coord_input.radius = [10]
+
+    select_weapon_button = Button(text="Выбрать оружие", size_hint_y=None, height=60, background_normal='', background_color=(0.3, 0.4, 0.9, 1), color=(1, 1, 1, 1), font_size=16)
     select_weapon_button.bind(on_release=lambda x: open_weapon_selection_popup(select_weapon_button))
+    select_weapon_button.radius = [10]  # Закругленные углы
+    select_weapon_button.bind(on_press=lambda x: animate_button(x))
 
-    weapon_quantity = TextInput(hint_text="Количество", multiline=False)
+    weapon_quantity_input = TextInput(hint_text="Количество", multiline=False, size_hint_y=None, height=40)
+    weapon_quantity_input.background_normal = ''
+    weapon_quantity_input.background_color = (0.9, 0.9, 0.9, 1)
+    weapon_quantity_input.radius = [10]
 
-    mission_button = Button(text="Пуск")
-    mission_button.bind(
-        on_release=lambda x: start_mission(city_name.text, coord.text, select_weapon_button.text, weapon_quantity.text, path_to_army))
+    mission_button = Button(text="Запуск", size_hint_y=None, height=60, background_normal='', background_color=(0.8, 0.2, 0.2, 1), color=(1, 1, 1, 1), font_size=16)
+    mission_button.bind(on_release=lambda x: start_mission(city_name_input.text, coord_input.text, select_weapon_button.text, weapon_quantity_input.text, path_to_army))
+    mission_button.radius = [10]
+    mission_button.bind(on_press=lambda x: animate_button(x))
 
-    mission_data_layout.add_widget(city_name)
-    mission_data_layout.add_widget(coord)
+    mission_data_layout.add_widget(city_name_input)
+    mission_data_layout.add_widget(coord_input)
     mission_data_layout.add_widget(select_weapon_button)
-    mission_data_layout.add_widget(weapon_quantity)
+    mission_data_layout.add_widget(weapon_quantity_input)
     mission_data_layout.add_widget(mission_button)
+
+    # Размещаем блоки в layout с использованием pos_hint для гибкого позиционирования
+    weapon_selection_layout.pos_hint = {'x': 0, 'y': 0.1}  # 0.1 от верхнего края
+    mission_data_layout.pos_hint = {'x': 0.4, 'y': 0.1}  # 0.4 от левого края
 
     layout.add_widget(weapon_selection_layout)
     layout.add_widget(mission_data_layout)
@@ -895,20 +960,49 @@ def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates
     if current_weapon_management_popup:
         current_weapon_management_popup.dismiss()
 
-    current_weapon_management_popup = Popup(title="Управление дальнобойным оружием", content=layout,
-                                            size_hint=(0.8, 0.8))
+    current_weapon_management_popup = Popup(title="Управление дальнобойным оружием", content=layout, size_hint=(0.8, 0.8), background_color=(0.2, 0.2, 0.2, 1))
     current_weapon_management_popup.open()
+
+
+# Улучшение функции открытия окна выбора оружия
+class StyledWeaponButton(Button):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.background_normal = ''  # Отключение стандартного фона
+        self.background_color = (0, 0, 0, 0)  # Полностью прозрачный фон
+        self.color = (1, 1, 1, 1)  # Белый цвет текста
+        self.font_size = 18  # Размер шрифта
+
+        with self.canvas.before:
+            self.rect_color = Color(0.3, 0.5, 0.7, 1)  # Основной цвет кнопки
+            self.rect = RoundedRectangle(radius=[15], size=self.size, pos=self.pos)
+
+        self.bind(pos=self.update_rect, size=self.update_rect)
+
+    def update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+
+    def on_press(self):
+        self.rect_color.rgba = (0.2, 0.4, 0.6, 1)  # Темнее при нажатии
+
+    def on_release(self):
+        self.rect_color.rgba = (0.3, 0.5, 0.7, 1)  # Возврат к исходному цвету
 
 
 def open_weapon_selection_popup(button):
     """Открывает всплывающее окно для выбора оружия."""
     global current_weapon_selection_popup
-    layout = BoxLayout(orientation='vertical')
-    weapon_data = load_weapon_data()
+    layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
 
+    weapon_data = load_weapon_data()
+    button_height = 50  # Высота одной кнопки
+
+    # Генерация кнопок для оружия
     for weapon_name, weapon_info in weapon_data.items():
         if isinstance(weapon_info, dict):
-            weapon_button = Button(text=weapon_name)
+            # Стилизация кнопки
+            weapon_button = StyledWeaponButton(text=weapon_name, size_hint=(1, None), height=button_height)
             weapon_button.bind(on_release=lambda x, name=weapon_name: select_weapon_from_list(button, name))
             layout.add_widget(weapon_button)
 
@@ -916,44 +1010,105 @@ def open_weapon_selection_popup(button):
     if current_weapon_selection_popup:
         current_weapon_selection_popup.dismiss()
 
+    # Вычисление размера окна на основе количества кнопок
+    popup_height = len(weapon_data) * (button_height + 10) + 20  # Высота кнопок + отступы
+    popup_height = min(popup_height, 400)  # Ограничение максимальной высоты окна
+
     # Создание и отображение всплывающего окна выбора оружия
-    current_weapon_selection_popup = Popup(title="Выберите оружие", content=layout, size_hint=(0.5, 0.5))
+    current_weapon_selection_popup = Popup(
+        title="Выберите оружие",
+        content=layout,
+        size_hint=(None, None),  # Фиксированный размер
+        size=(300, popup_height),  # Ширина окна 300, высота подгоняется под кнопки
+        title_size=24
+    )
     current_weapon_selection_popup.open()
 
-# Обновление количества юнитов на основе данных JSON
-def update_unit_quantity(weapon_name, new_quantity):
-    if weapon_name in weapon_labels:
-        weapon_labels[weapon_name].text = f"{weapon_name}: {new_quantity} шт."
 
-# Обновление функции выбора оружия
+
+class StyledButton(Button):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        with self.canvas.before:
+            Color(0.2, 0.6, 0.8, 1)  # Основной цвет кнопки
+            self.rect = RoundedRectangle(radius=[20], size=self.size, pos=self.pos)
+        self.bind(pos=self.update_rect, size=self.update_rect)
+
+    def update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            self.rect.size = (self.size[0] - 5, self.size[1] - 5)  # Анимация при нажатии
+        return super().on_touch_down(touch)
+
+    def on_touch_up(self, touch):
+        if self.collide_point(*touch.pos):
+            self.rect.size = self.size  # Возврат к исходным размерам
+        return super().on_touch_up(touch)
+
+
 def select_weapon(weapon_name, weapons, faction, army_cash):
     weapon_info = weapons[weapon_name]
-    print('weapon_info', weapon_info)
     stats_info = '\n'.join([f"{key}: {value}" for key, value in weapon_info.get('stats', {}).items()])
-    weapon_details_layout = BoxLayout(orientation='horizontal', size_hint=(1, 1))
 
-    weapon_image = Image(source=weapon_info.get('image', ''), size_hint=(0.4, 1), allow_stretch=True)
+    weapon_details_layout = BoxLayout(orientation='horizontal', padding=20, spacing=15)
+
+    # Фон для Popup
+    with weapon_details_layout.canvas.before:
+        Color(0.1, 0.1, 0.2, 1)  # Темный фон
+        RoundedRectangle(size=weapon_details_layout.size, pos=weapon_details_layout.pos, radius=[20])
+
+    # Изображение оружия
+    weapon_image = Image(
+        source=weapon_info.get('image', ''),
+        size_hint=(0.6, 1),  # Увеличен размер изображения
+        allow_stretch=True  # Позволяет растягивать изображение
+    )
     weapon_details_layout.add_widget(weapon_image)
 
-    info_layout = BoxLayout(orientation='vertical', size_hint=(0.6, 1))
-    info_layout.add_widget(Label(text=f"Характеристики:\n{stats_info}"))
+    # Информация об оружии
+    info_layout = BoxLayout(orientation='vertical', size_hint=(0.4, 1), spacing=10)
     info_layout.add_widget(Label(
-        text=f"Стоимость: {weapon_info.get('cost', [0, 0])[0]} Крон, {weapon_info.get('cost', [0, 0])[1]} Рабочих"))
+        text=f"[b]Характеристики:[/b]\n{stats_info}",
+        markup=True,
+        halign='left',
+        color=(0.9, 0.9, 0.9, 1)
+    ))
+    info_layout.add_widget(Label(
+        text=f"[b]Стоимость:[/b] {weapon_info.get('cost', [0, 0])[0]} Крон, {weapon_info.get('cost', [0, 0])[1]} Рабочих",
+        markup=True,
+        color=(0.9, 0.9, 0.9, 1)
+    ))
 
-    quantity_label = Label(text="Количество юнитов:")
-    quantity_input = TextInput(multiline=False)
-    build_button = Button(text="Построить")
+    # Поле ввода и кнопка
+    quantity_label = Label(text="Количество юнитов:", halign='left', color=(0.8, 0.8, 0.8, 1))
+    quantity_input = TextInput(
+        multiline=False,
+        size_hint=(1, None),
+        height=40,
+        background_color=(0.2, 0.2, 0.3, 1),  # Цвет фона поля ввода
+        foreground_color=(1, 0, 0, 1)  # Красный цвет текста
+    )
+    build_button = StyledButton(text="Построить", size_hint=(1, None), height=50)
 
     # Получаем коэффициент преодоления ПВО
     koef = weapon_info.get('stats', {}).get('Коэфициент преодоления ПВО', 0)
 
-    # Создаем новое всплывающее окно для деталей оружия
-    weapon_details_popup = Popup(title=weapon_name, content=weapon_details_layout, size_hint=(0.8, 0.8))
+    # Создаем всплывающее окно для деталей оружия
+    weapon_details_popup = Popup(
+        title=f"{weapon_name}",
+        content=weapon_details_layout,
+        size_hint=(0.8, 0.8),
+        title_size=24
+    )
 
     build_button.bind(
         on_release=lambda x: build_weapon(faction, weapon_name, quantity_input.text, weapon_info.get('cost', [0, 0]),
                                           weapon_details_popup, army_cash, koef))
 
+    # Добавляем виджеты
     info_layout.add_widget(quantity_label)
     info_layout.add_widget(quantity_input)
     info_layout.add_widget(build_button)
@@ -961,6 +1116,10 @@ def select_weapon(weapon_name, weapons, faction, army_cash):
     weapon_details_layout.add_widget(info_layout)
     weapon_details_popup.open()
 
+# Обновление количества юнитов на основе данных JSON
+def update_unit_quantity(weapon_name, new_quantity):
+    if weapon_name in weapon_labels:
+        weapon_labels[weapon_name].text = f"{weapon_name}: {new_quantity} шт."
 
 def build_weapon(faction, weapon_name, quantity_str, cost, weapon_details_popup, army_cash, koef):
     try:
