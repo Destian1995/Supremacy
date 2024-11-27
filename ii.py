@@ -239,7 +239,6 @@ class AIController:
         with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
             self.diplomacy_status = json.load(file)
 
-
     def build_army(self):
         pass
 
