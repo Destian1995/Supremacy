@@ -325,7 +325,7 @@ class Faction:
         # Коэффициенты для каждой фракции
         faction_coefficients = {
             'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
-                        'food_loss': 1.2},
+                        'food_loss': 1.4},
             'Селестия': {'free_peoples_gain': 170, 'free_peoples_loss': 20, 'money_loss': 200, 'food_gain': 540,
                          'food_loss': 1.1},
             'Хиперион': {'free_peoples_gain': 210, 'free_peoples_loss': 40, 'money_loss': 200, 'food_gain': 530,
