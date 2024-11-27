@@ -405,8 +405,8 @@ def show_army_headquarters(faction, cities):
     unit_count_input.foreground_color = (1, 1, 1, 1)  # Белый текст
     button_layout.add_widget(unit_count_input)
 
-    # Кнопка "Расквартировать"
-    garrison_button = Button(text='Расквартировать', size_hint=(1, None), height=50)
+    # Кнопка "Разместить"
+    garrison_button = Button(text='Разместить', size_hint=(1, None), height=50)
     garrison_button.background_color = (0.1, 0.8, 0.1, 1)  # Зеленый фон
     garrison_button.font_size = 18
     garrison_button.bind(on_release=lambda instance: garrison_units(
@@ -527,7 +527,7 @@ def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout
         unit_count_input = TextInput(hint_text='Количество юнитов', size_hint=(0.5, None), height=50)
         button_layout.add_widget(unit_count_input)
 
-        garrison_button = Button(text='Расквартировать', size_hint=(1, None), height=50)
+        garrison_button = Button(text='Разместить', size_hint=(1, None), height=50)
         garrison_button.bind(on_release=lambda instance: garrison_units(
             select_city_button.text, unit_count_input.text, select_unit_button.text, unassigned_layout, assigned_layout,
             cities, load_units_fraction_city))
