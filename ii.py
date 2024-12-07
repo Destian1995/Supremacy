@@ -290,7 +290,7 @@ class AIController:
             return False
 
         # Проверка на минимальное количество ресурсов для найма
-        if self.resources.get('Кроны', 0) < 50000 and self.resources.get('Рабочие', 0) < 3000:
+        if self.resources.get('Кроны', 0) < 30000 and self.resources.get('Рабочие', 0) < 2000:
             print('Не хватает ресурсов')
             return False
 
