@@ -23,20 +23,23 @@ class AIController:
         self.faction = faction
         self.diplomacy_status = {}
         self.economic_params = {}
-        self.bulidings_path = transform_filename(f'files/config/buildings_in_city/{self.faction}_buildings_city.json')
+        self.buildings_path = transform_filename(f'files/config/buildings_in_city/{self.faction}_buildings_city.json')
         self.garrison_path = transform_filename(f'files/config/manage_ii/{self.faction}_in_city.json')
         self.resources_path = transform_filename(f'files/config/manage_ii/resources/{self.faction}_resources.json')
-        self.bulidings = {}
+        self.army_path = transform_filename(f'files/config/units/{self.faction}.json')
+        self.buildings = {}
         self.garrison = {}
         self.resources = {}
+        self.army = {}
         self.load_data_fractions()
         self.money = self.resources.get('Кроны', 0)
         self.workers = self.resources.get('Рабочие', 0)
         self.food = self.resources.get('Еда', 0)
         self.population = self.resources.get('Население', 0)
-        self.hospitals = self.bulidings.get('Больницы', 0)
-        self.factory = self.bulidings.get('Фабрики', 0)
+        self.hospitals = self.buildings.get('Больницы', 0)
+        self.factory = self.buildings.get('Фабрики', 0)
         self.born_peoples = 0
+        self.cities = []
 
     def load_data(self, file_path):
         """
@@ -67,9 +70,10 @@ class AIController:
 
 
     def load_data_fractions(self):
-        self.bulidings = self.load_data(self.bulidings_path)
+        self.buildings = self.load_data(self.buildings_path)
         self.garrison = self.load_data(self.garrison_path)
         self.resources = self.load_data(self.resources_path)
+        self.army = self.load_data(self.army_path)
 
     def unqiue_fraction_tax_rate(self):
         rates = {
@@ -86,14 +90,14 @@ class AIController:
     def get_hospital_count(self):
         """Получить общее количество больниц в зданиях."""
         hospital_count = 0
-        for city, data in self.bulidings.items():
+        for city, data in self.buildings.items():
             hospital_count += data.get("Здания", {}).get("Больница", 0)
         return hospital_count
 
     def get_factory_count(self):
         """Получить общее количество фабрик в зданиях."""
         factory_count = 0
-        for city, data in self.bulidings.items():
+        for city, data in self.buildings.items():
             factory_count += data.get("Здания", {}).get("Фабрика", 0)
         return factory_count
 
@@ -103,7 +107,7 @@ class AIController:
         def update_buildings(city, hospital_incr, factory_incr):
             """Обновление данных о зданиях в указанном городе"""
             try:
-                with open(self.bulidings_path, 'r', encoding='utf-8') as file:
+                with open(self.buildings_path, 'r', encoding='utf-8') as file:
                     buildings_data = json.load(file)
             except (FileNotFoundError, json.JSONDecodeError):
                 buildings_data = {}
@@ -114,7 +118,7 @@ class AIController:
             buildings_data[city]["Здания"]["Больница"] += hospital_incr
             buildings_data[city]["Здания"]["Фабрика"] += factory_incr
 
-            with open(self.bulidings_path, 'w', encoding='utf-8') as file:
+            with open(self.buildings_path, 'w', encoding='utf-8') as file:
                 json.dump(buildings_data, file, ensure_ascii=False, indent=4)
 
         def build_resources(cost, hospital_incr, factory_incr):
@@ -236,11 +240,118 @@ class AIController:
             print(f"Ошибка при сохранении ресурсов: {e}")
 
     def diplomacy_status_update(self):
+        # Загрузка данных из файла
         with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
-            self.diplomacy_status = json.load(file)
+            data = json.load(file)
+
+        # Проверка наличия текущей фракции в данных и обновление отношений
+        if self.faction in data:
+            self.diplomacy_status = data[self.faction]["отношения"]
+        else:
+            print(f"Фракция {self.faction} не найдена в файле diplomaties.json.")
+            self.diplomacy_status = {}
+
+    def load_city_for_fractions(self):
+        # Загрузка данных из файла
+        with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
+            data = json.load(file)
+
+        # Проверка наличия текущей фракции в данных и загрузка городов
+        if self.faction in data:
+            self.cities = data[self.faction]["города"]
+        else:
+            print(f"Фракция {self.faction} не найдена в файле diplomaties.json.")
+            self.cities = []
 
     def build_army(self):
-        pass
+        # Проверка достаточности ресурсов для строительства
+        if self.resources.get('Кроны', 0) < 50000 or self.resources.get('Рабочие', 0) < 3000:
+            print(f"ИИ {self.faction}: недостаточно средств для постройки армии.")
+            return
+
+        # Проверка наличия юнитов в армии
+        if not self.army:
+            print(f"ИИ {self.faction}: отсутствуют доступные юниты для найма.")
+            return
+
+        # Определение юнита с наибольшей защитой
+        strongest_unit = max(
+            self.army.items(),
+            key=lambda unit: unit[1]['stats']['Защита']
+        )
+
+        unit_name, unit_data = strongest_unit
+        unit_cost_crowns, unit_cost_workers = unit_data['cost']
+
+        # Рассчитываем максимальное количество юнитов для найма
+        max_units = min(
+            self.resources['Кроны'] // unit_cost_crowns,
+            self.resources['Рабочие'] // unit_cost_workers
+        )
+
+        if max_units == 0:
+            print(f"ИИ {self.faction}: недостаточно средств для найма {unit_name}.")
+            return
+
+        # Списание ресурсов
+        total_crowns = unit_cost_crowns * max_units
+        total_workers = unit_cost_workers * max_units
+        self.resources['Кроны'] -= total_crowns
+        self.resources['Рабочие'] -= total_workers
+
+        # Проверка наличия городов в self.buildings
+        if not self.buildings:
+            print(f"ИИ {self.faction}: отсутствуют города для размещения юнитов.")
+            return
+
+        # Определяем город с наибольшим количеством зданий
+        target_city = max(
+            self.buildings.items(),
+            key=lambda city: sum(city[1]['Здания'].values())  # Сумма всех зданий в городе
+        )[0]
+
+        # Формируем запись юнита
+        unit_record = {
+            "unit_image": unit_data["image"],
+            "unit_name": unit_name,
+            "unit_count": max_units,
+            "units_stats": unit_data["stats"]
+        }
+
+        # Загрузка текущих данных гарнизона
+        garrison_data = self.load_data(self.garrison_path)
+
+        # Обновляем данные для выбранного города
+        if target_city in garrison_data:
+            garrison_data[target_city][0]["units"].append(unit_record)
+        else:
+            # Если города нет, создаем новую запись
+            garrison_data[target_city] = [
+                {
+                    "coordinates": None,  # Координаты не указаны в данных, можно заменить или удалить
+                    "units": [unit_record]
+                }
+            ]
+
+        # Сохранение обновленных данных гарнизона
+        self.save_data(self.garrison_path, garrison_data)
+
+        # Сохранение обновленных данных ресурсов
+        self.save_data(self.resources_path, self.resources)
+
+        print(f"ИИ {self.faction}: нанято {max_units} юнитов '{unit_name}' и отправлено в город {target_city}.")
+
+    @staticmethod
+    def save_data(file_path, data):
+        """
+        Сохраняет данные в указанный JSON-файл.
+        """
+        try:
+            with open(file_path, 'w', encoding='utf-8') as file:
+                json.dump(data, file, ensure_ascii=False, indent=4)
+            print(f"Данные успешно сохранены в {file_path}.")
+        except Exception as e:
+            print(f"Ошибка сохранения данных в {file_path}: {e}")
 
     def trade_resources(self):
         """Торговля ресурсами с другими фракциями"""
@@ -252,11 +363,8 @@ class AIController:
 
     def manage_army(self):
         """Управление армией ИИ"""
-        pass
+        self.build_army()
 
-    def train_army(self):
-        """Тренировка войск"""
-        pass
     def attack_enemy(self):
         """Атака на соседнюю фракцию"""
         pass

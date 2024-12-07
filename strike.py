@@ -114,17 +114,24 @@ def close_all_open_popups():
 
 def strike_to_city(city_name, weapon_characteristics, path_to_army):
     print('weapon_stats', weapon_characteristics)
-
+    fraction = get_faction_of_city(city_name)
+    path_to_buildings = transform_filename(f'files/config/buildings_in_city/{fraction}_buildings_city.json',
+                                           translation_dict)
     try:
         with open(path_to_army, 'r', encoding='utf-8') as file:
-            army_data = json.load(file)
-    except Exception as e:
-        print(f"Ошибка при загрузке данных армии из файла: {e}")
-        return
+            army_data = json.load(file) or {}  # Загружаем данные или создаем пустой словарь
+    except json.JSONDecodeError as e:
+        print(f"Ошибка при загрузке данных армии из файла: {e}. Файл пуст или поврежден.")
+        army_data = {}  # Пустые данные для обработки
 
-    city_data = army_data.get(city_name)
+    city_data = army_data.get(city_name, [])
     if not city_data:
-        print(f"Город '{city_name}' не найден.")
+        print(f"Город '{city_name}' не найден или данные отсутствуют.")
+        # Наносим урон по инфраструктуре, так как данных армии нет
+        weapon_damage = weapon_characteristics.get('all_damage', 0)
+        air_defense_coefficient = weapon_characteristics.get('koef', 1)
+        effective_weapon_damage = weapon_damage * air_defense_coefficient
+        strike_to_infrastructure(city_name, path_to_buildings, effective_weapon_damage)
         return
 
     army_units = []
@@ -132,7 +139,11 @@ def strike_to_city(city_name, weapon_characteristics, path_to_army):
         army_units.extend(city.get('units', []))
 
     if not army_units:
-        print(f"Армия города '{city_name}' не содержит юнитов.")
+        print(f"Армия города '{city_name}' не содержит юнитов. Урон наносится по зданиям.")
+        weapon_damage = weapon_characteristics.get('all_damage', 0)
+        air_defense_coefficient = weapon_characteristics.get('koef', 1)
+        effective_weapon_damage = weapon_damage * air_defense_coefficient
+        strike_to_infrastructure(city_name, path_to_buildings, effective_weapon_damage)
         return
 
     # Вычисление коэффициентов и процентов вклада для каждого юнита
@@ -163,7 +174,6 @@ def strike_to_city(city_name, weapon_characteristics, path_to_army):
         # Процент вклада юнита в общую силу
         unit_strength = (unit_health + unit_defense) * unit_count
         unit_percent_contributions[unit['unit_name']] = unit_strength / total_strength
-        print(unit_percent_contributions)
 
     print('Общая защита: ', total_strength)
     # Наносим урон
@@ -182,7 +192,6 @@ def strike_to_city(city_name, weapon_characteristics, path_to_army):
     total_damage = total_strength - effective_weapon_damage
     print('Осталось защиты:', total_damage)
 
-    # Наносим урон по каждому юниту отдельно
     for unit in army_units:
         unit_health = unit['units_stats']['Живучесть']
         unit_defense = unit['units_stats']['Защита']
@@ -194,16 +203,12 @@ def strike_to_city(city_name, weapon_characteristics, path_to_army):
             print(f"Нет коэффициента или процента для юнита {unit['unit_name']}")
             continue
 
-        # Сохраняем начальное количество юнитов
         initial_unit_count = unit_count
-
-        # Распределяем урон пропорционально проценту вклада юнита в общую силу
-        damage_per_unit = effective_weapon_damage * unit_percent  # Распределяем урон по юнитам
+        damage_per_unit = effective_weapon_damage * unit_percent
         remaining_strength = (unit_health + unit_defense) * unit_count - damage_per_unit
 
-        # Проверяем, уничтожен ли юнит
         if remaining_strength <= 0:
-            destroyed_units_count += initial_unit_count  # Добавляем количество уничтоженных юнитов
+            destroyed_units_count += initial_unit_count
             unit_info = {
                 'unit_name': unit['unit_name'],
                 'remaining_units': 0,
@@ -211,37 +216,33 @@ def strike_to_city(city_name, weapon_characteristics, path_to_army):
             }
             print(f"Юнит {unit['unit_name']} уничтожен.")
         else:
-            remaining_units = remaining_strength // (unit_health + unit_defense)  # Пересчитываем остаток
+            remaining_units = remaining_strength // (unit_health + unit_defense)
             destroyed_count_for_unit = initial_unit_count - int(remaining_units)
-            destroyed_units_count += destroyed_count_for_unit  # Добавляем количество уничтоженных юнитов для этого типа
+            destroyed_units_count += destroyed_count_for_unit
             unit_info = {
                 'unit_name': unit['unit_name'],
                 'remaining_units': remaining_units,
                 'destroyed': False
             }
-            unit['unit_count'] = int(remaining_units)  # Обновляем количество оставшихся юнитов
+            unit['unit_count'] = int(remaining_units)
             surviving_units.append(unit)
 
         damage_info.append(unit_info)
-    fraction = get_faction_of_city(city_name)
-    path_to_buildings = transform_filename(f'files/config/buildings_in_city/{fraction}_buildings_city.json',
-                                           translation_dict)
-    print('100 * effective_weapon_damage//total_strength', 100 * effective_weapon_damage//total_strength)
-    f_damage = 100 * effective_weapon_damage//total_strength
+
+    f_damage = 100 * effective_weapon_damage // total_strength
     if 5 < f_damage:
-        effective_weapon_damage = effective_weapon_damage//f_damage*5
+        effective_weapon_damage = effective_weapon_damage // f_damage * 5
         strike_to_infrastructure(city_name, path_to_buildings, effective_weapon_damage)
 
-    # Обновляем данные армии
     city_data[0]['units'] = surviving_units
-    # Сохраняем обновленную армию в исходный файл (например, в giperion_in_city.json)
-    path_to_save = transform_filename(path_to_army, translation_dict)  # Преобразуем название города для имени файла
+    path_to_save = transform_filename(path_to_army, translation_dict)
 
     with open(path_to_save, 'w', encoding='utf-8') as file:
         json.dump(army_data, file, indent=4)
         print('Обновленная армия сохранена в ', path_to_save)
 
     show_damage_info(damage_info, destroyed_units_count)
+
 
 
 # Функция расчета урона по инфраструктуре
@@ -265,7 +266,7 @@ def strike_to_infrastructure(city_name, path_to_buildings, effective_weapon_dama
     print(f"Данные инфраструктуры до удара: {city_data}")
     print('Урон остаточный:', effective_weapon_damage)
     # Константа для урона, необходимого для разрушения одного здания
-    DAMAGE_PER_BUILDING = 1498500
+    DAMAGE_PER_BUILDING = 80000
 
     # Подсчет общего числа зданий
     total_buildings = sum(city_data.values())

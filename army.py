@@ -435,23 +435,20 @@ def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout
     """Обработка расквартирования юнитов и обновление данных о наличии."""
     global unit_key
 
-    units_data = load_units_data()
-    print("Данные о загруженных юнитах:", units_data)
-
-    unit_image_path = unit_image_path.strip()
-    print(f"Проверяем юнит по изображению: '{unit_image_path}'")
-
-    unit_data = None
-    for unit_key, unit_value in units_data.items():
-        if unit_value.get("name") == unit_image_path:
-            unit_data = unit_value
-            break
-
-    if unit_data is None:
-        print(f"Юнит с именем {unit_image_path} не найден.")
-        return
-
     try:
+        units_data = load_units_data()
+        print("Данные о загруженных юнитах:", units_data)
+
+        unit_image_path = unit_image_path.strip()
+        print(f"Проверяем юнит по изображению: '{unit_image_path}'")
+
+        # Поиск данных о юните
+        unit_data = next((data for key, data in units_data.items() if data.get("name") == unit_image_path), None)
+
+        if not unit_data:
+            print(f"Юнит с именем {unit_image_path} не найден.")
+            return
+
         unit_count = int(unit_count_str.strip())
         available_count = unit_data.get("count", 0)
         unit_name = unit_data.get("name", "Неизвестный юнит")
@@ -465,17 +462,16 @@ def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout
         if remaining_count > 0:
             unit_data["count"] = remaining_count
         else:
-            del units_data[unit_key]
+            del units_data[unit_image_path]
 
         save_units_data(units_data)
 
-        # Обновление расквартирования
+        # Загрузка данных о городах
         with open('files/config/cities.json', 'r', encoding='UTF-8') as f:
             cities_data = json.load(f)
 
-            # Поиск координат города
-            city_coords = next((city['coordinates'] for city in cities_data['cities']
-                                if city['name'].strip() == city_name.strip()), None)
+        city_coords = next((city['coordinates'] for city in cities_data['cities']
+                            if city['name'].strip() == city_name.strip()), None)
 
         if city_coords is None:
             print(f"Город '{city_name}' не найден в данных.")
@@ -486,48 +482,69 @@ def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout
         print(f"Запись в город {city_name}: {unit_image}, {unit_name}, {unit_count}, {unit_stats}")
         save_army_in_city(city_name, city_coords, unit_image, unit_name, unit_count, unit_stats)
         update_assigned_units_tab(assigned_layout, load_units_fraction_city)
-        # Полная очистка `unassigned_layout` и повторная загрузка виджетов и кнопок
+
+        # Пересоздание интерфейса нерасквартированных юнитов
         unassigned_layout.clear_widgets()
 
-        # Создаем новый ScrollView и добавляем список юнитов
+        # Обновление списка юнитов
         scroll_view = ScrollView(size_hint=(1, 1))
         unassigned_content = GridLayout(cols=3, padding=(10, 10, 10, 10), size_hint_y=None)
         unassigned_content.bind(minimum_height=unassigned_content.setter('height'))
         scroll_view.add_widget(unassigned_content)
 
-        # Загрузка обновленного списка юнитов
         for image, unit_info in units_data.items():
             unit_count = unit_info.get('count', 0)
-            unit_box = BoxLayout(orientation='vertical', size_hint_y=None, height=150)
+            unit_name = unit_info.get('name', "Безымянный юнит")
+
+            unit_box = BoxLayout(orientation='vertical', size_hint_y=None, height=200)
 
             if image and os.path.exists(image):
-                unit_image = Image(source=image)
+                unit_image = Image(source=image, size_hint=(None, None), width=120, height=120)
                 unit_box.add_widget(unit_image)
             else:
-                unit_box.add_widget(Label(text="Изображение не найдено"))
+                unit_box.add_widget(Label(
+                    text="Изображение не найдено",
+                    color=(1, 0, 0, 1),
+                    font_size=14,
+                    halign="center"
+                ))
 
-            unit_label = Label(text=f"{unit_info['name']}: {unit_count} юнитов")
+            unit_label = Label(
+                text=f"{unit_name}\n{unit_count} юнитов",
+                font_size=16,
+                color=(1, 1, 1, 1),
+                size_hint_y=None,
+                height=50,
+                halign="center",
+                valign="middle"
+            )
+            unit_label.bind(size=lambda widget, _: setattr(widget, 'text_size', widget.size))
             unit_box.add_widget(unit_label)
 
             unassigned_content.add_widget(unit_box)
 
         unassigned_layout.add_widget(scroll_view)
 
-        # Создаем новый макет кнопок и добавляем его в `unassigned_layout`
+        # Пересоздание кнопок управления
         button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50)
 
         select_unit_button = Button(text='Выбрать юнит', size_hint=(1, None), height=50)
+        select_unit_button.background_color = (0.2, 0.6, 0.8, 1)
         select_unit_button.bind(on_release=lambda instance: open_unit_dropdown(select_unit_button))
         button_layout.add_widget(select_unit_button)
 
         select_city_button = Button(text='Выбрать город', size_hint=(1, None), height=50)
+        select_city_button.background_color = (0.8, 0.8, 0.2, 1)
         select_city_button.bind(on_release=lambda instance: open_city_dropdown(select_city_button, cities))
         button_layout.add_widget(select_city_button)
 
         unit_count_input = TextInput(hint_text='Количество юнитов', size_hint=(0.5, None), height=50)
+        unit_count_input.background_color = (0.1, 0.1, 0.1, 0.7)
+        unit_count_input.foreground_color = (1, 1, 1, 1)
         button_layout.add_widget(unit_count_input)
 
         garrison_button = Button(text='Разместить', size_hint=(1, None), height=50)
+        garrison_button.background_color = (0.1, 0.8, 0.1, 1)
         garrison_button.bind(on_release=lambda instance: garrison_units(
             select_city_button.text, unit_count_input.text, select_unit_button.text, unassigned_layout, assigned_layout,
             cities, load_units_fraction_city))
@@ -537,14 +554,10 @@ def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout
 
         print(f"Расквартировано {unit_count} юнитов {unit_name} в городе: {city_name}")
 
-    except ValueError as e:
-        print(f"Ошибка преобразования: {e}. Введенное значение: '{unit_count_str}'")
-    except FileNotFoundError as e:
-        print(f"Ошибка: файл не найден. {e}")
-    except json.JSONDecodeError as e:
-        print(f"Ошибка чтения JSON: {e}")
     except Exception as e:
-        print(f"Произошла непредвиденная ошибка: {e}")
+        print(f"Произошла ошибка: {e}")
+
+
 
 
 def update_assigned_units_tab(assigned_layout, load_units_fraction_city):
@@ -1197,7 +1210,6 @@ def start_mission(city_name, coordinates, selected_weapon_name, selected_quantit
         "name": selected_weapon_name,
         "count": weapon_data[selected_weapon_name].get('count', []),
         "koef": weapon_data[selected_weapon_name].get('koef', []),
-        "class_weapon": weapon_data[selected_weapon_name].get('class_weapon', []),
         "all_damage": weapon_data[selected_weapon_name].get('all_damage', {})
     }
 

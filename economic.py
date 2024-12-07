@@ -61,38 +61,35 @@ def get_faction_of_city(city_name):
         return None
 
 
-def save_building_change(faction_name, city, building_type, buildings):
-    """Запись изменений в словарь и сохранение в файл.
-    Формат -
-    {
-        'City': {
-            'Здания': {
-                'Больница': Количество зданий,
-                'Фабрика': Количество зданий
-            }
-        }
-    }
+def save_building_change(faction_name, city, building_type, delta):
+    """
+    Обновляет количество зданий для указанного города в JSON-файле.
+    delta — изменение (например, +1 или -1).
     """
     fraction_path = transform_filename(f'files/config/buildings_in_city/{faction_name}_buildings_city.json')
-    print(fraction_path)
-    # Читаем существующие данные из файла или создаем пустой словарь
+
     try:
+        # Чтение существующих данных
         with open(fraction_path, 'r', encoding='utf-8') as file:
             data = json.load(file)
     except (FileNotFoundError, json.JSONDecodeError):
         data = {}
 
-    # Обновляем данные
+    # Убедимся, что структура корректна
     if city not in data:
         data[city] = {'Здания': {}}
     if building_type not in data[city]['Здания']:
         data[city]['Здания'][building_type] = 0
 
-    data[city]['Здания'][building_type] = buildings  # Обновляем количество зданий
+    # Обновляем количество зданий
+    data[city]['Здания'][building_type] += delta
+    if data[city]['Здания'][building_type] < 0:
+        data[city]['Здания'][building_type] = 0  # Предотвращаем отрицательные значения
 
-    # Записываем обновленные данные обратно в файл
+    # Сохраняем изменения
     with open(fraction_path, 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
+
 
 
 
@@ -159,28 +156,18 @@ class Faction:
             return []
 
     def build_factory(self, city):
-        """Увеличить количество фабрик в определенном городе и обновить ресурсы."""
-        if city not in self.cities_buildings:
-            # Инициализируем запись для нового города, если её нет
-            self.cities_buildings[city] = {'Больница': 0, 'Фабрика': 0}
+        """Увеличить количество фабрик в указанном городе."""
+        self.cities_buildings[city]['Фабрика'] += 1  # Обновляем локальные данные
+        save_building_change(self.faction, city, "Фабрика", 1)  # Передаем изменение
+        self.update_buildings()  # Пересчитываем общие показатели
 
-        self.factories += 1
-        self.cities_buildings[city]['Фабрика'] += 1
-        save_building_change(self.faction, city, "Фабрика", self.factories)  # Передаем в словарь постройку фабрики
 
     def build_hospital(self, city):
-        """Увеличить количество больниц в определенном городе и обновить ресурсы."""
-        if city not in self.cities_buildings:
-            # Инициализируем запись для нового города, если её нет
-            self.cities_buildings[city] = {'Больница': 0, 'Фабрика': 0}
-
-        self.hospitals += 1
+        """Увеличить количество больниц в указанном городе."""
         self.cities_buildings[city]['Больница'] += 1
-        save_building_change(self.faction, city, "Больница", self.hospitals)  # Передаем в словарь постройку больницы
+        save_building_change(self.faction, city, "Больница", 1)
+        self.update_buildings()
 
-    def get_city_buildings(self):
-        """Получение информации о зданиях в указанном городе."""
-        return self.cities_buildings.get
 
     def update_buildings(self):
         """

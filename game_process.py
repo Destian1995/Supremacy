@@ -4,19 +4,14 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
-from kivy.app import App
-from kivy.uix.screenmanager import ScreenManager, Screen
+from kivy.uix.screenmanager import  Screen
 from kivy.uix.image import Image
 from kivy.uix.behaviors import ButtonBehavior
-from kivy.graphics import Color, Ellipse, Rectangle
+from kivy.graphics import Color, Rectangle
 from kivy.clock import Clock
-import threading
-import time
 import economic
 # Файл, который включает режимы игры
 from economic import Faction
-from army import GeneralStaff
-from army import check_and_open_weapon_management
 import army
 import politic
 from ii import AIController
