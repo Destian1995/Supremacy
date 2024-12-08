@@ -361,25 +361,29 @@ def show_army_headquarters(faction, cities):
 
     # Создаем ScrollView для отображения юнитов
     scroll_view = ScrollView(size_hint=(1, 1))
-    unassigned_content = GridLayout(cols=3, padding=(10, 10, 10, 10), size_hint_y=None)
+    unassigned_content = GridLayout(cols=1, padding=(10, 10, 10, 10), size_hint_y=None)
     unassigned_content.bind(minimum_height=unassigned_content.setter('height'))
     scroll_view.add_widget(unassigned_content)
 
     # Цикл по юнитам для отображения их изображений и численности
     for image, unit_info in units_data.items():
         unit_count = unit_info.get('count', 0)
-        unit_box = BoxLayout(orientation='vertical', size_hint_y=None, height=150)
 
-        # Добавляем стильное изображение
+        # Создаем горизонтальный контейнер для изображения и подписи
+        unit_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=120, spacing=10)
+
+        # Добавляем изображение юнита
         if image and os.path.exists(image):
-            unit_image = Image(source=image, size_hint=(None, None), width=120, height=120)
+            unit_image = Image(source=image, size_hint=(None, None), width=100, height=100)
             unit_box.add_widget(unit_image)
         else:
             unit_box.add_widget(Label(text="Изображение не найдено", color=(1, 0, 0, 1)))  # Красный цвет для ошибок
 
-        unit_label = Label(text=f"{unit_info['name']}: {unit_count} юнитов", font_size=16, color=(1, 1, 1, 1))
+        # Подпись с количеством юнитов
+        unit_label = Label(text=f"{unit_info['name']}: {unit_count} юнитов", font_size=16, color=(1, 1, 1, 1), size_hint=(None, None), width=150)
         unit_box.add_widget(unit_label)
 
+        # Добавляем блок юнита в содержимое ScrollView
         unassigned_content.add_widget(unit_box)
 
     unassigned_layout.add_widget(scroll_view)
@@ -429,6 +433,8 @@ def show_army_headquarters(faction, cities):
     tab_panel.add_widget(assigned_tab)
     unit_popup.content = tab_panel
     unit_popup.open()
+
+
 
 
 def garrison_units(city_name, unit_count_str, unit_name, unassigned_layout, assigned_layout, cities, load_units_fraction_city):
@@ -489,20 +495,26 @@ def garrison_units(city_name, unit_count_str, unit_name, unassigned_layout, assi
         # Пересоздание интерфейса нерасквартированных юнитов
         unassigned_layout.clear_widgets()
 
-        # Обновление списка юнитов
+        # Создаем ScrollView
         scroll_view = ScrollView(size_hint=(1, 1))
-        unassigned_content = GridLayout(cols=3, padding=(10, 10, 10, 10), size_hint_y=None)
+        unassigned_content = GridLayout(cols=1, padding=(10, 10, 10, 10),
+                                        size_hint_y=None)  # Задаем 1 колонку как в show_army_headquarters
         unassigned_content.bind(minimum_height=unassigned_content.setter('height'))
         scroll_view.add_widget(unassigned_content)
 
+        # Создаем интерфейс для юнитов
         for image, unit_info in units_data.items():
             unit_count = unit_info.get('count', 0)
             unit_name = unit_info.get('name', "Безымянный юнит")
 
-            unit_box = BoxLayout(orientation='vertical', size_hint_y=None, height=200)
+            # Создаем контейнер для изображения и подписи
+            unit_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=120,
+                                 spacing=10)  # Высота и отступы как в show_army_headquarters
 
+            # Изображение юнита
             if image and os.path.exists(image):
-                unit_image = Image(source=image, size_hint=(None, None), width=120, height=120)
+                unit_image = Image(source=image, size_hint=(None, None), width=100,
+                                   height=100)  # Размер изображения одинаковый
                 unit_box.add_widget(unit_image)
             else:
                 unit_box.add_widget(Label(
@@ -512,20 +524,23 @@ def garrison_units(city_name, unit_count_str, unit_name, unassigned_layout, assi
                     halign="center"
                 ))
 
+            # Подпись с количеством юнитов
             unit_label = Label(
-                text=f"{unit_name}\n{unit_count} юнитов",
+                text=f"{unit_name}: {unit_count} юнитов",
                 font_size=16,
                 color=(1, 1, 1, 1),
                 size_hint_y=None,
                 height=50,
-                halign="center",
+                halign="left",
                 valign="middle"
             )
             unit_label.bind(size=lambda widget, _: setattr(widget, 'text_size', widget.size))
             unit_box.add_widget(unit_label)
 
+            # Добавляем блок юнита в содержимое
             unassigned_content.add_widget(unit_box)
 
+        # Добавляем ScrollView с юнитами в layout
         unassigned_layout.add_widget(scroll_view)
 
         # Кнопки для управления расквартированием
@@ -572,6 +587,7 @@ def garrison_units(city_name, unit_count_str, unit_name, unassigned_layout, assi
 
     except Exception as e:
         print(f"Произошла ошибка: {e}")
+
 
 
 

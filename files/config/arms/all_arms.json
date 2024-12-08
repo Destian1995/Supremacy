@@ -17,6 +17,81 @@
                             "Живучесть": 29000,
                             "Класс юнита": "3"
                         }
+                    },
+                    {
+                        "unit_image": "files/army/arkadia/ciclon-s.jpg",
+                        "unit_name": "Циклон",
+                        "unit_count": 5,
+                        "units_stats": {
+                            "Урон": 4850,
+                            "Защита": 550,
+                            "Живучесть": 600,
+                            "Класс юнита": "3"
+                        }
+                    }
+                ]
+            }
+        ],
+        "Бастион Милитель": [
+            {
+                "coordinates": [
+                    80,
+                    460
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/arkadia/gvardia.jpg",
+                        "unit_name": "Гвардия",
+                        "unit_count": 5,
+                        "units_stats": {
+                            "Урон": 800,
+                            "Защита": 550,
+                            "Живучесть": 500,
+                            "Класс юнита": "1"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/arkadia/pancir.jpg",
+                        "unit_name": "Панцирь - С4М",
+                        "unit_count": 5,
+                        "units_stats": {
+                            "Урон": 1100,
+                            "Защита": 71500,
+                            "Живучесть": 7250,
+                            "Класс юнита": "3"
+                        }
+                    }
+                ]
+            }
+        ],
+        "Владонск": [
+            {
+                "coordinates": [
+                    200,
+                    560
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/arkadia/vepr.jpg",
+                        "unit_name": "Вепрь",
+                        "unit_count": 5,
+                        "units_stats": {
+                            "Урон": 600,
+                            "Защита": 2450,
+                            "Живучесть": 1650,
+                            "Класс юнита": "2"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/arkadia/mig-90.jpg",
+                        "unit_name": "МИГ - 90",
+                        "unit_count": 5,
+                        "units_stats": {
+                            "Урон": 20000,
+                            "Защита": 9000,
+                            "Живучесть": 2450,
+                            "Класс юнита": "4"
+                        }
                     }
                 ]
             }
