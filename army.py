@@ -528,26 +528,31 @@ def garrison_units(city_name, unit_count_str, unit_name, unassigned_layout, assi
 
         unassigned_layout.add_widget(scroll_view)
 
-        # Пересоздание кнопок управления
+        # Кнопки для управления расквартированием
         button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50)
 
+        # Стильные кнопки
         select_unit_button = Button(text='Выбрать юнит', size_hint=(1, None), height=50)
-        select_unit_button.background_color = (0.2, 0.6, 0.8, 1)
+        select_unit_button.background_color = (0.2, 0.6, 0.8, 1)  # Голубой фон
+        select_unit_button.font_size = 18
         select_unit_button.bind(on_release=lambda instance: open_unit_dropdown(select_unit_button))
         button_layout.add_widget(select_unit_button)
 
         select_city_button = Button(text='Выбрать город', size_hint=(1, None), height=50)
-        select_city_button.background_color = (0.8, 0.8, 0.2, 1)
+        select_city_button.background_color = (0.8, 0.8, 0.2, 1)  # Желтый фон
+        select_city_button.font_size = 18
         select_city_button.bind(on_release=lambda instance: open_city_dropdown(select_city_button, cities))
         button_layout.add_widget(select_city_button)
 
-        unit_count_input = TextInput(hint_text='Количество юнитов', size_hint=(0.5, None), height=50)
-        unit_count_input.background_color = (0.1, 0.1, 0.1, 0.7)
-        unit_count_input.foreground_color = (1, 1, 1, 1)
+        unit_count_input = TextInput(hint_text='Количество юнитов', size_hint=(0.5, None), height=50, multiline=False)
+        unit_count_input.background_color = (0.1, 0.1, 0.1, 0.7)  # Темный фон для поля ввода
+        unit_count_input.foreground_color = (1, 1, 1, 1)  # Белый текст
         button_layout.add_widget(unit_count_input)
 
+        # Кнопка "Разместить"
         garrison_button = Button(text='Разместить', size_hint=(1, None), height=50)
-        garrison_button.background_color = (0.1, 0.8, 0.1, 1)
+        garrison_button.background_color = (0.1, 0.8, 0.1, 1)  # Зеленый фон
+        garrison_button.font_size = 18
         garrison_button.bind(on_release=lambda instance: garrison_units(
             select_city_button.text, unit_count_input.text, select_unit_button.text, unassigned_layout, assigned_layout,
             cities, load_units_fraction_city))
@@ -555,10 +560,19 @@ def garrison_units(city_name, unit_count_str, unit_name, unassigned_layout, assi
 
         unassigned_layout.add_widget(button_layout)
 
+        # Вкладка расквартированных юнитов
+        assigned_tab = TabbedPanelItem(text="Города", size_hint=(1, 1))
+        assigned_layout = BoxLayout(orientation='vertical', size_hint=(1, 1))
+        assigned_tab.add_widget(assigned_layout)
+
+        # Загружаем данные для таблицы гарнизонов
+        update_assigned_units_tab(assigned_layout, load_units_fraction_city)
+
         print(f"Расквартировано {unit_count} юнитов {unit_name} в городе: {city_name}")
 
     except Exception as e:
         print(f"Произошла ошибка: {e}")
+
 
 
 def update_assigned_units_tab(assigned_layout, load_units_fraction_city):

@@ -20,50 +20,6 @@
                     }
                 ]
             }
-        ],
-        "Владонск": [
-            {
-                "coordinates": [
-                    200,
-                    560
-                ],
-                "units": [
-                    {
-                        "unit_image": "files/army/arkadia/gvardia.jpg",
-                        "unit_name": "Гвардия",
-                        "unit_count": 14,
-                        "units_stats": {
-                            "Урон": 2400,
-                            "Защита": 1650,
-                            "Живучесть": 1500,
-                            "Класс юнита": "1"
-                        }
-                    }
-                ]
-            }
-        ]
-    },
-    "celestia_in_city": {
-        "Каландор": [
-            {
-                "coordinates": [
-                    190,
-                    220
-                ],
-                "units": [
-                    {
-                        "unit_image": "files/army/celestia/grenader.jpg",
-                        "unit_name": "Гренадеры",
-                        "unit_count": 62,
-                        "units_stats": {
-                            "Урон": 2900,
-                            "Защита": 1600,
-                            "Живучесть": 1800,
-                            "Класс юнита": "1"
-                        }
-                    }
-                ]
-            }
         ]
     }
 }
