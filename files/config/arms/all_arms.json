@@ -95,6 +95,126 @@
                     }
                 ]
             }
+        ],
+        "Аргенвилль": [
+            {
+                "coordinates": [
+                    100,
+                    630
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/arkadia/pancir.jpg",
+                        "unit_name": "Панцирь - С4М",
+                        "unit_count": 9,
+                        "units_stats": {
+                            "Урон": 1980,
+                            "Защита": 128700,
+                            "Живучесть": 13050
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "celestia_in_city": {
+        "Каландор": [
+            {
+                "coordinates": [
+                    190,
+                    220
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/celestia/S-19.jpg",
+                        "unit_name": "С-19",
+                        "unit_count": 42,
+                        "units_stats": {
+                            "Урон": 4200,
+                            "Защита": 32634,
+                            "Живучесть": 26040
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "eteria_in_city": {
+        "Тяньчжоу": [
+            {
+                "coordinates": [
+                    1070,
+                    440
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/eteria/d-400.jpg",
+                        "unit_name": "Д-400",
+                        "unit_count": 52,
+                        "units_stats": {
+                            "Урон": 2600,
+                            "Защита": 104000,
+                            "Живучесть": 22880
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "giperion_in_city": {
+        "Штормград": [
+            {
+                "coordinates": [
+                    410,
+                    320
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 5,
+                        "units_stats": {
+                            "Урон": 400,
+                            "Защита": 8000,
+                            "Живучесть": 1100,
+                            "Класс юнита": "3"
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "halidon_in_city": {
+        "Рамшад": [
+            {
+                "coordinates": [
+                    1000,
+                    480
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/halidon/shadows.jpg",
+                        "unit_name": "Тени",
+                        "unit_count": 5,
+                        "units_stats": {
+                            "Урон": 425,
+                            "Защита": 50,
+                            "Живучесть": 350,
+                            "Класс юнита": "1"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/halidon/pikap.jpg",
+                        "unit_name": "Саид 4х4",
+                        "unit_count": 339,
+                        "units_stats": {
+                            "Урон": 44070,
+                            "Защита": 88140,
+                            "Живучесть": 33900
+                        }
+                    }
+                ]
+            }
         ]
     }
 }

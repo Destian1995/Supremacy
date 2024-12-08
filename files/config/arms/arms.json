@@ -1,1 +1,57 @@
-{}
+{
+    "files/army/giperion/pretorian.jpg": {
+        "name": "Преторианцы",
+        "count": 5,
+        "image": "files/army/giperion/pretorian.jpg",
+        "stats": {
+            "Урон": 900,
+            "Защита": 450,
+            "Живучесть": 600,
+            "Класс юнита": "1"
+        }
+    },
+    "files/army/giperion/BM390.jpg": {
+        "name": "Цезарь",
+        "count": 5,
+        "image": "files/army/giperion/BM390.jpg",
+        "stats": {
+            "Урон": 6550,
+            "Защита": 475,
+            "Живучесть": 600,
+            "Класс юнита": "3"
+        }
+    },
+    "files/army/giperion/varvar.jpg": {
+        "name": "Центурион",
+        "count": 5,
+        "image": "files/army/giperion/varvar.jpg",
+        "stats": {
+            "Урон": 3250,
+            "Защита": 2000,
+            "Живучесть": 2700,
+            "Класс юнита": "2"
+        }
+    },
+    "files/army/giperion/valkirya.jpg": {
+        "name": "Валькирия",
+        "count": 5,
+        "image": "files/army/giperion/valkirya.jpg",
+        "stats": {
+            "Урон": 7950,
+            "Защита": 550,
+            "Живучесть": 1650,
+            "Класс юнита": "4"
+        }
+    },
+    "files/army/giperion/k-17.jpg": {
+        "name": "К-17",
+        "count": 1,
+        "image": "files/army/giperion/k-17.jpg",
+        "stats": {
+            "Урон": 83600,
+            "Защита": 28700,
+            "Живучесть": 39490,
+            "Класс юнита": "4"
+        }
+    }
+}

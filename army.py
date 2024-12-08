@@ -380,7 +380,7 @@ def show_army_headquarters(faction, cities):
             unit_box.add_widget(Label(text="Изображение не найдено", color=(1, 0, 0, 1)))  # Красный цвет для ошибок
 
         # Подпись с количеством юнитов
-        unit_label = Label(text=f"{unit_info['name']}: {unit_count} юнитов", font_size=16, color=(1, 1, 1, 1), size_hint=(None, None), width=150)
+        unit_label = Label(text=f"       {unit_info['name']}: {unit_count} юнитов", font_size=16, color=(1, 1, 1, 1), size_hint=(None, None), width=150)
         unit_box.add_widget(unit_label)
 
         # Добавляем блок юнита в содержимое ScrollView
@@ -526,7 +526,7 @@ def garrison_units(city_name, unit_count_str, unit_name, unassigned_layout, assi
 
             # Подпись с количеством юнитов
             unit_label = Label(
-                text=f"{unit_name}: {unit_count} юнитов",
+                text=f"  {unit_name}: {unit_count} юнитов",
                 font_size=16,
                 color=(1, 1, 1, 1),
                 size_hint_y=None,
