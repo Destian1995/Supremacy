@@ -25,6 +25,7 @@ def load_kingdom_data(file_path):
 
 
 def restore_from_backup():
+    """Загрузка файлов из бэкапа, сам бэкап выполняется в модуле ui.py функция backup_files"""
     # Определяем путь к исходным и резервным файлам
     backup_dir = 'files/config/backup'
     city_file_path = 'files/config/city.json'
@@ -52,7 +53,7 @@ def clear_temp_files():
                   'files/config/buildings_in_city/arkadia_buildings_city.json',
                   'files/config/buildings_in_city/celestia_buildings_city.json',
                   'files/config/buildings_in_city/eteria_buildings_city.json',
-                  #'files/config/buildings_in_city/giperion_buildings_city.json',
+                  'files/config/buildings_in_city/giperion_buildings_city.json',
                   'files/config/buildings_in_city/halidon_buildings_city.json',]
     for file in temp_files:
         with open(file, 'w', encoding='utf-8') as f:

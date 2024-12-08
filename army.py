@@ -431,22 +431,20 @@ def show_army_headquarters(faction, cities):
     unit_popup.open()
 
 
-def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout, assigned_layout, cities, load_units_fraction_city):
+def garrison_units(city_name, unit_count_str, unit_name, unassigned_layout, assigned_layout, cities, load_units_fraction_city):
     """Обработка расквартирования юнитов и обновление данных о наличии."""
-    global unit_key
-
     try:
         units_data = load_units_data()
-        print("Данные о загруженных юнитах:", units_data)
+        print("Данные в units_data:", units_data)
 
-        unit_image_path = unit_image_path.strip()
-        print(f"Проверяем юнит по изображению: '{unit_image_path}'")
+        unit_name = unit_name
+        print(f"Проверяем юнит по имени: '{unit_name}'")
 
-        # Поиск данных о юните
-        unit_data = next((data for key, data in units_data.items() if data.get("name") == unit_image_path), None)
+        # Поиск данных о юните через значения словаря
+        unit_data = next((data for key, data in units_data.items() if data.get("name") == unit_name), None)
 
         if not unit_data:
-            print(f"Юнит с именем {unit_image_path} не найден.")
+            print(f"Юнит с именем {unit_name} не найден.")
             return
 
         unit_count = int(unit_count_str.strip())
@@ -462,7 +460,12 @@ def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout
         if remaining_count > 0:
             unit_data["count"] = remaining_count
         else:
-            del units_data[unit_image_path]
+            # Удаление юнита
+            unit_key = next((key for key, data in units_data.items() if data.get("name") == unit_name), None)
+            if unit_key:
+                del units_data[unit_key]
+            else:
+                print(f"Ошибка: Юнит с именем {unit_name} не найден в данных для удаления.")
 
         save_units_data(units_data)
 
@@ -556,8 +559,6 @@ def garrison_units(city_name, unit_count_str, unit_image_path, unassigned_layout
 
     except Exception as e:
         print(f"Произошла ошибка: {e}")
-
-
 
 
 def update_assigned_units_tab(assigned_layout, load_units_fraction_city):
@@ -840,7 +841,7 @@ def load_and_clear_coordinates_data():
 
         return data
     except json.JSONDecodeError:
-        print("Ошибка: Некорректный формат JSON.")
+        print("Файл координат для оружия пуст")
         return {}
     except Exception as e:
         print(f"Ошибка: {e}")

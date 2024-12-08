@@ -342,12 +342,16 @@ class AIController:
             print(f"ИИ {self.faction}: Не найдены координаты для города {target_city}.")
             return False
 
+        # Масштабируем характеристики юнита на количество
+        scaled_stats = {stat: value * max_units for stat, value in unit_data["stats"].items() if
+                        isinstance(value, (int, float))}
+
         # Формируем запись юнита
         unit_record = {
             "unit_image": unit_data["image"],
             "unit_name": unit_name,
             "unit_count": max_units,
-            "units_stats": unit_data["stats"]
+            "units_stats": scaled_stats
         }
 
         # Загрузка текущих данных гарнизона
@@ -361,8 +365,17 @@ class AIController:
                 None
             )
             if existing_unit:
-                # Если юнит уже есть, увеличиваем его количество
-                existing_unit["unit_count"] += max_units
+                # Если юнит уже есть, увеличиваем его количество и характеристики
+                existing_count = existing_unit["unit_count"]
+                new_count = existing_count + max_units
+
+                # Обновление характеристик с учетом нового количества
+                for stat, value in scaled_stats.items():
+                    existing_value = existing_unit["units_stats"].get(stat, 0)
+                    existing_unit["units_stats"][stat] = existing_value + value
+
+                # Обновляем общее количество юнитов
+                existing_unit["unit_count"] = new_count
             else:
                 # Если юнит не найден, добавляем новый
                 city_garrison["units"].append(unit_record)
