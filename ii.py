@@ -41,7 +41,7 @@ class AIController:
         self.army = {}
         self.money = self.resources.get('Кроны', 0)
         self.workers = self.resources.get('Рабочие', 0)
-        self.food = self.resources.get('Еда', 0)
+        self.food = self.resources.get('Сырье', 0)
         self.population = self.resources.get('Население', 0)
         self.hospitals = self.buildings.get('Больницы', 0)
         self.factory = self.buildings.get('Фабрики', 0)
@@ -183,13 +183,13 @@ class AIController:
             build_resources(cost=700, hospital_incr=1, factory_incr=2)
 
     def trade_resource(self):
-        print(f"ИИ {self.faction}: проверка торговли -> Еда: {self.resources['Еда']}, Кроны: {self.resources['Кроны']}")
-        if self.resources['Еда'] >= 14000:
-            self.resources['Еда'] -= 10000
+        print(f"ИИ {self.faction}: проверка торговли -> Сырье: {self.resources['Сырье']}, Кроны: {self.resources['Кроны']}")
+        if self.resources['Сырье'] >= 14000:
+            self.resources['Сырье'] -= 10000
             self.resources['Кроны'] += 30000
-            print(f"ИИ {self.faction}: торговля выполнена -> -10,000 еды, +30,000 крон.")
+            print(f"ИИ {self.faction}: торговля выполнена -> -10,000 сырья, +30,000 крон.")
         else:
-            print(f"ИИ {self.faction}: недостаточно еды для торговли.")
+            print(f"ИИ {self.faction}: недостаточно сырье для торговли.")
 
     def update_resources(self):
         """Обновление ресурсов для ИИ."""
@@ -213,7 +213,7 @@ class AIController:
         # Инициализируем значения по умолчанию
         self.resources.setdefault('Рабочие', 0)
         self.resources.setdefault('Кроны', 0)
-        self.resources.setdefault('Еда', 0)
+        self.resources.setdefault('Сырье', 0)
         self.resources.setdefault('Население', 0)
 
         tax_rate = 0.35  # Базовая налоговая ставка (35%)
@@ -228,16 +228,16 @@ class AIController:
         tax_income = int(tax_rate * self.resources['Население'])
         self.resources['Кроны'] += tax_income - self.hospitals * coeffs['money_loss']
 
-        # Производство и потребление еды
+        # Производство и потребление Сырье
         food_production = int(self.factory * 1000)
         food_consumption = int(self.resources['Население'] * coeffs['food_loss'])
-        self.resources['Еда'] += food_production - food_consumption
+        self.resources['Сырье'] += food_production - food_consumption
 
         # Обновление населения
-        if self.resources['Еда'] > 0:
+        if self.resources['Сырье'] > 0:
             self.resources['Население'] += clear_up_peoples
         else:
-            # Убыль населения из-за нехватки еды
+            # Убыль населения из-за нехватки Сырье
             if self.resources['Население'] > 100:
                 loss = int(self.resources['Население'] * 0.45)
             else:
@@ -258,7 +258,7 @@ class AIController:
 
     def up_resourcess(self):
         self.money = self.resources['Кроны']
-        self.food = self.resources['Еда']
+        self.food = self.resources['Сырье']
         self.population = self.resources['Население']
         self.workers = self.resources['Рабочие']
         print('Общее число зданий:', self.hospitals, self.factory, 'фракции:', self.faction)
@@ -411,10 +411,6 @@ class AIController:
 
     def trade_resources(self):
         """Торговля ресурсами с другими фракциями"""
-        pass
-
-    def expand_economy(self):
-        """Расширение экономики (например, колонизация или захват территорий)"""
         pass
 
     def manage_army(self):

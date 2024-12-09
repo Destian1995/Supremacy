@@ -13,7 +13,7 @@ from game_process import GameScreen
 from ui import *
 import os
 import json
-import shutil
+import shutilgit 
 # Размеры окна
 screen_width, screen_height = 1200, 800
 

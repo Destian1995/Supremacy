@@ -1,6 +1,8 @@
 from kivy.clock import Clock
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
 from kivy.uix.label import Label
 from kivy.uix.button import Button
@@ -60,6 +62,27 @@ def get_faction_of_city(city_name):
         print(f"Ошибка при загрузке diplomacies.json: {e}")
         return None
 
+def format_number(number):
+    """Форматирует число с добавлением приставок (тыс., млн., млрд., трлн., квинт., и т.д.)"""
+    if number >= 1_000_000_000_000_000_000_000_000_000_000:
+        return f"{number / 1_000_000_000_000_000_000_000_000_000:.1f} гугл."
+    elif number >= 1_000_000_000_000_000_000_000_000:
+        return f"{number / 1_000_000_000_000_000_000_000_000:.1f} квинт."
+    elif number >= 1_000_000_000_000_000_000:
+        return f"{number / 1_000_000_000_000_000_000:.1f} квадрильон."
+    elif number >= 1_000_000_000_000:
+        return f"{number / 1_000_000_000_000:.1f} трлн."
+    elif number >= 1_000_000_000:
+        return f"{number / 1_000_000_000:.1f} млрд."
+    elif number >= 1_000_000:
+        return f"{number / 1_000_000:.1f} млн."
+    elif number >= 1_000:
+        return f"{number / 1_000:.1f} тыс."
+    else:
+        return str(number)
+
+
+
 
 def save_building_change(faction_name, city, building_type, delta):
     """
@@ -99,7 +122,7 @@ class Faction:
         self.cities = self.load_cities_from_file()
         self.money = 100000
         self.free_peoples = 10000
-        self.food = 20000
+        self.raw_material = 20000
         self.population = 30
         self.hospitals = 0
         self.factories = 0
@@ -113,18 +136,18 @@ class Faction:
         self.food_peoples = 0
         self.tax_effects = 0
         self.clear_up_peoples = 0
-        self.food_price_history = []  # История цен на еду
-        self.current_food_price = 0  # Текущая цена на еду
+        self.raw_material_price_history = []  # История цен на еду
         self.current_tax_rate = 0  # Начальная ставка налога — по умолчанию 0%
         self.turns = 0  # Счетчик ходов
         self.tax_set = False  # Флаг, установлен ли налог
         self.custom_tax_rate = 0  # Новый атрибут для хранения пользовательской ставки налога
         self.cities_buildings = {city['name']: {'Больница': 0, 'Фабрика': 0} for city in self.cities}
 
+
         self.resources = {
             'Кроны': self.money,
             'Рабочие': self.free_peoples,
-            'Еда': self.food,
+            'Сырье': self.raw_material,
             'Население': self.population
         }
         self.economic_params = {
@@ -136,7 +159,7 @@ class Faction:
         }
 
         self.is_first_run = True  # Флаг для первого запуска
-        self.initialize_food_prices()  # Генерация начальной цены на еду
+        self.generate_raw_material_price()  # Генерация начальной цены на еду
 
     def load_cities_from_file(self):
         try:
@@ -280,7 +303,7 @@ class Faction:
         resources_data = {
             'Кроны': self.money,
             'Рабочие': self.free_peoples,
-            'Еда': self.food,
+            'Сырье': self.raw_material,
             'Население': self.population
         }
 
@@ -299,7 +322,7 @@ class Faction:
                     # Обновляем атрибуты из загруженных данных
                     self.money = resources_data.get('Кроны', 0)
                     self.free_peoples = resources_data.get('Рабочие', 0)
-                    self.food = resources_data.get('Еда', 0)
+                    self.raw_material = resources_data.get('Сырье', 0)
                     self.population = resources_data.get('Население', 0)
             except json.JSONDecodeError:
                 print("Ошибка при загрузке ресурсов: файл пуст или повреждён.")
@@ -310,7 +333,7 @@ class Faction:
         self.load_resources()
         self.resources['Кроны'] = self.money
         self.resources['Рабочие'] = self.free_peoples
-        self.resources['Еда'] = self.food
+        self.resources['Сырье'] = self.raw_material
         self.save_resources()
         return self.resources
 
@@ -329,10 +352,7 @@ class Faction:
     def update_resources(self):
         """Обновление текущих ресурсов, с проверкой на минимальное значение 0 и округлением до целых чисел."""
         self.update_buildings()
-
-        # Генерация новой цены на еду
-        self.generate_food_price()
-
+        self.generate_raw_material_price()
         # Коэффициенты для каждой фракции
         faction_coefficients = {
             'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
@@ -365,107 +385,98 @@ class Faction:
         self.taxes_info = int(self.calculate_tax_income())
 
         # Учитываем, что одна фабрика может прокормить 1000 людей
-        self.food += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
+        self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
         self.food_info = int((self.factories * 1000) - (self.population * coeffs['food_loss']))
         self.food_peoples = int(self.population * coeffs['food_loss'])
 
         # Проверяем, будет ли население увеличиваться
-        if self.food > 0:
-            self.population += int(self.clear_up_peoples)  # Увеличиваем население только если есть еда
+        if self.raw_material > 0:
+            self.population += int(self.clear_up_peoples)  # Увеличиваем население только если есть Сырье
         else:
-            # Логика убыли населения при недостатке еды
+            # Логика убыли населения при недостатке Сырье
             if self.population > 100:
                 loss = int(self.population * 0.45)  # 45% от населения
                 self.population -= loss
             else:
                 loss = min(self.population, 50)  # Обнуление по 50, но не ниже 0
                 self.population -= loss
-            self.free_peoples = 0  # Все рабочие обнуляются, так как еды нет
+            self.free_peoples = 0  # Все рабочие обнуляются, так как Сырье нет
 
         # Проверка, чтобы ресурсы не опускались ниже 0
         self.resources.update({
             "Кроны": max(int(self.money), 0),
             "Рабочие": max(int(self.free_peoples), 0),
-            "Еда": max(int(self.food), 0),
+            "Сырье": max(int(self.raw_material), 0),
             "Население": max(int(self.population), 0)
         })
         self.save_resources()
         print(f"Ресурсы обновлены: {self.resources}, Больницы: {self.hospitals}, Фабрики: {self.factories}")
 
     def get_resources(self):
-        """Получение текущих ресурсов"""
-        return self.resources
+        """Получение текущих ресурсов с форматированием чисел."""
+        formatted_resources = {}
+
+        for resource, value in self.resources.items():
+            formatted_resources[resource] = format_number(value)
+
+        return formatted_resources
 
     def end_game(self):
         if self.population == 0:
             return False
 
-    def initialize_food_prices(self):
-        """Инициализация истории цен на еду"""
-        for _ in range(25):  # Генерируем 15 случайных цен
-            self.generate_food_price()
+    def initialize_raw_material_prices(self):
+        """Инициализация истории цен на сырье"""
+        for _ in range(25):  # Генерируем 25 случайных цен
+            self.generate_raw_material_price()
 
-    def generate_food_price(self):
-        """Генерация случайной цены на еду"""
+    def generate_raw_material_price(self):
+        """Генерация случайной цены на сырье"""
         if self.turns == 0:  # Если это первый ход
-            self.current_food_price = random.randint(3000, 47000)
-            self.food_price_history.append(self.current_food_price)
+            self.current_raw_material_price = random.randint(3000, 47000)
+            self.raw_material_price_history.append(self.current_raw_material_price)
         else:
             # Генерация новой цены на основе текущей
-            self.current_food_price = self.food_price_history[-1] + random.randint(-2000, 2000)
-            self.current_food_price = max(3000, min(47000, self.current_food_price))  # Ограничиваем диапазон
-            self.food_price_history.append(self.current_food_price)
+            self.current_raw_material_price = self.raw_material_price_history[-1] + random.randint(-2000, 2000)
+            self.current_raw_material_price = max(3000,
+                                                  min(47000, self.current_raw_material_price))  # Ограничиваем диапазон
+            self.raw_material_price_history.append(self.current_raw_material_price)
 
         # Ограничение длины истории цен до 25 элементов
-        if len(self.food_price_history) > 25:
-            self.food_price_history.pop(0)
+        if len(self.raw_material_price_history) > 25:
+            self.raw_material_price_history.pop(0)
 
         self.turns += 1
 
-    def trade_food(self, action):
-        """Торговля едой"""
-        if action == 'buy':  # Покупка еды
-            if self.money >= self.current_food_price:
-                self.money -= self.current_food_price
-                self.food += 10000
+    def trade_raw_material(self, action, quantity):
+        """Торговля сырьем"""
+        if action == 'buy':  # Покупка сырья
+            total_cost = self.current_raw_material_price * quantity
+            if self.money >= total_cost:
+                self.money -= total_cost
+                self.raw_material += quantity * 10000
                 self.save_resources()
                 return True  # Операция успешна
             else:
-                show_message("Недостаточно денег", "У вас недостаточно денег для покупки 10000 единиц еды.")
-        elif action == 'sell':  # Продажа еды
-            if self.food >= 10000:
-                self.money += self.current_food_price
-                self.food -= 10000
+                show_message("Недостаточно денег", "У вас недостаточно денег для покупки сырья.")
+        elif action == 'sell':  # Продажа сырья
+            total_quantity = quantity * 10000
+            if self.raw_material >= total_quantity:  # Проверяем, что у игрока достаточно сырья
+                self.money += self.current_raw_material_price * total_quantity
+                self.raw_material -= total_quantity
                 self.save_resources()
                 return True  # Операция успешна
             else:
-                show_message("Недостаточно еды", "У вас недостаточно еды для продажи 10000 единиц.")
+                show_message("Недостаточно сырья", "У вас недостаточно сырья для продажи.")
         return False  # Операция не удалась
 
-    def plot_food_price(self):
-        """Генерация графика цен на еду с темным фоном и зеленым графиком"""
-        plt.figure(figsize=(10, 5))
-
-        # Устанавливаем темный фон
-        plt.style.use('dark_background')
-
-        # Генерируем график с зеленым цветом
-        plt.plot(self.food_price_history, marker='o', color='green', label='Историческая цена')
-
-        # Отмечаем текущую цену на графике
-        plt.axhline(y=self.current_food_price, color='red', linestyle='--', label='Текущая цена')
-
-        plt.title('История цен на еду за 10000 единиц (бушель)', color='white')  # Заголовок белого цвета
-        plt.xlabel('Ходы', color='white')  # Подпись оси X белого цвета
-        plt.ylabel('Цена за бушель (кроны)', color='white')  # Подпись оси Y белого цвета
-        plt.grid(color='gray')  # Цвет сетки серый для контраста
-        plt.legend()  # Показываем легенду графика
-
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png', facecolor='black')  # Задаем черный фон для сохраненного изображения
-        plt.close()
-        buf.seek(0)
-        return buf.getvalue()
+    def get_raw_material_price_history(self):
+        """Получение табличного представления истории цен на сырье"""
+        history = []
+        for i, price in enumerate(self.raw_material_price_history):
+            # Вместо строки создаем кортеж (номер хода, цена)
+            history.append((f"Ход {i + 1}", price))
+        return history
 
 
 def show_message(title, message):
@@ -555,14 +566,14 @@ def open_build_popup(faction):
 
     stats_info = (
         f"[b]1 больница (за ход):[/b] +500 рабочих / -{faction.buildings_info_fration()} крон\n"
-        f"[b]1 фабрика (за ход):[/b] +1000 еды / -200 рабочих\n"
+        f"[b]1 фабрика (за ход):[/b] +1000 сырья / -200 рабочих\n"
         f"[size=20][b]Статистика:[/b][/size]\n"
         f"Количество больниц: {faction.hospitals}\n"
         f"Количество фабрик: {faction.factories}\n"
         f"Количество рабочих на фабриках: {faction.work_peoples}\n"
         f"Чистый численности рабочих: {faction.clear_up_peoples}\n"
         f"Потребление денег больницами: {faction.money_info}\n"
-        f"Чистое производство еды: {faction.food_info}\n"
+        f"Чистое производство сырья: {faction.food_info}\n"
         f"Чистый прирост денег: {faction.money_up}\n"
         f"Доход от налогов: {faction.taxes_info}\n"
         f"Эффект от налогов (Изменение рабочих): {faction.apply_tax_effect(int(faction.current_tax_rate[:-1])) if faction.tax_set else 'Налог не установлен'}\n"
@@ -688,65 +699,122 @@ def open_build_popup(faction):
     build_popup.open()
 
 
-
-
-
 #---------------------------------------------------------------
-
 def open_trade_popup(game_instance):
-    """Открытие окна торговли с графиком цен"""
+    """Открытие окна торговли с историей цен"""
 
-    trade_layout = BoxLayout(orientation='vertical', padding=10)
+    trade_layout = BoxLayout(orientation='vertical', padding=10, spacing=20)
 
-    # Генерация и сохранение графика как изображения на основе текущей цены
-    plot_data = game_instance.plot_food_price()  # Передаем текущую цену
-    with open('food_price.png', 'wb') as f:
-        f.write(plot_data)  # Сохранение изображения
+    # Генерация табличного представления истории цен
+    price_history = game_instance.get_raw_material_price_history()
 
-    img = Image(source='food_price.png', size_hint_y=None, height=400)
+    # Левый контейнер для текущей цены
+    left_layout = BoxLayout(orientation='vertical', size_hint=(0.5, 1), padding=10)
+
+    # Логика для определения цвета цены
+    if len(game_instance.raw_material_price_history) > 1:
+        previous_price = game_instance.raw_material_price_history[-2]
+        current_price = game_instance.current_raw_material_price
+
+        if current_price > previous_price:
+            arrow_color = (0, 1, 0, 1)  # Зеленый
+        elif current_price < previous_price:
+            arrow_color = (1, 0, 0, 1)  # Красный
+        else:
+            arrow_color = (0.5, 0.5, 0.5, 1)  # Серый
+    else:
+        arrow_color = (0.5, 0.5, 0.5, 1)  # Серый
+
+    # Отображение текущей цены
+    current_price_label = Label(
+        text=f"Текущая цена: {game_instance.current_raw_material_price}",
+        font_size=30,
+        bold=True,
+        color=(1, 1, 1, 1)
+    )
+    # Устанавливаем цвет
+    current_price_label.color = arrow_color
+
+    left_layout.add_widget(current_price_label)
+
+    # Правый контейнер для истории цен в виде таблицы
+    right_layout = BoxLayout(orientation='vertical', size_hint=(0.5, 1), padding=10)
+
+    # Создаем ScrollView для прокрутки истории цен
+    scroll_view = ScrollView(size_hint=(1, None), height=200, do_scroll_y=True)
+
+    # Создаем таблицу для отображения истории цен
+    price_table = GridLayout(cols=2, size_hint_y=None, height=len(price_history) * 30)  # 2 столбца: дата и цена
+    price_table.bind(minimum_height=price_table.setter('height'))  # Адаптация высоты таблицы
+
+    # Заполнение таблицы данными из истории цен
+    for date, price in price_history:
+        date_label = Label(text=date, font_size=16)
+        price_label = Label(text=str(price), font_size=16)
+        price_table.add_widget(date_label)
+        price_table.add_widget(price_label)
+
+    # Добавляем таблицу в ScrollView
+    scroll_view.add_widget(price_table)
+    right_layout.add_widget(scroll_view)
+
+    # Разделим левую и правую части экрана
+    main_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=400)
+    main_layout.add_widget(left_layout)
+    main_layout.add_widget(right_layout)
+
+    # Поле ввода для количества сырья
+    quantity_label = Label(text="Введите количество лотов для торговли:", font_size=14)
+    quantity_input = TextInput(hint_text="1 лот = 10 000 единиц", multiline=False, font_size=14, input_filter='int', size_hint_y=None, height=40)
 
     # Кнопки для покупки и продажи
-    button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50)
-    buy_btn = Button(text="Купить 10000 еды", size_hint_x=0.5)
-    sell_btn = Button(text="Продать 10000 еды", size_hint_x=0.5)
+    button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=20)
+    buy_btn = Button(text="Купить", size_hint_x=0.5, background_color=(0, 1, 0, 1))
+    sell_btn = Button(text="Продать", size_hint_x=0.5, background_color=(1, 0, 0, 1))
+
     button_layout.add_widget(buy_btn)
     button_layout.add_widget(sell_btn)
 
-    trade_layout.add_widget(img)  # Добавляем изображение графика в основной контейнер
+    trade_layout.add_widget(main_layout)  # Добавляем контейнер с ценой и историей
+    trade_layout.add_widget(quantity_label)  # Добавляем описание поля ввода
+    trade_layout.add_widget(quantity_input)  # Добавляем поле ввода
     trade_layout.add_widget(button_layout)  # Добавляем кнопки в основной контейнер
 
     trade_popup = Popup(title="Торговля", content=trade_layout, size_hint=(0.8, 0.8))
 
-    # Обработка покупки еды
-    buy_btn.bind(on_press=lambda x: handle_trade(game_instance, 'buy', trade_popup))
-    # Обработка продажи еды
-    sell_btn.bind(on_press=lambda x: handle_trade(game_instance, 'sell', trade_popup))
+    # Обработка покупки сырья
+    buy_btn.bind(on_press=lambda x: handle_trade(game_instance, 'buy', quantity_input.text, trade_popup))
+    # Обработка продажи сырья
+    sell_btn.bind(on_press=lambda x: handle_trade(game_instance, 'sell', quantity_input.text, trade_popup))
 
     trade_popup.open()
 
-    # Обновление графика при закрытии попапа
-    trade_popup.bind(on_dismiss=lambda instance: update_food_price_graph(game_instance, img))
+def handle_trade(game_instance, action, quantity, trade_popup):
+    """Обработка торговли (покупка/продажа сырья)"""
+    try:
+        # Проверяем, что количество введено
+        if not quantity or int(quantity) <= 0:
+            raise ValueError("Не было введено количество лотов. Пожалуйста, введите количество лотов.")
 
+        quantity = int(quantity)
 
-def handle_trade(game_instance, action, trade_popup):
-    """Обработка торговли (покупка/продажа еды)"""
-    result = game_instance.trade_food(action)
-    if result is not None:  # Если торговля прошла успешно
-        show_message("Успех", f"{'Куплено' if action == 'buy' else 'Продано'} 10000 единиц еды.")
-    else:  # Если была ошибка
-        show_message("Ошибка", "Не удалось завершить операцию.")
+        # Проверяем, что количество сырья для продажи не превышает доступное
+        if action == 'sell' and quantity * 10000 > game_instance.raw_material:
+            raise ValueError("Недостаточно сырья для продажи.")
+
+        result = game_instance.trade_raw_material(action, quantity)
+
+        if result:  # Если торговля прошла успешно
+            show_message("Успех", f"{'Куплено' if action == 'buy' else 'Продано'} {quantity} лотов сырья.")
+        else:  # Если операция не удалась
+            show_message("Ошибка", "Не удалось завершить операцию.")
+    except ValueError as e:
+        show_message("Ошибка", str(e))
     trade_popup.dismiss()  # Закрываем попап после операции
 
 
-def update_food_price_graph(game_instance, img):
-    """Обновление графика цен на еду"""
-    plot_data = game_instance.plot_food_price()  # Генерируем новое изображение графика
-    with open('food_price.png', 'wb') as f:
-        f.write(plot_data)  # Сохраняем изображение
-    img.source = 'food_price.png'  # Обновляем источник изображения
-    img.reload()  # Перезагружаем изображение для обновления отображения
 
-
+#-----------------------------------
 def open_tax_popup(faction):
     """Открытие попапа для выбора ставки налога через выпадающий список"""
 
