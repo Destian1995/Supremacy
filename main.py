@@ -9,6 +9,7 @@ from kivy.uix.widget import Widget
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.textinput import TextInput
 
+import random
 from game_process import GameScreen
 from ui import *
 import os
@@ -63,7 +64,7 @@ def clear_temp_files():
 class HallOfFameWidget(FloatLayout):
     def __init__(self, **kwargs):
         super(HallOfFameWidget, self).__init__(**kwargs)
-        self.add_widget(Image(source='files/menu.jpg', allow_stretch=True, keep_ratio=False))  # Фон зала славы
+        self.add_widget(Image(source='files/slava.jpg', allow_stretch=True, keep_ratio=False))  # Фон зала славы
 
         # Заголовок
         title = Label(text="[b][color=000000]Зал славы[/color][/b]", font_size='40sp', markup=True,
@@ -217,11 +218,18 @@ class MapWidget(Widget):
             Rectangle(source='files/map/map.png', pos=self.map_pos, size=(screen_width, screen_height))
 
 
-# Меню
 class MenuWidget(FloatLayout):
     def __init__(self, **kwargs):
         super(MenuWidget, self).__init__(**kwargs)
-        self.add_widget(Image(source='files/menu.jpg', allow_stretch=True, keep_ratio=False))  # Фон меню
+
+        # Список с именами файлов картинок
+        menu_images = ['files/menu/1.jpg', 'files/menu/2.jpg', 'files/menu/3.jpg', 'files/menu/4.jpg', 'files/menu/5.jpg']
+
+        # Выбираем случайное изображение
+        random_image = random.choice(menu_images)
+
+        # Загружаем выбранное случайное изображение как фон
+        self.add_widget(Image(source=random_image, allow_stretch=True, keep_ratio=False))  # Фон меню
 
         # Заголовок
         title = Label(text="[b][color=000000]Превосходство[/color][/b]", font_size='40sp', markup=True,
@@ -275,7 +283,7 @@ class KingdomSelectionWidget(FloatLayout):
             self.kingdom_data = json.load(f)["kingdoms"]
 
         # Фон выбора княжества с размытием
-        self.add_widget(Image(source='files/menu.jpg', allow_stretch=True, keep_ratio=False))
+        self.add_widget(Image(source='files/choice.jpg', allow_stretch=True, keep_ratio=False))
 
         # Заголовок с тенью
         self.kingdom_label = Label(

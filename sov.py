@@ -1,12 +1,16 @@
 from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.image import Image
-from kivy.graphics import Color, Rectangle, RoundedRectangle
-
+from kivy.uix.popup import Popup
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.label import Label
+from kivy.uix.scrollview import ScrollView
+from kivy.graphics import Color, Rectangle
 import os
 import json
+
+from kivy.uix.textinput import TextInput
 
 # Словарь для перевода названий
 translation_dict = {
@@ -33,26 +37,6 @@ class AdvisorView(FloatLayout):
         self.size_hint = (0.8, 0.8)
         self.pos_hint = {'center_x': 0.5, 'center_y': 0.5}
 
-        # Добавление контейнера для изображения и имени советника
-        advisor_info_layout = BoxLayout(
-            orientation='vertical',
-            size_hint=(0.3, 0.7),
-            pos_hint={'x': 0.05, 'top': 0.95},
-            spacing=10
-        )
-
-        # Имя советника
-        advisor_name_label = Label(
-            text=foreign_ministers.get(self.faction, "Неизвестен"),
-            size_hint=(1, 0.2),
-            font_size='18sp',
-            halign='center'
-        )
-        advisor_info_layout.add_widget(advisor_name_label)
-
-        # Добавление контейнера с именем советника
-        self.add_widget(advisor_info_layout)
-
         # Вкладки слева
         self.tabs_layout = BoxLayout(
             orientation='vertical',
@@ -63,35 +47,21 @@ class AdvisorView(FloatLayout):
         self.add_tab_button("Состояние отношений", self.show_relations)
         self.add_tab_button("Мнения советника", self.show_advisor_opinion)
         self.add_widget(self.tabs_layout)
-        # Путь к картинке советника
-        advisor_image_path = f"files/sov/sov_{translation_dict.get(self.faction)}.jpg"
-
-        # Загрузка изображения советника
-        if os.path.exists(advisor_image_path):
-            advisor_layout = FloatLayout(size_hint=(0.5, 0.5), pos_hint={'x': 0.0, 'y': 0.3})
+        # Путь к картинке парламента
+        palace_image_path = f"files/sov/parlament/{translation_dict.get(self.faction)}_palace.jpg"
+        # Загрузка изображения парламента
+        if os.path.exists(palace_image_path):
+            palace_layout = FloatLayout(size_hint=(0.5, 0.5), pos_hint={'x': 0.0, 'y': 0.3})
 
             # Добавляем изображение
             advisor_image = Image(
-                source=advisor_image_path,
-                size_hint=(1, 1),  # Увеличиваем изображение
-                pos_hint={'center_x': 0.3, 'center_y': 0.7}  # Центрируем внутри layout
+                source=palace_image_path,
+                size_hint=(1.2, 1.2),  # Увеличиваем изображение
+                pos_hint={'center_x': 0.1, 'center_y': 0.7}  # Центрируем внутри layout
             )
-            advisor_layout.add_widget(advisor_image)
+            palace_layout.add_widget(advisor_image)
 
-            # Добавляем имя советника (поверх изображения)
-            advisor_name_label = Label(
-                text=foreign_ministers.get(self.faction, "Неизвестен"),
-                size_hint=(1, 0.2),
-                pos_hint={'center_x': 0.3, 'y': 0.15},  # Размещаем под изображением
-                font_size='20sp',
-                halign='center',
-                color=(1, 1, 1, 1),  # Белый текст
-                outline_color=(0, 0, 0, 1),  # Черная окантовка текста
-                outline_width=2
-            )
-            advisor_layout.add_widget(advisor_name_label)
-
-            self.add_widget(advisor_layout)
+            self.add_widget(palace_layout)
 
 
     def add_tab_button(self, text, on_press=None):
@@ -106,89 +76,72 @@ class AdvisorView(FloatLayout):
         self.tabs_layout.add_widget(button)
 
     def show_relations(self, instance):
-        """Загружает и отображает состояние отношений с изображением и дипломатической силой."""
+        """Отображает окно с таблицей отношений."""
         try:
             # Загрузка файлов
-            with open("files/config/status/dipforce/force_state.json", "r", encoding="utf-8") as f:
-                force_state = json.load(f)
             with open("files/config/status/dipforce/relation.json", "r", encoding="utf-8") as f:
                 relation = json.load(f)
         except FileNotFoundError:
-            print("Один из файлов не найден.")
+            print("Файл relation.json не найден.")
             return
 
-        # Очистка текущего виджета для отображения новой информации
-        self.clear_widgets()
+        # Получение отношений для текущей фракции
+        faction_relations = relation.get("relations", {}).get(self.faction, {})
+        if not faction_relations:
+            print(f"Нет данных об отношениях для фракции {self.faction}.")
+            return
 
-        # Основной контейнер
-        main_layout = BoxLayout(orientation="horizontal", spacing=20, padding=10)
+        # Создание основного макета для таблицы
+        layout = GridLayout(cols=2, size_hint_y=None, spacing=10)
+        layout.bind(minimum_height=layout.setter('height'))
 
-        # Загрузка изображения дворца
-        palace_image_path = f"files/sov/parlament/{translation_dict.get(self.faction)}_palace.jpg"
-        if os.path.exists(palace_image_path):
-            palace_image = Image(source=palace_image_path, size_hint=(0.4, 1), allow_stretch=True, keep_ratio=True)
-        else:
-            palace_image = Label(text="Изображение отсутствует", size_hint=(0.4, 1), font_size="16sp")
-
-        # Добавляем изображение дворца в левую часть
-        main_layout.add_widget(palace_image)
-
-        # Создание текстового окна с фоном и скругленными углами
-        text_frame = BoxLayout(
-            orientation="vertical",
-            size_hint=(0.5, 1),
-            padding=10,
-            spacing=10,
-            pos_hint={'top': 1.3},  # Выравнивание блока по правому верхнему краю
-        )
-
-        with text_frame.canvas.before:
-            Color(0.95, 0.95, 0.95, 1)  # Светло-серый фон
-            self.rect = RoundedRectangle(size=text_frame.size, pos=text_frame.pos, radius=[40])
-            Color(0, 0, 0, 1)  # Чёрная рамка
-            self.border = RoundedRectangle(size=(text_frame.size[0], text_frame.size[1]), pos=text_frame.pos,
-                                           radius=[40])
-
-        # Обновляем размеры и позиции при изменении размеров окна
-        text_frame.bind(
-            size=lambda instance, value: setattr(self.rect, "size", value),
-            pos=lambda instance, value: setattr(self.rect, "pos", value),
-        )
-
-        # Заголовок окна
-        text_frame.add_widget(Label(
-            text=f"Дипломатическая сила: {force_state.get(self.faction, 'Нет данных')}",
-            font_size="20sp",
-            color=(0, 0, 0, 1),
-            halign="center",
-            valign="middle",
+        # Заголовки столбцов
+        layout.add_widget(Label(
+            text="Фракция",
+            bold=True,
+            font_size="18sp",
             size_hint_y=None,
-            height=50
+            height=40
+        ))
+        layout.add_widget(Label(
+            text="Отношения",
+            bold=True,
+            font_size="18sp",
+            size_hint_y=None,
+            height=40
         ))
 
-        # Отображение отношений
-        relations = relation.get("relations", {}).get(self.faction, {})
-        for country, value in relations.items():
-            text_frame.add_widget(Label(
-                text=f"{country}: {value}%",
-                font_size="18sp",
-                color=(0.2, 0.2, 0.2, 1),
-                halign="left",
-                valign="middle",
+        # Добавление данных в таблицу
+        for country, value in faction_relations.items():
+            layout.add_widget(Label(
+                text=country,
+                font_size="16sp",
+                size_hint_y=None,
+                height=30
+            ))
+            layout.add_widget(Label(
+                text=f"{value}%",
+                font_size="16sp",
                 size_hint_y=None,
                 height=30
             ))
 
-        # Добавляем текстовое окно в правую часть
-        main_layout.add_widget(text_frame)
+        # Добавление прокрутки для большого количества данных
+        scroll_view = ScrollView(size_hint=(1, None), size=(400, 300))
+        scroll_view.add_widget(layout)
 
-        # Добавляем основной контейнер в виджет
-        self.add_widget(main_layout)
-
-
+        # Создание всплывающего окна
+        popup = Popup(
+            title=f"Отношения {self.faction}",
+            content=scroll_view,
+            size_hint=(0.8, 0.6),
+            auto_dismiss=True
+        )
+        popup.open()
 
     def show_advisor_opinion(self, instance):
-        """Отображает мнение советника с его изображением и именем."""
+        """Отображает мнение советника с его изображением, именем и рамкой."""
+        # Словарь мнений советников
         opinions = {
             "Аркадия": "Нам нужно укрепить отношения с Этерией.",
             "Селестия": "Халидон становится опасным соседом.",
@@ -197,15 +150,68 @@ class AdvisorView(FloatLayout):
             "Халидон": "Следует поддерживать нашу армию на границе.",
         }
 
-        # Очистка текущего виджета для отображения новой информации
+        # Словарь путей к изображениям советников
+        advisor_images = {
+            "Аркадия": "files/sov/sov_arkadia.jpg",
+            "Селестия": "files/sov/sov_celestia.jpg",
+            "Хиперион": "files/sov/sov_giperion.jpg",
+            "Этерия": "files/sov/sov_eteria.jpg",
+            "Халидон": "files/sov/sov_halidon.jpg",
+        }
+
+        # Очистка текущего виджета
         self.clear_widgets()
 
-        # Отображение мнения советника
+        # Внешний макет с отступом вправо
+        main_layout = BoxLayout(orientation='horizontal', spacing=20, padding=[200, 10, 10, 10])  # Сильный отступ слева
+
+        # Левый блок: изображение, имя и мнение советника
+        advisor_layout = BoxLayout(orientation='vertical', size_hint=(0.4, 1), spacing=10)
+
+        # Изображение советника
+        advisor_image_path = advisor_images.get(self.faction, None)
+        if advisor_image_path:
+            advisor_image = Image(source=advisor_image_path, size_hint=(1, 0.7), allow_stretch=True, keep_ratio=True)
+        else:
+            advisor_image = Label(text="Изображение отсутствует", size_hint=(1, 0.7), font_size='14sp', halign='center')
+
+        advisor_layout.add_widget(advisor_image)
+
+        # Имя советника с рамкой
+        advisor_name = foreign_ministers.get(self.faction, "Неизвестен")
+        advisor_name_box = BoxLayout(size_hint=(1, 0.1), padding=[10, 10])
+        with advisor_name_box.canvas.before:
+            Color(0.8, 0.8, 0.8, 1)  # Цвет фона рамки
+            advisor_name_box.rect = Rectangle(size=advisor_name_box.size, pos=advisor_name_box.pos)
+            advisor_name_box.bind(size=lambda _, s: setattr(advisor_name_box.rect, 'size', s))
+            advisor_name_box.bind(pos=lambda _, p: setattr(advisor_name_box.rect, 'pos', p))
+
+        advisor_name_label = Label(
+            text=advisor_name,
+            font_size='20sp',
+            halign='center',
+            valign='middle',
+            color=(0, 0, 0, 1)  # Цвет текста
+        )
+        advisor_name_box.add_widget(advisor_name_label)
+        advisor_layout.add_widget(advisor_name_box)
+
+        # Мнение советника
         opinion = opinions.get(self.faction, "Нет данных о мнении советника.")
-        self.add_widget(Label(
-            text=f"Мнение: {opinion}",
-            pos_hint={'center_x': 0.5, 'y': 0.4},
+        opinion_box = TextInput(
+            text=opinion,
+            size_hint=(1, 0.2),
             font_size='16sp',
             halign='center',
-            valign='middle'
-        ))
+            readonly=True,
+            background_color=(0.9, 0.9, 0.9, 1),
+            foreground_color=(0, 0, 0, 1),
+            padding=[10, 10, 10, 10]  # Внутренние отступы
+        )
+        advisor_layout.add_widget(opinion_box)
+
+        # Добавляем левый блок в основной макет
+        main_layout.add_widget(advisor_layout)
+
+        # Добавление основного макета в виджет
+        self.add_widget(main_layout)
