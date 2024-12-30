@@ -1,7 +1,9 @@
 {
-    "faction": "Селестия",
-    "duration": "10 лет(500 ходов)",
-    "allow_members": "Да",
-    "our_resource": "Сырье",
-    "their_resource": "Рабочие"
+    "initiator": "Аркадия",
+    "target_faction": "Селестия",
+    "duration": "Бессрочно",
+    "our_resource": "Рабочие",
+    "their_resource": "Сырье",
+    "our_percentage": "25",
+    "their_percentage": "35"
 }

@@ -15,6 +15,7 @@ from economic import Faction
 import army
 import politic
 from ii import AIController
+from sov import AdvisorView
 
 # Список всех фракций
 FACTIONS = ["Аркадия", "Селестия", "Хиперион", "Халидон", "Этерия"]
@@ -44,11 +45,11 @@ class ResourceBox(BoxLayout):
         self.orientation = 'horizontal'
         self.size_hint = (0.8, 0.14)
         self.pos_hint = {'center_x': 0.36, 'center_y': 1}
-        self.padding = [5, 5, 5, 0]
-        self.spacing = 0
+        self.padding = [0, 0, 0, 0]  # Внешние отступы
+        self.spacing = -65  # Расстояние между метками
 
         with self.canvas.before:
-            Color(0.2, 0.2, 0.2, 1)
+            Color(0.2, 0.2, 0.2, 1)  # Цвет фона
             self.rect = Rectangle(size=self.size, pos=self.pos)
         self.bind(size=self.update_rect, pos=self.update_rect)
 
@@ -57,11 +58,12 @@ class ResourceBox(BoxLayout):
         self.update_resources()
 
     def update_rect(self, *args):
+        """Обновление размеров и позиции прямоугольника фона."""
         self.rect.size = self.size
         self.rect.pos = self.pos
 
     def update_resources(self):
-        """Обновление отображаемых ресурсов"""
+        """Обновление отображаемых ресурсов."""
         resources = self.resource_manager.get_resources()
 
         for resource_name, value in resources.items():
@@ -73,8 +75,9 @@ class ResourceBox(BoxLayout):
                 label = Label(
                     text=f"{resource_name}: {value}",
                     size_hint_y=None,
-                    height=35,
-                    color=(1, 1, 1, 1)
+                    height=35,  # Уменьшенная высота метки
+                    font_size=13,  # Уменьшенный размер шрифта
+                    color=(1, 1, 1, 1)  # Белый цвет текста
                 )
                 self.labels[resource_name] = label
                 self.add_widget(label)
@@ -120,6 +123,14 @@ class GameScreen(Screen):
                                on_press=self.switch_to_army)
         btn_politics = ImageButton(source='files/status/politic.jpg', size_hint_y=None, height=65, width=40,
                                    on_press=self.switch_to_politics)
+        btn_advisor = ImageButton(
+            source=transform_filename(f'files/sov/sov_{self.selected_faction}.jpg'),  # Иконка для кнопки
+            size_hint_y=None,
+            height=65,
+            width=40,
+            on_press=self.show_advisor
+        )
+        self.mode_panel.add_widget(btn_advisor)
 
         self.mode_panel.add_widget(btn_economy)
         self.mode_panel.add_widget(btn_army)
@@ -154,18 +165,24 @@ class GameScreen(Screen):
         # Обновляем отображение в ResourceBox
         self.resource_box.update_resources()
 
+    def show_advisor(self, instance):
+        """Показать экран советника"""
+        self.clear_game_area()
+        advisor_view = AdvisorView(self.selected_faction)
+        self.game_area.add_widget(advisor_view)
+
     def switch_to_economy(self, instance):
-        """Переключение на экономический режим"""
+        """Переключение на экономическую вкладку"""
         self.clear_game_area()
         economic.start_economy_mode(self.faction, self.game_area)
 
     def switch_to_army(self, instance):
-        """Переключение на армейский режим"""
+        """Переключение на армейскую вкладку"""
         self.clear_game_area()
         army.start_army_mode(self.selected_faction, self.game_area)
 
     def switch_to_politics(self, instance):
-        """Переключение на политический режим"""
+        """Переключение на политическическую вкладку"""
         self.clear_game_area()
         politic.start_politic_mode(self.selected_faction, self.game_area)
 

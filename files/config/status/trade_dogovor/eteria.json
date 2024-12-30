@@ -1,0 +1,9 @@
+{
+    "initiator": "Аркадия",
+    "target_faction": "Этерия",
+    "duration": "Бессрочно",
+    "our_resource": "Сырье",
+    "their_resource": "Рабочие",
+    "our_percentage": "35",
+    "their_percentage": "35"
+}

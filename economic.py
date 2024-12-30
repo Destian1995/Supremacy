@@ -143,7 +143,6 @@ class Faction:
         self.custom_tax_rate = 0  # Новый атрибут для хранения пользовательской ставки налога
         self.cities_buildings = {city['name']: {'Больница': 0, 'Фабрика': 0} for city in self.cities}
 
-
         self.resources = {
             'Кроны': self.money,
             'Рабочие': self.free_peoples,
@@ -348,6 +347,57 @@ class Faction:
             return 300
         if self.faction == 'Халидон':
             return 300
+
+    def update_trade_resources(self):
+        """Обновление ресурсов с учетом торговых договоров, используя файлы инициатора и целевой фракции."""
+        # Путь к папке с файлами для торговых соглашений
+        trade_folder = "files/config/status/req_trade/"
+
+        # Проверка наличия файлов для торговых договоров
+        trade_files = [f for f in os.listdir(trade_folder) if f.endswith('.json')]
+
+        # Процесс обработки каждого файла торгового соглашения
+        for trade_file in trade_files:
+            # Получаем имя фракции инициатора и целевой фракции из имени файла
+            initiator, target_faction = trade_file.split('_')[0], trade_file.split('_')[1].split('.')[0]
+
+            # Переход к проверке только тех файлов, которые касаются текущей фракции
+            if initiator == self.faction or target_faction == self.faction:
+                file_path = os.path.join(trade_folder, trade_file)
+
+                # Открываем и загружаем данные из соответствующего файла
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    trade_data = json.load(f)
+
+                # Если текущая фракция инициатор, обрабатываем отправку ресурса
+                if initiator == self.faction:
+                    our_resource = trade_data.get('our_resource')
+                    our_percentage = float(trade_data.get('our_percentage')) / 100  # Преобразуем в долю
+                    if our_resource == "Сырье":
+                        # Учитываем вычет процента для ресурса Сырье
+                        self.raw_material_trade = (int((self.factories * 1000) - (
+                                                     self.population * self.food_loss))) * our_percentage
+                    elif our_resource == "Рабочие":
+                        # Учитываем вычет процента для ресурса Рабочие
+                        self.clear_up_peoples = (self.born_peoples - self.work_peoples + self.tax_effects) + \
+                                                (
+                                                        self.born_peoples - self.work_peoples + self.tax_effects) * our_percentage
+
+                # Если текущая фракция целевая, обрабатываем увеличение ресурса
+                if target_faction == self.faction:
+                    their_resource = trade_data.get('their_resource')
+                    their_percentage = float(trade_data.get('their_percentage')) / 100  # Преобразуем в долю
+                    if their_resource == "Сырье":
+                        # Учитываем увеличение ресурса Сырье
+                        self.raw_material += (int((self.factories * 1000) - (
+                                self.population * self.food_loss))) * their_percentage
+                    elif their_resource == "Рабочие":
+                        # Учитываем увеличение ресурса Рабочие
+                        self.clear_up_peoples += (
+                                                         self.born_peoples - self.work_peoples + self.tax_effects) * their_percentage
+
+        # Логирование обновленных ресурсов
+        print(f"Обновленные ресурсы: Сырье: {self.raw_material}, Рабочие: {self.free_peoples}")
 
     def update_resources(self):
         """Обновление текущих ресурсов, с проверкой на минимальное значение 0 и округлением до целых чисел."""
@@ -764,7 +814,7 @@ def open_trade_popup(game_instance):
     main_layout.add_widget(right_layout)
 
     # Поле ввода для количества сырья
-    quantity_label = Label(text="Введите количество лотов для торговли:", font_size=14)
+    quantity_label = Label(text="Введите количество лотов для торговли сырьем:", font_size=14)
     quantity_input = TextInput(hint_text="1 лот = 10 000 единиц", multiline=False, font_size=14, input_filter='int', size_hint_y=None, height=40)
 
     # Кнопки для покупки и продажи
@@ -780,7 +830,7 @@ def open_trade_popup(game_instance):
     trade_layout.add_widget(quantity_input)  # Добавляем поле ввода
     trade_layout.add_widget(button_layout)  # Добавляем кнопки в основной контейнер
 
-    trade_popup = Popup(title="Торговля", content=trade_layout, size_hint=(0.8, 0.8))
+    trade_popup = Popup(title="Торговля сырьем", content=trade_layout, size_hint=(0.8, 0.8))
 
     # Обработка покупки сырья
     buy_btn.bind(on_press=lambda x: handle_trade(game_instance, 'buy', quantity_input.text, trade_popup))

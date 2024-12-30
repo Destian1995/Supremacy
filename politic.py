@@ -1,3 +1,4 @@
+from kivy.uix.slider import Slider
 from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
 from kivy.uix.label import Label
 from kivy.uix.button import Button
@@ -106,7 +107,7 @@ def show_trade_agreement_form(faction, game_area):
         orientation='vertical',
         padding=20,
         spacing=8,
-        size_hint=(0.6, 0.7),
+        size_hint=(0.6, 0.9),
         pos_hint={'center_x': 0.5, 'center_y': 0.5}
     )
 
@@ -129,12 +130,6 @@ def show_trade_agreement_form(faction, game_area):
         size_hint=(1, None),
         height=30
     )
-    allow_members_spinner = Spinner(
-        text="Можно ли добавлять новых членов?",
-        values=["Да", "Нет"],
-        size_hint=(1, None),
-        height=30
-    )
     our_resource_spinner = Spinner(
         text="Наш ресурс",
         values=["Рабочие", "Сырье", "Деньги"],
@@ -148,11 +143,28 @@ def show_trade_agreement_form(faction, game_area):
         height=30
     )
 
+    # Поля ввода процентов
+    our_percentage_input = TextInput(
+        hint_text="Процент доходов нашему союзнику (0-100%)",
+        multiline=False,
+        size_hint=(1, None),
+        height=35,
+        input_filter="int"
+    )
+
+    their_percentage_input = TextInput(
+        hint_text="Процент доходов от союзника (0-100%)",
+        multiline=False,
+        size_hint=(1, None),
+        height=35,
+        input_filter="int"
+    )
+
     agreement_summary = TextInput(
         readonly=True,
         multiline=True,
         size_hint=(1, None),
-        height=90,
+        height=120,
         hint_text="Условия соглашения..."
     )
 
@@ -173,21 +185,28 @@ def show_trade_agreement_form(faction, game_area):
         """Формирование текста соглашения"""
         faction_selected = factions_spinner.text
         duration_selected = duration_spinner.text
-        allow_members_selected = allow_members_spinner.text
         our_resource_selected = our_resource_spinner.text
         their_resource_selected = their_resource_spinner.text
+        our_percentage = our_percentage_input.text
+        their_percentage = their_percentage_input.text
 
         if faction_selected == "С какой фракцией?":
             agreement_summary.text = "Пожалуйста, выберите фракцию для соглашения."
             return
 
+        if not our_percentage.isdigit() or not their_percentage.isdigit():
+            agreement_summary.text = "Пожалуйста, укажите проценты корректно (0-100)."
+            return
+
         # Формируем текст для отображения
         agreement_summary.text = (
             f"Торговое соглашение с фракцией {faction_selected}.\n"
+            f"Инициатор: {faction}.\n"
             f"Срок: {duration_selected}.\n"
-            f"Можно ли добавлять новых членов: {allow_members_selected}.\n"
             f"Наш ресурс: {our_resource_selected}.\n"
-            f"Их ресурс: {their_resource_selected}."
+            f"Их ресурс: {their_resource_selected}.\n"
+            f"Мы отправляем союзнику: {our_percentage}% доходов.\n"
+            f"Мы получаем от союзника: {their_percentage}% доходов."
         )
 
         # Показываем кнопку отправки условий договора
@@ -201,11 +220,13 @@ def show_trade_agreement_form(faction, game_area):
 
         # Собираем данные в словарь
         agreement_data = {
-            "faction": faction_selected,
+            "initiator": faction,  # Добавляем инициатора
+            "target_faction": faction_selected,
             "duration": duration_spinner.text,
-            "allow_members": allow_members_spinner.text,
             "our_resource": our_resource_spinner.text,
-            "their_resource": their_resource_spinner.text
+            "their_resource": their_resource_spinner.text,
+            "our_percentage": our_percentage_input.text,
+            "their_percentage": their_percentage_input.text
         }
 
         # Генерируем путь к файлу
@@ -231,9 +252,10 @@ def show_trade_agreement_form(faction, game_area):
     window.add_widget(title)
     window.add_widget(factions_spinner)
     window.add_widget(duration_spinner)
-    window.add_widget(allow_members_spinner)
     window.add_widget(our_resource_spinner)
     window.add_widget(their_resource_spinner)
+    window.add_widget(our_percentage_input)
+    window.add_widget(their_percentage_input)
     window.add_widget(generate_button)
     window.add_widget(agreement_summary)
     window.add_widget(send_button)  # Добавляем кнопку отправки
@@ -241,6 +263,7 @@ def show_trade_agreement_form(faction, game_area):
 
     layout.add_widget(window)
     game_area.add_widget(layout)
+
 
 
 def show_cultural_exchange_form(faction, game_area):
