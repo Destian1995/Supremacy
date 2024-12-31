@@ -1,0 +1,22 @@
+{
+    "Рамшад": [
+        {
+            "coordinates": [
+                1000,
+                480
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/halidon/pikap.jpg",
+                    "unit_name": "Саид 4х4",
+                    "unit_count": 521,
+                    "units_stats": {
+                        "Урон": 67730,
+                        "Защита": 135460,
+                        "Живучесть": 52100
+                    }
+                }
+            ]
+        }
+    ]
+}

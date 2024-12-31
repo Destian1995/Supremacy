@@ -1,0 +1,22 @@
+{
+    "Лунчжоу": [
+        {
+            "coordinates": [
+                960,
+                370
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/eteria/d-400.jpg",
+                    "unit_name": "Д-400",
+                    "unit_count": 78,
+                    "units_stats": {
+                        "Урон": 3900,
+                        "Защита": 156000,
+                        "Живучесть": 34320
+                    }
+                }
+            ]
+        }
+    ]
+}
