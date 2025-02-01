@@ -26,7 +26,6 @@ import random
 import matplotlib.pyplot as plt
 import io
 
-
 # Список доступных зданий с иконками
 BUILDINGS = {
     'Больница': 'files/buildings/medic.jpg',
@@ -41,6 +40,7 @@ translation_dict = {
     "Халидон": "halidon",
 }
 
+
 def transform_filename(file_path):
     path_parts = file_path.split('/')
     for i, part in enumerate(path_parts):
@@ -48,6 +48,7 @@ def transform_filename(file_path):
             if ru_name in part:
                 path_parts[i] = part.replace(ru_name, en_name)
     return '/'.join(path_parts)
+
 
 def get_faction_of_city(city_name):
     try:
@@ -61,6 +62,7 @@ def get_faction_of_city(city_name):
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"Ошибка при загрузке diplomacies.json: {e}")
         return None
+
 
 def format_number(number):
     """Форматирует число с добавлением приставок (тыс., млн., млрд., трлн., квинт., и т.д.)"""
@@ -80,8 +82,6 @@ def format_number(number):
         return f"{number / 1_000:.1f} тыс."
     else:
         return str(number)
-
-
 
 
 def save_building_change(faction_name, city, building_type, delta):
@@ -112,8 +112,6 @@ def save_building_change(faction_name, city, building_type, delta):
     # Сохраняем изменения
     with open(fraction_path, 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
-
-
 
 
 class Faction:
@@ -183,13 +181,11 @@ class Faction:
         save_building_change(self.faction, city, "Фабрика", 1)  # Передаем изменение
         self.update_buildings()  # Пересчитываем общие показатели
 
-
     def build_hospital(self, city):
         """Увеличить количество больниц в указанном городе."""
         self.cities_buildings[city]['Больница'] += 1
         save_building_change(self.faction, city, "Больница", 1)
         self.update_buildings()
-
 
     def update_buildings(self):
         """
@@ -221,7 +217,6 @@ class Faction:
                 print(f"Ошибка при чтении файла {buildings_file}: {e}")
         else:
             print(f"Файл {buildings_file} не найден!")
-
 
     def cash_build(self, money):
         """Списывает деньги, если их хватает, и возвращает True, иначе False."""
@@ -336,73 +331,174 @@ class Faction:
         self.save_resources()
         return self.resources
 
-    def buildings_info_fration(self):
-        if self.faction == 'Аркадия':
-            return 100
-        if self.faction == 'Селестия':
-            return 200
-        if self.faction == 'Хиперион':
-            return 200
-        if self.faction == 'Этерия':
-            return 300
-        if self.faction == 'Халидон':
-            return 300
-
     def update_trade_resources(self):
-        """Обновление ресурсов с учетом торговых договоров, используя файлы инициатора и целевой фракции."""
-        # Путь к папке с файлами для торговых соглашений
-        trade_folder = "files/config/status/req_trade/"
+        """Обновляет ресурсы с учетом торговых договоров и очищает файлы после обработки."""
+        trade_folder = "files/config/status/trade_dogovor"
+        trade_file_path = transform_filename(os.path.join(trade_folder, f"{self.faction}.json"))
 
-        # Проверка наличия файлов для торговых договоров
-        trade_files = [f for f in os.listdir(trade_folder) if f.endswith('.json')]
+        if os.path.exists(trade_file_path):
+            try:
+                with open(trade_file_path, 'r', encoding='utf-8') as file:
+                    content = file.read().strip()
+                    if not content:
+                        print(f"Файл {trade_file_path} пуст.")
+                        return
+                    trade_data = json.loads(content)
 
-        # Процесс обработки каждого файла торгового соглашения
-        for trade_file in trade_files:
-            # Получаем имя фракции инициатора и целевой фракции из имени файла
-            initiator, target_faction = trade_file.split('_')[0], trade_file.split('_')[1].split('.')[0]
+                if isinstance(trade_data, dict):
+                    trade_data = [trade_data]  # Превращаем в список, если объект
 
-            # Переход к проверке только тех файлов, которые касаются текущей фракции
-            if initiator == self.faction or target_faction == self.faction:
-                file_path = os.path.join(trade_folder, trade_file)
+                completed_trades = []  # Список завершенных сделок
 
-                # Открываем и загружаем данные из соответствующего файла
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    trade_data = json.load(f)
+                for trade in trade_data:
+                    initiator_type_resource = trade["initiator_type_resource"]
+                    initiator_summ_resource = int(trade["initiator_summ_resource"])
+                    target_type_resource = trade["target_type_resource"]
+                    target_summ_resource = int(trade["target_summ_resource"])
 
-                # Если текущая фракция инициатор, обрабатываем отправку ресурса
-                if initiator == self.faction:
-                    our_resource = trade_data.get('our_resource')
-                    our_percentage = float(trade_data.get('our_percentage')) / 100  # Преобразуем в долю
-                    if our_resource == "Сырье":
-                        # Учитываем вычет процента для ресурса Сырье
-                        self.raw_material_trade = (int((self.factories * 1000) - (
-                                                     self.population * self.food_loss))) * our_percentage
-                    elif our_resource == "Рабочие":
-                        # Учитываем вычет процента для ресурса Рабочие
-                        self.clear_up_peoples = (self.born_peoples - self.work_peoples + self.tax_effects) + \
-                                                (
-                                                        self.born_peoples - self.work_peoples + self.tax_effects) * our_percentage
+                    if trade["initiator"] == self.faction:
+                        # Игрок - инициатор сделки (отдает ресурс и получает ресурс от target)
+                        if initiator_type_resource == "Сырье" and self.raw_material < initiator_summ_resource:
+                            continue
+                        if initiator_type_resource == "Кроны" and self.money < initiator_summ_resource:
+                            continue
+                        if initiator_type_resource == "Население" and self.population < initiator_summ_resource:
+                            continue
+                        if initiator_type_resource == "Рабочие" and self.free_peoples < initiator_summ_resource:
+                            continue
 
-                # Если текущая фракция целевая, обрабатываем увеличение ресурса
-                if target_faction == self.faction:
-                    their_resource = trade_data.get('their_resource')
-                    their_percentage = float(trade_data.get('their_percentage')) / 100  # Преобразуем в долю
-                    if their_resource == "Сырье":
-                        # Учитываем увеличение ресурса Сырье
-                        self.raw_material += (int((self.factories * 1000) - (
-                                self.population * self.food_loss))) * their_percentage
-                    elif their_resource == "Рабочие":
-                        # Учитываем увеличение ресурса Рабочие
-                        self.clear_up_peoples += (
-                                                         self.born_peoples - self.work_peoples + self.tax_effects) * their_percentage
+                        # Вычитаем ресурс у инициатора
+                        if initiator_type_resource == "Сырье":
+                            self.raw_material -= initiator_summ_resource
+                        elif initiator_type_resource == "Кроны":
+                            self.money -= initiator_summ_resource
+                        elif initiator_type_resource == "Население":
+                            self.population -= initiator_summ_resource
+                        elif initiator_type_resource == "Рабочие":
+                            self.free_peoples -= initiator_summ_resource
 
-        # Логирование обновленных ресурсов
-        print(f"Обновленные ресурсы: Сырье: {self.raw_material}, Рабочие: {self.free_peoples}")
+                        # Получаем ресурс от target
+                        opponent_faction = transform_filename(trade["target_faction"])
+                        ally_resource_file = transform_filename(
+                            f"files/config/status/trade_dogovor/resources/{opponent_faction}.json")
+                        ally_data = {}
+
+                        if os.path.exists(ally_resource_file):
+                            with open(ally_resource_file, 'r', encoding='utf-8') as ally_file:
+                                content = ally_file.read().strip()
+                                if content:
+                                    ally_data = json.loads(content)
+
+                        ally_data[initiator_type_resource] = ally_data.get(initiator_type_resource, 0) + initiator_summ_resource
+
+                    elif trade["target_faction"] == self.faction:
+                        # Игрок — получатель сделки (получает ресурс и отдает свой)
+                        if target_type_resource == "Сырье" and self.raw_material < target_summ_resource:
+                            continue
+                        if target_type_resource == "Кроны" and self.money < target_summ_resource:
+                            continue
+                        if target_type_resource == "Население" and self.population < target_summ_resource:
+                            continue
+                        if target_type_resource == "Рабочие" and self.free_peoples < target_summ_resource:
+                            continue
+
+                        # Игрок или ИИ получает ресурс
+                        if initiator_type_resource == "Сырье":
+                            self.raw_material += initiator_summ_resource
+                        elif initiator_type_resource == "Кроны":
+                            self.money += initiator_summ_resource
+                        elif initiator_type_resource == "Население":
+                            self.population += initiator_summ_resource
+                        elif initiator_type_resource == "Рабочие":
+                            self.free_peoples += initiator_summ_resource
+
+                        # Игрок или ИИ отдает свой ресурс (отдает взамен)
+                        if target_type_resource == "Сырье":
+                            self.raw_material -= target_summ_resource
+                        elif target_type_resource == "Кроны":
+                            self.money -= target_summ_resource
+                        elif target_type_resource == "Население":
+                            self.population -= target_summ_resource
+                        elif target_type_resource == "Рабочие":
+                            self.free_peoples -= target_summ_resource
+
+                        # Записываем переданный ресурс в файл инициатора (отправляем свой ресурс обратно)
+                        opponent_faction = transform_filename(trade["initiator"])
+                        ally_resource_file = transform_filename(
+                            f"files/config/status/trade_dogovor/resources/{opponent_faction}.json")
+                        ally_data = {}
+
+                        if os.path.exists(ally_resource_file):
+                            with open(ally_resource_file, 'r', encoding='utf-8') as ally_file:
+                                content = ally_file.read().strip()
+                                if content:
+                                    ally_data = json.loads(content)
+
+                        ally_data[target_type_resource] = ally_data.get(target_type_resource,
+                                                                           0) + target_summ_resource
+
+                    # Записываем обновленный файл ресурсов союзника
+                    with open(ally_resource_file, 'w', encoding='utf-8') as ally_file:
+                        json.dump(ally_data, ally_file, ensure_ascii=False, indent=4)
+
+                    completed_trades.append(trade)  # Сделка завершена
+
+                # Очищаем выполненные сделки из торгового файла
+                with open(trade_file_path, 'w', encoding='utf-8') as file:
+                    json.dump([t for t in trade_data if t not in completed_trades], file, ensure_ascii=False, indent=4)
+
+                self.save_resources()  # Сохраняем обновленные ресурсы игрока или ИИ
+
+            except json.JSONDecodeError:
+                print(f"Ошибка: файл {trade_file_path} содержит некорректный JSON.")
+            except Exception as e:
+                print(f"Ошибка при обработке торговых соглашений: {e}")
+        else:
+            print(f"Файл торговых соглашений для фракции {self.faction} не найден.")
+
+    def update_ally_resources(self):
+        """Загружает ресурсы союзника и прибавляет их к нашим ресурсам."""
+        ally_resource_file = transform_filename(f"files/config/status/trade_dogovor/resources/{self.faction}.json")
+
+        if os.path.exists(ally_resource_file):
+            try:
+                with open(ally_resource_file, 'r', encoding='utf-8') as file:
+                    content = file.read().strip()
+                    if not content:
+                        print(f"Файл {ally_resource_file} пуст.")
+                        return
+                    ally_data = json.loads(content)
+
+                # Прибавляем ресурсы к нашим
+                if "Сырье" in ally_data:
+                    self.raw_material += ally_data["Сырье"]
+                if "Деньги" in ally_data:
+                    self.money += ally_data["Кроны"]
+                if "Население" in ally_data:
+                    self.population += ally_data["Население"]
+                if "Рабочие" in ally_data:
+                    self.free_peoples += ally_data["Рабочие"]
+
+                # После загрузки ресурсов файл очищаем
+                with open(ally_resource_file, 'w', encoding='utf-8') as file:
+                    json.dump({}, file, ensure_ascii=False, indent=4)
+
+                # Сохраняем обновленные ресурсы
+                self.save_resources()
+
+            except json.JSONDecodeError:
+                print(f"Ошибка: файл {ally_resource_file} содержит некорректный JSON.")
+            except Exception as e:
+                print(f"Ошибка при загрузке и добавлении ресурсов союзника: {e}")
+        else:
+            print(f"Файл с ресурсами для фракции {self.faction} не найден.")
 
     def update_resources(self):
         """Обновление текущих ресурсов, с проверкой на минимальное значение 0 и округлением до целых чисел."""
         self.update_buildings()
         self.generate_raw_material_price()
+        self.update_trade_resources()
+        self.update_ally_resources()
         # Коэффициенты для каждой фракции
         faction_coefficients = {
             'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
@@ -475,6 +571,18 @@ class Faction:
         if self.population == 0:
             return False
 
+    def buildings_info_fration(self):
+        if self.faction == 'Аркадия':
+            return 100
+        if self.faction == 'Селестия':
+            return 200
+        if self.faction == 'Хиперион':
+            return 200
+        if self.faction == 'Этерия':
+            return 300
+        if self.faction == 'Халидон':
+            return 300
+
     def initialize_raw_material_prices(self):
         """Инициализация истории цен на сырье"""
         for _ in range(25):  # Генерируем 25 случайных цен
@@ -512,7 +620,7 @@ class Faction:
         elif action == 'sell':  # Продажа сырья
             total_quantity = quantity * 10000
             if self.raw_material >= total_quantity:  # Проверяем, что у игрока достаточно сырья
-                self.money += self.current_raw_material_price * total_quantity
+                self.money += self.current_raw_material_price * quantity
                 self.raw_material -= total_quantity
                 self.save_resources()
                 return True  # Операция успешна
@@ -815,7 +923,8 @@ def open_trade_popup(game_instance):
 
     # Поле ввода для количества сырья
     quantity_label = Label(text="Введите количество лотов для торговли сырьем:", font_size=14)
-    quantity_input = TextInput(hint_text="1 лот = 10 000 единиц", multiline=False, font_size=14, input_filter='int', size_hint_y=None, height=40)
+    quantity_input = TextInput(hint_text="1 лот = 10 000 единиц", multiline=False, font_size=14, input_filter='int',
+                               size_hint_y=None, height=40)
 
     # Кнопки для покупки и продажи
     button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=20)
@@ -839,6 +948,7 @@ def open_trade_popup(game_instance):
 
     trade_popup.open()
 
+
 def handle_trade(game_instance, action, quantity, trade_popup):
     """Обработка торговли (покупка/продажа сырья)"""
     try:
@@ -861,7 +971,6 @@ def handle_trade(game_instance, action, quantity, trade_popup):
     except ValueError as e:
         show_message("Ошибка", str(e))
     trade_popup.dismiss()  # Закрываем попап после операции
-
 
 
 #-----------------------------------

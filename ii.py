@@ -12,14 +12,12 @@ translation_dict = {
 
 
 def transform_filename(file_path):
-    print(f"Original path: {file_path}")
     path_parts = file_path.split('/')
     for i, part in enumerate(path_parts):
         for ru_name, en_name in translation_dict.items():
             if ru_name in part:
                 path_parts[i] = part.replace(ru_name, en_name)
     transformed_path = '/'.join(path_parts)
-    print(f"Transformed path: {transformed_path}")
     return transformed_path
 
 
@@ -33,6 +31,8 @@ class AIController:
         self.resources_path = transform_filename(f'files/config/manage_ii/resources/{self.faction}_resources.json')
         self.army_path = transform_filename(f'files/config/units/{self.faction}.json')
         self.cities_path = transform_filename(f'files/config/manage_ii/list_cities/{self.faction}.json')
+        self.trade_contract = transform_filename(f'files/config/status/trade_dogovor/{self.faction}.json')
+        self.resources_file = transform_filename(f'files/config/status/trade_dogovor/resources/{self.faction}.json')
         self.cities = {}
         self.all_cities = {}
         self.buildings = {}
@@ -41,7 +41,7 @@ class AIController:
         self.army = {}
         self.money = self.resources.get('Кроны', 0)
         self.workers = self.resources.get('Рабочие', 0)
-        self.food = self.resources.get('Сырье', 0)
+        self.surie = self.resources.get('Сырье', 0)
         self.population = self.resources.get('Население', 0)
         self.hospitals = self.buildings.get('Больницы', 0)
         self.factory = self.buildings.get('Фабрики', 0)
@@ -184,10 +184,10 @@ class AIController:
 
     def trade_resource(self):
         print(f"ИИ {self.faction}: проверка торговли -> Сырье: {self.resources['Сырье']}, Кроны: {self.resources['Кроны']}")
-        if self.resources['Сырье'] >= 14000:
+        if self.resources['Сырье'] >= 13000:
             self.resources['Сырье'] -= 10000
-            self.resources['Кроны'] += 30000
-            print(f"ИИ {self.faction}: торговля выполнена -> -10,000 сырья, +30,000 крон.")
+            self.resources['Кроны'] += 25000
+            print(f"ИИ {self.faction}: торговля выполнена -> -10,000 сырья, +25,000 крон.")
         else:
             print(f"ИИ {self.faction}: недостаточно сырье для торговли.")
 
@@ -244,7 +244,8 @@ class AIController:
                 loss = min(self.resources['Население'], 50)
             self.resources['Население'] -= loss
             self.resources['Рабочие'] = max(0, self.resources['Рабочие'] - loss)
-        self.trade_resource()
+        self.trade_resources()
+        self.load_and_add_resources()
 
         # Обеспечение положительных значений ресурсов
         self.resources = {key: max(0, int(value)) for key, value in self.resources.items()}
@@ -256,9 +257,10 @@ class AIController:
         # Другие обновления
         self.up_resourcess()
 
+
     def up_resourcess(self):
         self.money = self.resources['Кроны']
-        self.food = self.resources['Сырье']
+        self.surie = self.resources['Сырье']
         self.population = self.resources['Население']
         self.workers = self.resources['Рабочие']
         print('Общее число зданий:', self.hospitals, self.factory, 'фракции:', self.faction)
@@ -409,9 +411,181 @@ class AIController:
         except Exception as e:
             print(f"Ошибка сохранения данных в {file_path}: {e}")
 
+    def calculate_profit(self, resource):
+        """Рассчитывает чистую прибыль ресурса."""
+        if resource == 'Кроны':
+            return self.resources['Кроны'] - (self.hospitals * 100)
+        elif resource == 'Сырье':
+            production = self.factory * 1000
+            consumption = self.resources['Население'] * 1.2
+            return production - consumption
+        elif resource == 'Рабочие':
+            return self.resources['Рабочие'] - (self.hospitals * 30)
+        else:
+            raise ValueError(f"Неизвестный ресурс: {resource}")
+
     def trade_resources(self):
-        """Торговля ресурсами с другими фракциями"""
-        pass
+        """ИИ обновляет ресурсы с учетом торговых договоров и всегда записывает ресурсы в файл другой стороны сделки."""
+        trade_folder = "files/config/status/trade_dogovor"
+        trade_file_path = transform_filename(os.path.join(trade_folder, f"{self.faction}.json"))
+
+        if os.path.exists(trade_file_path):
+            try:
+                with open(trade_file_path, 'r', encoding='utf-8') as file:
+                    content = file.read().strip()
+                    if not content:
+                        print(f"Файл {trade_file_path} пуст.")
+                        return
+                    trade_data = json.loads(content)
+
+                if isinstance(trade_data, dict):
+                    trade_data = [trade_data]  # Превращаем в список, если это объект
+
+                completed_trades = []  # Список завершенных сделок
+
+                for trade in trade_data:
+                    initiator_type_resource = trade["initiator_type_resource"]
+                    initiator_summ_resource = int(trade["initiator_summ_resource"])
+                    target_type_resource = trade["target_type_resource"]
+                    target_summ_resource = int(trade["target_summ_resource"])
+
+                    if trade["initiator"] == self.faction:
+                        # ИИ инициатор сделки (отдает ресурс и получает ресурс от target)
+                        if initiator_type_resource == "Сырье" and self.surie < initiator_summ_resource:
+                            continue
+                        if initiator_type_resource == "Кроны" and self.money < initiator_summ_resource:
+                            continue
+                        if initiator_type_resource == "Население" and self.population < initiator_summ_resource:
+                            continue
+                        if initiator_type_resource == "Рабочие" and self.workers < initiator_summ_resource:
+                            continue
+
+                        # Вычитаем ресурс у ИИ
+                        if initiator_type_resource == "Сырье":
+                            self.resources['Сырье'] -= initiator_summ_resource
+                        elif initiator_type_resource == "Кроны":
+                            self.resources['Кроны'] -= initiator_summ_resource
+                        elif initiator_type_resource == "Население":
+                            self.resources['Население'] -= initiator_summ_resource
+                        elif initiator_type_resource == "Рабочие":
+                            self.resources['Рабочие'] -= initiator_summ_resource
+
+                        # Записываем переданный ресурс в файл получателя
+                        opponent_faction = transform_filename(trade["target_faction"])
+                        ally_resource_file = transform_filename(
+                            f"files/config/status/trade_dogovor/resources/{opponent_faction}.json")
+                        ally_data = {}
+
+                        if os.path.exists(ally_resource_file):
+                            with open(ally_resource_file, 'r', encoding='utf-8') as ally_file:
+                                content = ally_file.read().strip()
+                                if content:
+                                    ally_data = json.loads(content)
+
+                        ally_data[initiator_type_resource] = ally_data.get(initiator_type_resource, 0) + initiator_summ_resource
+
+                    elif trade["target_faction"] == self.faction:
+                        # ИИ получатель сделки (получает ресурс и отдает свой)
+                        if target_type_resource == "Сырье" and self.surie < target_summ_resource:
+                            continue
+                        if target_type_resource == "Кроны" and self.money < target_summ_resource:
+                            continue
+                        if target_type_resource == "Население" and self.population < target_summ_resource:
+                            continue
+                        if target_type_resource == "Рабочие" and self.workers < target_summ_resource:
+                            continue
+
+                        # ИИ получает ресурс
+                        if initiator_type_resource == "Сырье":
+                            self.resources['Сырье'] += initiator_summ_resource
+                        elif initiator_type_resource == "Кроны":
+                            self.resources['Кроны'] += initiator_summ_resource
+                        elif initiator_type_resource == "Население":
+                            self.resources['Население'] += initiator_summ_resource
+                        elif initiator_type_resource == "Рабочие":
+                            self.resources['Рабочие'] += initiator_summ_resource
+
+                        # ИИ отдает свой ресурс (отдает взамен)
+                        if target_type_resource == "Сырье":
+                            self.resources['Сырье'] -= target_summ_resource
+                        elif target_type_resource == "Кроны":
+                            self.resources['Кроны'] -= target_summ_resource
+                        elif target_type_resource == "Население":
+                            self.resources['Население'] -= target_summ_resource
+                        elif target_type_resource == "Рабочие":
+                            self.resources['Рабочие'] -= target_summ_resource
+
+                        # Записываем переданный ресурс в файл инициатора (отправляем свой ресурс обратно)
+                        opponent_faction = transform_filename(trade["initiator"])
+                        ally_resource_file = transform_filename(
+                            f"files/config/status/trade_dogovor/resources/{opponent_faction}.json")
+                        ally_data = {}
+
+                        if os.path.exists(ally_resource_file):
+                            with open(ally_resource_file, 'r', encoding='utf-8') as ally_file:
+                                content = ally_file.read().strip()
+                                if content:
+                                    ally_data = json.loads(content)
+
+                        ally_data[target_type_resource] = ally_data.get(target_type_resource,
+                                                                           0) + target_summ_resource
+
+                    # Записываем обновленный файл ресурсов союзника
+                    with open(ally_resource_file, 'w', encoding='utf-8') as ally_file:
+                        json.dump(ally_data, ally_file, ensure_ascii=False, indent=4)
+
+                    completed_trades.append(trade)  # Сделка завершена
+
+                # Очищаем выполненные сделки из торгового файла
+                with open(trade_file_path, 'w', encoding='utf-8') as file:
+                    json.dump([t for t in trade_data if t not in completed_trades], file, ensure_ascii=False, indent=4)
+
+                self.save_resources()  # Сохраняем обновленные ресурсы ИИ
+
+            except json.JSONDecodeError:
+                print(f"Ошибка: файл {trade_file_path} содержит некорректный JSON.")
+            except Exception as e:
+                print(f"Ошибка при обработке торговых соглашений ИИ: {e}")
+        else:
+            print(f"Файл торговых соглашений для фракции {self.faction} не найден.")
+
+    def load_and_add_resources(self):
+
+        try:
+            # Проверяем, существует ли файл
+            if not os.path.exists(self.resources_file):
+                print(f"Файл {self.resources_file} не найден. Пропуск.")
+                return
+
+            # Чтение данных из файла
+            with open(self.resources_file, 'r', encoding='utf-8') as file:
+                content = file.read().strip()
+
+                if not content:
+                    print(f"Файл {self.resources_file} пустой. Пропуск.")
+                    return
+
+                # Парсим JSON из содержимого файла
+                loaded_resources = json.loads(content)
+
+            # Проверяем, что ресурсы являются словарем
+            if not isinstance(loaded_resources, dict):
+                raise ValueError(f"Формат данных в файле {self.resources_file} некорректен. Ожидался словарь.")
+
+            # Добавляем ресурсы из файла к текущим
+            for key, value in loaded_resources.items():
+                if key in self.resources and isinstance(value, (int, float)):
+                    self.resources[key] += value
+                else:
+                    print(f"Ресурс '{key}' не найден в текущем списке или имеет некорректное значение.")
+
+            print(f"Ресурсы из файла {self.resources_file} успешно добавлены.")
+            print(f"Обновленные ресурсы: {self.resources}")
+
+        except json.JSONDecodeError:
+            print(f"Ошибка: Файл {self.resources_file} содержит некорректный JSON.")
+        except Exception as e:
+            print(f"Произошла ошибка при обработке файла {self.resources_file}: {e}")
 
     def manage_army(self):
         """Управление армией ИИ"""

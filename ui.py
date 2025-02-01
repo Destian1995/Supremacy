@@ -79,17 +79,22 @@ def merge_army_and_ii_files():
 
     # Проходим по каждому файлу и загружаем данные
     for file_path in file_paths:
+        faction_name = os.path.splitext(os.path.basename(file_path))[0]
+
         if os.path.exists(file_path):
             with open(file_path, "r", encoding="utf-8") as file:
                 try:
                     data = json.load(file)
-                    # Извлекаем название фракции (имя файла без расширения) для организации данных
-                    faction_name = os.path.splitext(os.path.basename(file_path))[0]
+                    # Добавляем данные фракции в словарь
                     merged_data[faction_name] = data
                 except json.JSONDecodeError:
-                    print(f"Файл {file_path} пустой или поврежден.")
+                    print(f"Файл {file_path} пустой или поврежден, инициализируем пустым словарем.")
+                    # Инициализируем фракцию пустым словарем
+                    merged_data[faction_name] = {}
         else:
-            print(f"Файл {file_path} не найден.")
+            print(f"Файл {file_path} не найден, инициализируем пустым словарем.")
+            # Инициализируем фракцию пустым словарем
+            merged_data[faction_name] = {}
 
     # Сохраняем объединенные данные в all_arms.json
     with open(all_arms_file_path, "w", encoding="utf-8") as all_arms_file:

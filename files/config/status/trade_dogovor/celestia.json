@@ -1,9 +1,8 @@
 {
     "initiator": "Аркадия",
     "target_faction": "Селестия",
-    "duration": "Бессрочно",
-    "our_resource": "Рабочие",
-    "their_resource": "Сырье",
-    "our_percentage": "25",
-    "their_percentage": "35"
+    "initiator_type_resource": "Кроны",
+    "target_type_resource": "Сырье",
+    "initiator_summ_resource": "100",
+    "target_summ_resource": "200"
 }

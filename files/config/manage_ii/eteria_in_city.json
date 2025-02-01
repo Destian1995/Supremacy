@@ -1,4 +1,44 @@
 {
+    "Юншань": [
+        {
+            "coordinates": [
+                1070,
+                610
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/eteria/legions.jpg",
+                    "unit_name": "Легионеры",
+                    "unit_count": 28,
+                    "units_stats": {
+                        "Урон": 3360,
+                        "Защита": 1400,
+                        "Живучесть": 2240
+                    }
+                },
+                {
+                    "unit_image": "files/army/eteria/tiger.jpg",
+                    "unit_name": "Тигр",
+                    "unit_count": 27,
+                    "units_stats": {
+                        "Урон": 8640,
+                        "Защита": 5400,
+                        "Живучесть": 2970
+                    }
+                },
+                {
+                    "unit_image": "files/army/eteria/d-400.jpg",
+                    "unit_name": "Д-400",
+                    "unit_count": 76,
+                    "units_stats": {
+                        "Урон": 3800,
+                        "Защита": 152000,
+                        "Живучесть": 33440
+                    }
+                }
+            ]
+        }
+    ],
     "Лунчжоу": [
         {
             "coordinates": [
@@ -7,13 +47,93 @@
             ],
             "units": [
                 {
+                    "unit_image": "files/army/eteria/legions.jpg",
+                    "unit_name": "Легионеры",
+                    "unit_count": 28,
+                    "units_stats": {
+                        "Урон": 3360,
+                        "Защита": 1400,
+                        "Живучесть": 2240
+                    }
+                },
+                {
+                    "unit_image": "files/army/eteria/tiger.jpg",
+                    "unit_name": "Тигр",
+                    "unit_count": 26,
+                    "units_stats": {
+                        "Урон": 8320,
+                        "Защита": 5200,
+                        "Живучесть": 2860
+                    }
+                },
+                {
                     "unit_image": "files/army/eteria/d-400.jpg",
                     "unit_name": "Д-400",
-                    "unit_count": 78,
+                    "unit_count": 1,
                     "units_stats": {
-                        "Урон": 3900,
-                        "Защита": 156000,
-                        "Живучесть": 34320
+                        "Урон": 50,
+                        "Защита": 2000,
+                        "Живучесть": 440
+                    }
+                }
+            ]
+        }
+    ],
+    "Тяньчжоу": [
+        {
+            "coordinates": [
+                1070,
+                440
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/eteria/legions.jpg",
+                    "unit_name": "Легионеры",
+                    "unit_count": 45,
+                    "units_stats": {
+                        "Урон": 5400,
+                        "Защита": 2250,
+                        "Живучесть": 3600
+                    }
+                },
+                {
+                    "unit_image": "files/army/eteria/tiger.jpg",
+                    "unit_name": "Тигр",
+                    "unit_count": 48,
+                    "units_stats": {
+                        "Урон": 15360,
+                        "Защита": 9600,
+                        "Живучесть": 5280
+                    }
+                }
+            ]
+        }
+    ],
+    "Фэйху": [
+        {
+            "coordinates": [
+                1120,
+                310
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/eteria/legions.jpg",
+                    "unit_name": "Легионеры",
+                    "unit_count": 35,
+                    "units_stats": {
+                        "Урон": 4200,
+                        "Защита": 1750,
+                        "Живучесть": 2800
+                    }
+                },
+                {
+                    "unit_image": "files/army/eteria/tiger.jpg",
+                    "unit_name": "Тигр",
+                    "unit_count": 32,
+                    "units_stats": {
+                        "Урон": 10240,
+                        "Защита": 6400,
+                        "Живучесть": 3520
                     }
                 }
             ]

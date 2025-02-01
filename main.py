@@ -25,25 +25,78 @@ def load_kingdom_data(file_path):
     return data
 
 
+def copy_resources_to_backup():
+    # Определяем пути исходных файлов
+    resources_file_paths = [
+        'files/config/manage_ii/resources/arkadia_resources.json',
+        'files/config/manage_ii/resources/celestia_resources.json',
+        'files/config/manage_ii/resources/giperion_resources.json',
+        'files/config/manage_ii/resources/halidon_resources.json',
+        'files/config/manage_ii/resources/eteria_resources.json'
+    ]
+
+    # Определяем путь для резервного копирования
+    backup_directory = 'files/config/backup'
+
+    # Создаем директорию для резервного копирования, если она не существует
+    os.makedirs(backup_directory, exist_ok=True)
+
+    # Копируем каждый файл в директорию резервного копирования
+    for file_path in resources_file_paths:
+        if os.path.exists(file_path):  # Проверяем, существует ли файл
+            # Получаем имя файла из полного пути
+            file_name = os.path.basename(file_path)
+            # Формируем путь для копии файла в директории резервного копирования
+            backup_file_path = os.path.join(backup_directory, file_name)
+            # Копируем файл
+            shutil.copy2(file_path, backup_file_path)  # Используем copy2 для сохранения метаданных
+            print(f"Файл '{file_path}' успешно скопирован в '{backup_file_path}'.")
+        else:
+            print(f"Файл '{file_path}' не найден.")
+
 def restore_from_backup():
     """Загрузка файлов из бэкапа, сам бэкап выполняется в модуле ui.py функция backup_files"""
     # Определяем путь к исходным и резервным файлам
     backup_dir = 'files/config/backup'
     city_file_path = 'files/config/city.json'
     diplomaties_file_path = 'files/config/status/diplomaties.json'
+    backup_dir_resources = 'files/config/backup/default_resources'
+    resources_file_path_ark = r'files\config\manage_ii\resources\arkadia_resources.json'
+    resources_file_path_cel = r'files\config\manage_ii\resources\celestia_resources.json'
+    resources_file_path_gip = r'files\config\manage_ii\resources\giperion_resources.json'
+    resources_file_path_hal = r'files\config\manage_ii\resources\halidon_resources.json'
+    resources_file_path_eter = r'files\config\manage_ii\resources\eteria_resources.json'
 
     # Определяем пути для резервных копий
     city_backup_path = os.path.join(backup_dir, 'city_backup.json')
     diplomaties_backup_path = os.path.join(backup_dir, 'diplomaties_backup.json')
+    resources_backup_path_ark = os.path.join(backup_dir_resources, 'arkadia_resources.json')
+    resources_backup_path_cel = os.path.join(backup_dir_resources, 'celestia_resources.json')
+    resources_backup_path_gip = os.path.join(backup_dir_resources, 'giperion_resources.json')
+    resources_backup_path_hal = os.path.join(backup_dir_resources, 'halidon_resources.json')
+    resources_backup_path_eter = os.path.join(backup_dir_resources, 'eteria_resources.json')
 
-    # Проверяем, существуют ли резервные копии
-    if os.path.exists(city_backup_path) and os.path.exists(diplomaties_backup_path):
-        # Копируем файлы из резервной копии обратно в исходные файлы
-        shutil.copy(city_backup_path, city_file_path)
-        shutil.copy(diplomaties_backup_path, diplomaties_file_path)
-        print("Файлы восстановлены из бэкапа.")
+    # Список пар (резервный путь, исходный путь)
+    backup_files = [
+        (city_backup_path, city_file_path),
+        (diplomaties_backup_path, diplomaties_file_path),
+        (resources_backup_path_ark, resources_file_path_ark),
+        (resources_backup_path_cel, resources_file_path_cel),
+        (resources_backup_path_gip, resources_file_path_gip),
+        (resources_backup_path_hal, resources_file_path_hal),
+        (resources_backup_path_eter, resources_file_path_eter)
+    ]
+
+    # Проверяем существование всех резервных копий
+    all_backups_exist = all(os.path.exists(src) for src, _ in backup_files)
+
+    if all_backups_exist:
+        # Восстанавливаем все файлы
+        for src, dest in backup_files:
+            shutil.copy(src, dest)
+        print("Все файлы восстановлены из бэкапа.")
     else:
-        print("Резервные копии не найдены. Восстановление невозможно.")
+        print("Не все резервные копии найдены. Восстановление невозможно.")
 
 
 def clear_temp_files():
@@ -55,7 +108,12 @@ def clear_temp_files():
                   'files/config/buildings_in_city/celestia_buildings_city.json',
                   'files/config/buildings_in_city/eteria_buildings_city.json',
                   'files/config/buildings_in_city/giperion_buildings_city.json',
-                  'files/config/buildings_in_city/halidon_buildings_city.json',]
+                  'files/config/buildings_in_city/halidon_buildings_city.json',
+                  'files/config/status/trade_dogovor/arkadia.json',
+                  'files/config/status/trade_dogovor/celestia.json',
+                  'files/config/status/trade_dogovor/eteria.json',
+                  'files/config/status/trade_dogovor/giperion.json',
+                  'files/config/status/trade_dogovor/halidon.json']
     for file in temp_files:
         with open(file, 'w', encoding='utf-8') as f:
             f.write('')  # Записываем пустую строку, чтобы очистить файл
@@ -460,6 +518,7 @@ class KingdomSelectionWidget(FloatLayout):
         clear_temp_files()
         # Загрузка дампа дефолтных файлов.
         restore_from_backup()
+
         # Передаем выбранное княжество на новый экран игры
         game_screen = GameScreen(selected_kingdom, cities)
         app.root.clear_widgets()

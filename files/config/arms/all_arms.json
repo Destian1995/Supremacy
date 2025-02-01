@@ -1,46 +1,7 @@
 {
-    "eteria_in_city": {
-        "Лунчжоу": [
-            {
-                "coordinates": [
-                    960,
-                    370
-                ],
-                "units": [
-                    {
-                        "unit_image": "files/army/eteria/d-400.jpg",
-                        "unit_name": "Д-400",
-                        "unit_count": 78,
-                        "units_stats": {
-                            "Урон": 3900,
-                            "Защита": 156000,
-                            "Живучесть": 34320
-                        }
-                    }
-                ]
-            }
-        ]
-    },
-    "halidon_in_city": {
-        "Рамшад": [
-            {
-                "coordinates": [
-                    1000,
-                    480
-                ],
-                "units": [
-                    {
-                        "unit_image": "files/army/halidon/pikap.jpg",
-                        "unit_name": "Саид 4х4",
-                        "unit_count": 521,
-                        "units_stats": {
-                            "Урон": 67730,
-                            "Защита": 135460,
-                            "Живучесть": 52100
-                        }
-                    }
-                ]
-            }
-        ]
-    }
+    "arkadia_in_city": {},
+    "celestia_in_city": {},
+    "eteria_in_city": {},
+    "giperion_in_city": {},
+    "halidon_in_city": {}
 }

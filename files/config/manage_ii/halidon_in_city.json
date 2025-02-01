@@ -1,4 +1,64 @@
 {
+    "Тамир": [
+        {
+            "coordinates": [
+                940,
+                280
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/halidon/shadows.jpg",
+                    "unit_name": "Тени",
+                    "unit_count": 4,
+                    "units_stats": {
+                        "Урон": 340,
+                        "Защита": 40,
+                        "Живучесть": 280
+                    }
+                },
+                {
+                    "unit_image": "files/army/halidon/pikap.jpg",
+                    "unit_name": "Саид 4х4",
+                    "unit_count": 56,
+                    "units_stats": {
+                        "Урон": 7280,
+                        "Защита": 14560,
+                        "Живучесть": 5600
+                    }
+                }
+            ]
+        }
+    ],
+    "Аль-Шахара": [
+        {
+            "coordinates": [
+                820,
+                160
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/halidon/shadows.jpg",
+                    "unit_name": "Тени",
+                    "unit_count": 8,
+                    "units_stats": {
+                        "Урон": 680,
+                        "Защита": 80,
+                        "Живучесть": 560
+                    }
+                },
+                {
+                    "unit_image": "files/army/halidon/pikap.jpg",
+                    "unit_name": "Саид 4х4",
+                    "unit_count": 65,
+                    "units_stats": {
+                        "Урон": 8450,
+                        "Защита": 16900,
+                        "Живучесть": 6500
+                    }
+                }
+            ]
+        }
+    ],
     "Рамшад": [
         {
             "coordinates": [
@@ -7,13 +67,53 @@
             ],
             "units": [
                 {
+                    "unit_image": "files/army/halidon/shadows.jpg",
+                    "unit_name": "Тени",
+                    "unit_count": 8,
+                    "units_stats": {
+                        "Урон": 680,
+                        "Защита": 80,
+                        "Живучесть": 560
+                    }
+                },
+                {
                     "unit_image": "files/army/halidon/pikap.jpg",
                     "unit_name": "Саид 4х4",
-                    "unit_count": 521,
+                    "unit_count": 70,
                     "units_stats": {
-                        "Урон": 67730,
-                        "Защита": 135460,
-                        "Живучесть": 52100
+                        "Урон": 9100,
+                        "Защита": 18200,
+                        "Живучесть": 7000
+                    }
+                }
+            ]
+        }
+    ],
+    "Эркан": [
+        {
+            "coordinates": [
+                1020,
+                100
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/halidon/shadows.jpg",
+                    "unit_name": "Тени",
+                    "unit_count": 16,
+                    "units_stats": {
+                        "Урон": 1360,
+                        "Защита": 160,
+                        "Живучесть": 1120
+                    }
+                },
+                {
+                    "unit_image": "files/army/halidon/pikap.jpg",
+                    "unit_name": "Саид 4х4",
+                    "unit_count": 47,
+                    "units_stats": {
+                        "Урон": 6110,
+                        "Защита": 12220,
+                        "Живучесть": 4700
                     }
                 }
             ]
