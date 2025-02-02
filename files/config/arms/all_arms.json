@@ -1,5 +1,66 @@
 {
-    "arkadia_in_city": {},
+    "arkadia_in_city": {
+        "Аргенвилль": [
+            {
+                "coordinates": [
+                    100,
+                    630
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/arkadia/vepr.jpg",
+                        "unit_name": "Вепрь",
+                        "unit_count": 7,
+                        "units_stats": {
+                            "Урон": 840,
+                            "Защита": 3430,
+                            "Живучесть": 2310
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/arkadia/gvardia.jpg",
+                        "unit_name": "Гвардия",
+                        "unit_count": 15,
+                        "units_stats": {
+                            "Урон": 2400,
+                            "Защита": 1650,
+                            "Живучесть": 1500
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/arkadia/pancir.jpg",
+                        "unit_name": "Панцирь - С4М",
+                        "unit_count": 6,
+                        "units_stats": {
+                            "Урон": 1320,
+                            "Защита": 85800,
+                            "Живучесть": 8700
+                        }
+                    }
+                ]
+            }
+        ],
+        "Бастион Милитель": [
+            {
+                "coordinates": [
+                    80,
+                    460
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/arkadia/pancir.jpg",
+                        "unit_name": "Панцирь - С4М",
+                        "unit_count": 12,
+                        "units_stats": {
+                            "Урон": 2640,
+                            "Защита": 171600,
+                            "Живучесть": 17400
+                        }
+                    }
+                ]
+            }
+        ]
+    },
     "celestia_in_city": {
         "Миреллия": [
             {
@@ -11,21 +72,21 @@
                     {
                         "unit_image": "files/army/celestia/grenader.jpg",
                         "unit_name": "Гренадеры",
-                        "unit_count": 337,
+                        "unit_count": 453,
                         "units_stats": {
-                            "Урон": 48865,
-                            "Защита": 26960,
-                            "Живучесть": 30330
+                            "Урон": 65685,
+                            "Защита": 36240,
+                            "Живучесть": 40770
                         }
                     },
                     {
                         "unit_image": "files/army/celestia/S-19.jpg",
                         "unit_name": "С-19",
-                        "unit_count": 16,
+                        "unit_count": 531,
                         "units_stats": {
-                            "Урон": 1600,
-                            "Защита": 12432,
-                            "Живучесть": 9920
+                            "Урон": 53100,
+                            "Защита": 412587,
+                            "Живучесть": 329220
                         }
                     }
                 ]
@@ -41,21 +102,21 @@
                     {
                         "unit_image": "files/army/celestia/grenader.jpg",
                         "unit_name": "Гренадеры",
-                        "unit_count": 82,
+                        "unit_count": 211,
                         "units_stats": {
-                            "Урон": 11890,
-                            "Защита": 6560,
-                            "Живучесть": 7380
+                            "Урон": 30595,
+                            "Защита": 16880,
+                            "Живучесть": 18990
                         }
                     },
                     {
                         "unit_image": "files/army/celestia/S-19.jpg",
                         "unit_name": "С-19",
-                        "unit_count": 1,
+                        "unit_count": 482,
                         "units_stats": {
-                            "Урон": 100,
-                            "Защита": 777,
-                            "Живучесть": 620
+                            "Урон": 48200,
+                            "Защита": 374514,
+                            "Живучесть": 298840
                         }
                     }
                 ]
@@ -71,21 +132,21 @@
                     {
                         "unit_image": "files/army/celestia/grenader.jpg",
                         "unit_name": "Гренадеры",
-                        "unit_count": 122,
+                        "unit_count": 257,
                         "units_stats": {
-                            "Урон": 17690,
-                            "Защита": 9760,
-                            "Живучесть": 10980
+                            "Урон": 37265,
+                            "Защита": 20560,
+                            "Живучесть": 23130
                         }
                     },
                     {
                         "unit_image": "files/army/celestia/S-19.jpg",
                         "unit_name": "С-19",
-                        "unit_count": 5,
+                        "unit_count": 1025,
                         "units_stats": {
-                            "Урон": 500,
-                            "Защита": 3885,
-                            "Живучесть": 3100
+                            "Урон": 102500,
+                            "Защита": 796425,
+                            "Живучесть": 635500
                         }
                     }
                 ]
@@ -101,21 +162,21 @@
                     {
                         "unit_image": "files/army/celestia/grenader.jpg",
                         "unit_name": "Гренадеры",
-                        "unit_count": 79,
+                        "unit_count": 261,
                         "units_stats": {
-                            "Урон": 11455,
-                            "Защита": 6320,
-                            "Живучесть": 7110
+                            "Урон": 37845,
+                            "Защита": 20880,
+                            "Живучесть": 23490
                         }
                     },
                     {
                         "unit_image": "files/army/celestia/S-19.jpg",
                         "unit_name": "С-19",
-                        "unit_count": 1,
+                        "unit_count": 309,
                         "units_stats": {
-                            "Урон": 100,
-                            "Защита": 777,
-                            "Живучесть": 620
+                            "Урон": 30900,
+                            "Защита": 240093,
+                            "Живучесть": 191580
                         }
                     }
                 ]
@@ -153,11 +214,11 @@
                     {
                         "unit_image": "files/army/eteria/d-400.jpg",
                         "unit_name": "Д-400",
-                        "unit_count": 76,
+                        "unit_count": 383,
                         "units_stats": {
-                            "Урон": 3800,
-                            "Защита": 152000,
-                            "Живучесть": 33440
+                            "Урон": 19150,
+                            "Защита": 766000,
+                            "Живучесть": 168520
                         }
                     }
                 ]
@@ -173,31 +234,31 @@
                     {
                         "unit_image": "files/army/eteria/legions.jpg",
                         "unit_name": "Легионеры",
-                        "unit_count": 28,
+                        "unit_count": 59,
                         "units_stats": {
-                            "Урон": 3360,
-                            "Защита": 1400,
-                            "Живучесть": 2240
+                            "Урон": 7080,
+                            "Защита": 2950,
+                            "Живучесть": 4720
                         }
                     },
                     {
                         "unit_image": "files/army/eteria/tiger.jpg",
                         "unit_name": "Тигр",
-                        "unit_count": 26,
+                        "unit_count": 67,
                         "units_stats": {
-                            "Урон": 8320,
-                            "Защита": 5200,
-                            "Живучесть": 2860
+                            "Урон": 21440,
+                            "Защита": 13400,
+                            "Живучесть": 7370
                         }
                     },
                     {
                         "unit_image": "files/army/eteria/d-400.jpg",
                         "unit_name": "Д-400",
-                        "unit_count": 1,
+                        "unit_count": 337,
                         "units_stats": {
-                            "Урон": 50,
-                            "Защита": 2000,
-                            "Живучесть": 440
+                            "Урон": 16850,
+                            "Защита": 674000,
+                            "Живучесть": 148280
                         }
                     }
                 ]
@@ -213,21 +274,31 @@
                     {
                         "unit_image": "files/army/eteria/legions.jpg",
                         "unit_name": "Легионеры",
-                        "unit_count": 45,
+                        "unit_count": 49,
                         "units_stats": {
-                            "Урон": 5400,
-                            "Защита": 2250,
-                            "Живучесть": 3600
+                            "Урон": 5880,
+                            "Защита": 2450,
+                            "Живучесть": 3920
                         }
                     },
                     {
                         "unit_image": "files/army/eteria/tiger.jpg",
                         "unit_name": "Тигр",
-                        "unit_count": 48,
+                        "unit_count": 55,
                         "units_stats": {
-                            "Урон": 15360,
-                            "Защита": 9600,
-                            "Живучесть": 5280
+                            "Урон": 17600,
+                            "Защита": 11000,
+                            "Живучесть": 6050
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/eteria/d-400.jpg",
+                        "unit_name": "Д-400",
+                        "unit_count": 144,
+                        "units_stats": {
+                            "Урон": 7200,
+                            "Защита": 288000,
+                            "Живучесть": 63360
                         }
                     }
                 ]
@@ -243,21 +314,31 @@
                     {
                         "unit_image": "files/army/eteria/legions.jpg",
                         "unit_name": "Легионеры",
-                        "unit_count": 35,
+                        "unit_count": 76,
                         "units_stats": {
-                            "Урон": 4200,
-                            "Защита": 1750,
-                            "Живучесть": 2800
+                            "Урон": 9120,
+                            "Защита": 3800,
+                            "Живучесть": 6080
                         }
                     },
                     {
                         "unit_image": "files/army/eteria/tiger.jpg",
                         "unit_name": "Тигр",
-                        "unit_count": 32,
+                        "unit_count": 95,
                         "units_stats": {
-                            "Урон": 10240,
-                            "Защита": 6400,
-                            "Живучесть": 3520
+                            "Урон": 30400,
+                            "Защита": 19000,
+                            "Живучесть": 10450
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/eteria/d-400.jpg",
+                        "unit_name": "Д-400",
+                        "unit_count": 234,
+                        "units_stats": {
+                            "Урон": 11700,
+                            "Защита": 468000,
+                            "Живучесть": 102960
                         }
                     }
                 ]
@@ -265,61 +346,31 @@
         ]
     },
     "giperion_in_city": {
-        "Арданис": [
+        "Солисграад": [
             {
                 "coordinates": [
-                    750,
-                    540
+                    519,
+                    370
                 ],
                 "units": [
                     {
-                        "unit_image": "files/army/giperion/pretorian.jpg",
-                        "unit_name": "Преторианцы",
-                        "unit_count": 67,
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 2,
                         "units_stats": {
-                            "Урон": 12060,
-                            "Защита": 6030,
-                            "Живучесть": 8040
+                            "Урон": 160,
+                            "Защита": 3200,
+                            "Живучесть": 440
                         }
                     },
                     {
-                        "unit_image": "files/army/giperion/CPS-12.jpg",
-                        "unit_name": "HPAAL",
-                        "unit_count": 6,
-                        "units_stats": {
-                            "Урон": 480,
-                            "Защита": 9600,
-                            "Живучесть": 1320
-                        }
-                    }
-                ]
-            }
-        ],
-        "Феррадан": [
-            {
-                "coordinates": [
-                    890,
-                    520
-                ],
-                "units": [
-                    {
                         "unit_image": "files/army/giperion/pretorian.jpg",
                         "unit_name": "Преторианцы",
-                        "unit_count": 37,
+                        "unit_count": 2,
                         "units_stats": {
-                            "Урон": 6660,
-                            "Защита": 3330,
-                            "Живучесть": 4440
-                        }
-                    },
-                    {
-                        "unit_image": "files/army/giperion/CPS-12.jpg",
-                        "unit_name": "HPAAL",
-                        "unit_count": 4,
-                        "units_stats": {
-                            "Урон": 320,
-                            "Защита": 6400,
-                            "Живучесть": 880
+                            "Урон": 360,
+                            "Защита": 180,
+                            "Живучесть": 240
                         }
                     }
                 ]
@@ -333,13 +384,63 @@
                 ],
                 "units": [
                     {
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 5,
+                        "units_stats": {
+                            "Урон": 400,
+                            "Защита": 8000,
+                            "Живучесть": 1100
+                        }
+                    },
+                    {
                         "unit_image": "files/army/giperion/pretorian.jpg",
                         "unit_name": "Преторианцы",
-                        "unit_count": 48,
+                        "unit_count": 13,
                         "units_stats": {
-                            "Урон": 8640,
-                            "Защита": 4320,
-                            "Живучесть": 5760
+                            "Урон": 2340,
+                            "Защита": 1170,
+                            "Живучесть": 1560
+                        }
+                    }
+                ]
+            }
+        ],
+        "Башня Малергейна": [
+            {
+                "coordinates": [
+                    520,
+                    620
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 9,
+                        "units_stats": {
+                            "Урон": 720,
+                            "Защита": 14400,
+                            "Живучесть": 1980
+                        }
+                    }
+                ]
+            }
+        ],
+        "Феррадан": [
+            {
+                "coordinates": [
+                    890,
+                    520
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 3,
+                        "units_stats": {
+                            "Урон": 240,
+                            "Защита": 4800,
+                            "Живучесть": 660
                         }
                     }
                 ]
@@ -353,103 +454,43 @@
                 ],
                 "units": [
                     {
-                        "unit_image": "files/army/giperion/pretorian.jpg",
-                        "unit_name": "Преторианцы",
-                        "unit_count": 80,
-                        "units_stats": {
-                            "Урон": 14400,
-                            "Защита": 7200,
-                            "Живучесть": 9600
-                        }
-                    },
-                    {
                         "unit_image": "files/army/giperion/CPS-12.jpg",
                         "unit_name": "HPAAL",
-                        "unit_count": 11,
+                        "unit_count": 6,
                         "units_stats": {
-                            "Урон": 880,
-                            "Защита": 17600,
-                            "Живучесть": 2420
+                            "Урон": 480,
+                            "Защита": 9600,
+                            "Живучесть": 1320
                         }
                     }
                 ]
             }
         ],
-        "Валориан": [
+        "Штормград": [
             {
                 "coordinates": [
-                    523,
-                    505
+                    410,
+                    320
                 ],
                 "units": [
-                    {
-                        "unit_image": "files/army/giperion/pretorian.jpg",
-                        "unit_name": "Преторианцы",
-                        "unit_count": 56,
-                        "units_stats": {
-                            "Урон": 10080,
-                            "Защита": 5040,
-                            "Живучесть": 6720
-                        }
-                    },
                     {
                         "unit_image": "files/army/giperion/CPS-12.jpg",
                         "unit_name": "HPAAL",
-                        "unit_count": 8,
+                        "unit_count": 2,
                         "units_stats": {
-                            "Урон": 640,
-                            "Защита": 12800,
-                            "Живучесть": 1760
-                        }
-                    }
-                ]
-            }
-        ],
-        "Терранора": [
-            {
-                "coordinates": [
-                    790,
-                    300
-                ],
-                "units": [
-                    {
-                        "unit_image": "files/army/giperion/pretorian.jpg",
-                        "unit_name": "Преторианцы",
-                        "unit_count": 66,
-                        "units_stats": {
-                            "Урон": 11880,
-                            "Защита": 5940,
-                            "Живучесть": 7920
+                            "Урон": 160,
+                            "Защита": 3200,
+                            "Живучесть": 440
                         }
                     },
                     {
-                        "unit_image": "files/army/giperion/CPS-12.jpg",
-                        "unit_name": "HPAAL",
-                        "unit_count": 1,
-                        "units_stats": {
-                            "Урон": 80,
-                            "Защита": 1600,
-                            "Живучесть": 220
-                        }
-                    }
-                ]
-            }
-        ],
-        "Форт Бастария": [
-            {
-                "coordinates": [
-                    310,
-                    170
-                ],
-                "units": [
-                    {
                         "unit_image": "files/army/giperion/pretorian.jpg",
                         "unit_name": "Преторианцы",
-                        "unit_count": 18,
+                        "unit_count": 16,
                         "units_stats": {
-                            "Урон": 3240,
-                            "Защита": 1620,
-                            "Живучесть": 2160
+                            "Урон": 2880,
+                            "Защита": 1440,
+                            "Живучесть": 1920
                         }
                     }
                 ]
@@ -465,31 +506,21 @@
                     {
                         "unit_image": "files/army/giperion/pretorian.jpg",
                         "unit_name": "Преторианцы",
-                        "unit_count": 15,
+                        "unit_count": 8,
                         "units_stats": {
-                            "Урон": 2700,
-                            "Защита": 1350,
-                            "Живучесть": 1800
+                            "Урон": 1440,
+                            "Защита": 720,
+                            "Живучесть": 960
                         }
-                    }
-                ]
-            }
-        ],
-        "Башня Малергейна": [
-            {
-                "coordinates": [
-                    520,
-                    620
-                ],
-                "units": [
+                    },
                     {
-                        "unit_image": "files/army/giperion/pretorian.jpg",
-                        "unit_name": "Преторианцы",
-                        "unit_count": 2,
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 1,
                         "units_stats": {
-                            "Урон": 360,
-                            "Защита": 180,
-                            "Живучесть": 240
+                            "Урон": 80,
+                            "Защита": 1600,
+                            "Живучесть": 220
                         }
                     }
                 ]
@@ -517,11 +548,11 @@
                     {
                         "unit_image": "files/army/halidon/pikap.jpg",
                         "unit_name": "Саид 4х4",
-                        "unit_count": 56,
+                        "unit_count": 869,
                         "units_stats": {
-                            "Урон": 7280,
-                            "Защита": 14560,
-                            "Живучесть": 5600
+                            "Урон": 112970,
+                            "Защита": 225940,
+                            "Живучесть": 86900
                         }
                     }
                 ]
@@ -537,21 +568,21 @@
                     {
                         "unit_image": "files/army/halidon/shadows.jpg",
                         "unit_name": "Тени",
-                        "unit_count": 8,
+                        "unit_count": 10,
                         "units_stats": {
-                            "Урон": 680,
-                            "Защита": 80,
-                            "Живучесть": 560
+                            "Урон": 850,
+                            "Защита": 100,
+                            "Живучесть": 700
                         }
                     },
                     {
                         "unit_image": "files/army/halidon/pikap.jpg",
                         "unit_name": "Саид 4х4",
-                        "unit_count": 65,
+                        "unit_count": 1093,
                         "units_stats": {
-                            "Урон": 8450,
-                            "Защита": 16900,
-                            "Живучесть": 6500
+                            "Урон": 142090,
+                            "Защита": 284180,
+                            "Живучесть": 109300
                         }
                     }
                 ]
@@ -577,11 +608,11 @@
                     {
                         "unit_image": "files/army/halidon/pikap.jpg",
                         "unit_name": "Саид 4х4",
-                        "unit_count": 70,
+                        "unit_count": 684,
                         "units_stats": {
-                            "Урон": 9100,
-                            "Защита": 18200,
-                            "Живучесть": 7000
+                            "Урон": 88920,
+                            "Защита": 177840,
+                            "Живучесть": 68400
                         }
                     }
                 ]
@@ -597,21 +628,21 @@
                     {
                         "unit_image": "files/army/halidon/shadows.jpg",
                         "unit_name": "Тени",
-                        "unit_count": 16,
+                        "unit_count": 17,
                         "units_stats": {
-                            "Урон": 1360,
-                            "Защита": 160,
-                            "Живучесть": 1120
+                            "Урон": 1445,
+                            "Защита": 170,
+                            "Живучесть": 1190
                         }
                     },
                     {
                         "unit_image": "files/army/halidon/pikap.jpg",
                         "unit_name": "Саид 4х4",
-                        "unit_count": 47,
+                        "unit_count": 1229,
                         "units_stats": {
-                            "Урон": 6110,
-                            "Защита": 12220,
-                            "Живучесть": 4700
+                            "Урон": 159770,
+                            "Защита": 319540,
+                            "Живучесть": 122900
                         }
                     }
                 ]

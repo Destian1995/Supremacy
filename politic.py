@@ -1,13 +1,20 @@
 from kivy.uix.popup import Popup
-from kivy.uix.slider import Slider
-from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
-from kivy.uix.gridlayout import GridLayout
-from kivy.uix.label import Label
-from kivy.uix.button import Button
-from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
 from kivy.uix.textinput import TextInput
 from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
+from kivy.uix.label import Label
+from kivy.uix.modalview import ModalView
+from kivy.uix.widget import Widget
+from kivy.core.window import Window
+from kivy.uix.behaviors import ButtonBehavior
+from kivy.graphics import Color, RoundedRectangle, Rectangle
+from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.scatter import Scatter
+from kivy.uix.image import Image
+from kivy.uix.behaviors import ButtonBehavior
 import json
 
 
@@ -29,33 +36,71 @@ def transform_filename(file_path):
 
 # transform_filename(f'files/config/status/trade_dogovor/{имя фракции которой направляется договор}.json')
 
+class StyledButton(ButtonBehavior, BoxLayout):
+    def __init__(self, text, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = 'vertical'
+        self.size_hint = (1, None)  # Ширина адаптируется, высота фиксированная
+        self.height = 40  # Уменьшили высоту кнопки
+        self.padding = [5, 5]  # Уменьшили отступы внутри кнопки
+        with self.canvas.before:
+            Color(0.2, 0.6, 1, 1)  # Цвет фона кнопки
+            self.rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[8])  # Скругление углов
+        self.bind(pos=self.update_rect, size=self.update_rect)
+        self.label = Label(
+            text=text,
+            font_size=14,  # Уменьшили размер шрифта
+            color=(1, 1, 1, 1),
+            bold=True,
+            halign='center',
+            valign='middle'
+        )
+        self.label.bind(size=self.label.setter('text_size'))  # Для центрирования текста
+        self.add_widget(self.label)
+
+    def update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+
 def show_new_agreement_window(faction, game_area):
-    """Главное окно 'Новый договор' с кнопками категорий"""
-
+    """Создание красивого окна с кнопками"""
     game_area.clear_widgets()
-
-    # Основной layout
-    layout = FloatLayout()
-
-    # Главное окно
+    # Создаем модальное окно
+    modal = ModalView(
+        size_hint=(0.8, 0.8),
+        pos_hint={'center_x': 0.5, 'center_y': 0.5},
+        background_color=(0, 0, 0, 0)  # Прозрачный фон
+    )
+    # Основной контейнер для окна
     window = BoxLayout(
         orientation='vertical',
-        padding=10,
-        spacing=10,
-        size_hint=(0.6, 0.7),
-        pos_hint={'center_x': 0.5, 'center_y': 0.5}
+        padding=20,
+        spacing=15,
+        size_hint=(1, 1)
     )
-
+    # Фон окна
+    with window.canvas.before:
+        Color(0.1, 0.1, 0.1, 1)  # Темный фон
+        window.rect = RoundedRectangle(size=window.size, pos=window.pos, radius=[15])
+    window.bind(pos=lambda obj, pos: setattr(window.rect, 'pos', pos),
+                size=lambda obj, size: setattr(window.rect, 'size', size))
     # Заголовок
     title = Label(
         text="Новый договор",
         size_hint=(1, None),
         height=50,
-        font_size=20
+        font_size=24,
+        color=(1, 1, 1, 1),
+        bold=True
     )
-
     # Список кнопок
-    button_layout = BoxLayout(orientation='vertical', spacing=5, size_hint=(1, 1))
+    button_layout = BoxLayout(
+        orientation='vertical',
+        spacing=5,  # Уменьшили расстояние между кнопками
+        size_hint=(1, None),  # Высота будет зависеть от содержимого
+        height=0  # Начальная высота
+    )
+    button_layout.bind(minimum_height=button_layout.setter('height'))  # Автоматическая высота
 
     # Создаем кнопки для каждой категории
     categories = [
@@ -65,33 +110,24 @@ def show_new_agreement_window(faction, game_area):
         ("Заключение альянса", show_alliance_form),
         ("Объявление войны", show_declare_war_form),
     ]
-
     for category_name, callback in categories:
-        button = Button(
-            text=category_name,
-            size_hint=(1, None),
-            height=50
-        )
+        button = StyledButton(text=category_name)
         button.bind(on_press=lambda instance, cb=callback: cb(faction, game_area))
         button_layout.add_widget(button)
 
     # Кнопка "Вернуться"
-    back_button = Button(
-        text="Вернуться",
-        size_hint=(1, None),
-        height=40
-    )
-    back_button.bind(on_press=lambda x: game_area.clear_widgets())
+    back_button = StyledButton(text="Вернуться")
+    back_button.bind(on_press=lambda x: modal.dismiss())
 
     # Добавляем всё в основное окно
     window.add_widget(title)
-    window.add_widget(button_layout)
+    scroll_view = ScrollView(size_hint=(1, 0.7))  # Добавляем ScrollView для кнопок
+    scroll_view.add_widget(button_layout)
+    window.add_widget(scroll_view)
     window.add_widget(back_button)
 
-    layout.add_widget(window)
-
-    # Отображаем интерфейс в game_area
-    game_area.add_widget(layout)
+    modal.add_widget(window)
+    modal.open()
 
 
 def show_trade_agreement_form(faction, game_area):
@@ -100,15 +136,19 @@ def show_trade_agreement_form(faction, game_area):
     all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
     # Исключаем текущую фракцию
     available_factions = [f for f in all_factions if f != faction]
+
     # Создаем контент для Popup
-    content = BoxLayout(orientation='vertical', padding=10, spacing=5)  # Уменьшаем отступы и промежутки
+    content = BoxLayout(orientation='vertical', padding=10, spacing=8)  # Уменьшили отступы и промежутки
 
     # Заголовок
     title = Label(
         text="Торговое соглашение",
         size_hint=(1, None),
-        height=40,  # Фиксированная высота заголовка
-        font_size=16  # Увеличиваем размер шрифта для заголовка
+        height=35,  # Уменьшили высоту заголовка
+        font_size=16,  # Уменьшили размер шрифта для заголовка
+        color=(1, 1, 1, 1),  # Белый цвет текста
+        bold=True,
+        halign='center'
     )
     content.add_widget(title)
 
@@ -117,8 +157,10 @@ def show_trade_agreement_form(faction, game_area):
         text="С какой фракцией?",
         values=available_factions,
         size_hint=(1, None),
-        height=30,  # Фиксированная высота спиннера
-        font_size=14
+        height=30,  # Уменьшили высоту спиннера
+        font_size=12,  # Уменьшили размер шрифта
+        background_color=(0.2, 0.6, 1, 1),  # Цвет фона спиннера
+        background_normal=''  # Убираем стандартный фон
     )
     content.add_widget(factions_spinner)
 
@@ -127,7 +169,9 @@ def show_trade_agreement_form(faction, game_area):
         values=["Рабочие", "Сырье", "Кроны"],
         size_hint=(1, None),
         height=30,
-        font_size=14
+        font_size=12,
+        background_color=(0.2, 0.6, 1, 1),
+        background_normal=''
     )
     content.add_widget(our_resource_spinner)
 
@@ -136,25 +180,31 @@ def show_trade_agreement_form(faction, game_area):
         values=["Рабочие", "Сырье", "Кроны"],
         size_hint=(1, None),
         height=30,
-        font_size=14
+        font_size=12,
+        background_color=(0.2, 0.6, 1, 1),
+        background_normal=''
     )
     content.add_widget(their_resource_spinner)
 
     our_percentage_input = TextInput(
-        hint_text="Сумма отчислений нашему союзнику",
+        hint_text="Сумма отчислений с нашей стороны",
         multiline=False,
         size_hint=(1, None),
-        height=30,
-        font_size=14
+        height=30,  # Уменьшили высоту поля ввода
+        font_size=12,  # Уменьшили размер шрифта
+        background_color=(0.1, 0.1, 0.1, 1),  # Темный фон
+        foreground_color=(1, 1, 1, 1)  # Белый текст
     )
     content.add_widget(our_percentage_input)
 
     their_percentage_input = TextInput(
-        hint_text="Сумма прихода от нашего союзника",
+        hint_text="Сумма прихода с их стороны",
         multiline=False,
         size_hint=(1, None),
         height=30,
-        font_size=14
+        font_size=12,
+        background_color=(0.1, 0.1, 0.1, 1),
+        foreground_color=(1, 1, 1, 1)
     )
     content.add_widget(their_percentage_input)
 
@@ -162,24 +212,19 @@ def show_trade_agreement_form(faction, game_area):
         readonly=True,
         multiline=True,
         size_hint=(1, None),
-        height=80,  # Фиксированная высота текстового поля
-        font_size=14
+        height=60,  # Уменьшили высоту текстового поля
+        font_size=12,
+        background_color=(0.1, 0.1, 0.1, 1),
+        foreground_color=(1, 1, 1, 1)
     )
     content.add_widget(agreement_summary)
 
     # Кнопки
-    button_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.2), spacing=5)  # Высота кнопок 20% от окна
-    generate_button = Button(
-        text="Сформировать условия",
-        size_hint=(0.5, 1),  # Кнопка занимает 50% ширины и всю высоту
-        font_size=14
-    )
-    send_button = Button(
-        text="Отправить условия договора",
-        size_hint=(0.5, 1),  # Кнопка занимает 50% ширины и всю высоту
-        font_size=14,
-        opacity=0  # Скрываем кнопку изначально
-    )
+    button_layout = BoxLayout(orientation='horizontal', size_hint=(1, None), height=35, spacing=8)
+
+    generate_button = StyledButton(text="Сформировать условия", size_hint=(1, None), height=30)
+    send_button = StyledButton(text="Отправить условия договора", size_hint=(1, None), height=30)
+    send_button.opacity = 0  # Скрываем кнопку изначально
 
     def generate_agreement(instance):
         """Формирование текста соглашения"""
@@ -188,12 +233,14 @@ def show_trade_agreement_form(faction, game_area):
         their_resource_selected = their_resource_spinner.text
         our_percentage = our_percentage_input.text
         their_percentage = their_percentage_input.text
+
         if faction_selected == "С какой фракцией?":
             agreement_summary.text = "Пожалуйста, выберите фракцию для соглашения."
             return
         if not our_percentage.isdigit() or not their_percentage.isdigit():
             agreement_summary.text = "Укажите желаемую сумму."
             return
+
         # Формируем текст для отображения
         agreement_summary.text = (
             f"Торговое соглашение с фракцией {faction_selected}.\n"
@@ -211,6 +258,7 @@ def show_trade_agreement_form(faction, game_area):
         faction_selected = factions_spinner.text
         if faction_selected == "С какой фракцией?":
             return
+
         # Собираем данные в словарь
         agreement_data = {
             "initiator": faction,  # Добавляем инициатора
@@ -220,45 +268,40 @@ def show_trade_agreement_form(faction, game_area):
             "initiator_summ_resource": our_percentage_input.text,
             "target_summ_resource": their_percentage_input.text
         }
+
         # Генерируем путь к файлу
         filename_friend = transform_filename(f'files/config/status/trade_dogovor/{faction_selected}.json')
-        # Путь к собственному пути, для вычитывания данных
         filename_i_am = transform_filename(f'files/config/status/trade_dogovor/{faction}.json')
+
         # Сохраняем данные в файл JSON
         with open(filename_friend, 'w', encoding='utf-8') as file:
             json.dump(agreement_data, file, ensure_ascii=False, indent=4)
-        # Сохраняем данные в собственный файл
         with open(filename_i_am, 'w', encoding='utf-8') as file:
             json.dump(agreement_data, file, ensure_ascii=False, indent=4)
+
         # Подтверждение отправки
         agreement_summary.text = (f"Условия договора отправлены фракции {faction_selected}. \n"
                                   f"Если его примут поставки придут через 1 ход")
 
-
     generate_button.bind(on_press=generate_agreement)
     send_button.bind(on_press=send_agreement)
+
     button_layout.add_widget(generate_button)
     button_layout.add_widget(send_button)
     content.add_widget(button_layout)
 
     # Кнопка "Назад"
-    back_button = Button(
-        text="Назад",
-        size_hint=(1, 0.1),  # Кнопка занимает 10% высоты окна
-        font_size=14
-    )
+    back_button = StyledButton(text="Назад", size_hint=(1, None), height=30)
+    back_button.bind(on_press=lambda x: popup.dismiss())
     content.add_widget(back_button)
 
     # Создаем Popup с увеличенными размерами
     popup = Popup(
         title="Торговое соглашение",
         content=content,
-        size_hint=(0.6, 0.7),  # Размер окна
+        size_hint=(0.7, 0.8),  # Увеличили размер окна
         auto_dismiss=False
     )
-
-    # Привязываем кнопку "Назад" к закрытию Popup
-    back_button.bind(on_press=popup.dismiss)
 
     # Открываем Popup
     popup.open()
