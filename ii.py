@@ -677,7 +677,6 @@ class AIController:
 
     def return_resource_to_player(self, trade, resource_type, resource_amount):
         """Возвращает ресурс игроку, если у ИИ недостаточно ресурсов для выполнения сделки."""
-
         # Определяем имя оппонента
         if isinstance(trade, dict):
             opponent_faction = trade["initiator"]
@@ -690,6 +689,7 @@ class AIController:
         ally_resource_file = transform_filename(
             f"files/config/status/trade_dogovor/resources/{opponent_faction}.json"
         )
+        print(f'DEBUG: Путь к файлу ресурсов: {ally_resource_file}')
 
         # Загружаем данные о ресурсах
         ally_data = {}
@@ -701,6 +701,8 @@ class AIController:
 
         # Обновляем количество ресурсов
         ally_data[resource_type] = ally_data.get(resource_type, 0) + resource_amount
+        print(f"DEBUG: Возвращаем {resource_amount} {resource_type} игроку {opponent_faction}.")
+        print(f"DEBUG: Обновленные данные: {ally_data}")
 
         # Сохраняем обновленные данные
         with open(ally_resource_file, 'w', encoding='utf-8') as ally_file:

@@ -472,7 +472,7 @@ class Faction:
                 # Прибавляем ресурсы к нашим
                 if "Сырье" in ally_data:
                     self.raw_material += ally_data["Сырье"]
-                if "Деньги" in ally_data:
+                if "Кроны" in ally_data:
                     self.money += ally_data["Кроны"]
                 if "Население" in ally_data:
                     self.population += ally_data["Население"]
@@ -497,8 +497,8 @@ class Faction:
         """Обновление текущих ресурсов, с проверкой на минимальное значение 0 и округлением до целых чисел."""
         self.update_buildings()
         self.generate_raw_material_price()
-        self.update_trade_resources()
         self.update_ally_resources()
+        self.update_trade_resources()
         # Коэффициенты для каждой фракции
         faction_coefficients = {
             'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,

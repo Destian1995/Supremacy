@@ -15,6 +15,16 @@
                         "Защита": 3200,
                         "Живучесть": 440
                     }
+                },
+                {
+                    "unit_image": "files/army/giperion/pretorian.jpg",
+                    "unit_name": "Преторианцы",
+                    "unit_count": 2,
+                    "units_stats": {
+                        "Урон": 360,
+                        "Защита": 180,
+                        "Живучесть": 240
+                    }
                 }
             ]
         }
