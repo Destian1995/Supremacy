@@ -14,6 +14,7 @@ from game_process import GameScreen
 from ui import *
 import os
 import json
+import logging
 
 # Размеры окна
 screen_width, screen_height = 1200, 800
@@ -27,19 +28,15 @@ def load_kingdom_data(file_path):
 
 def restore_from_backup():
     """Загрузка файлов из бэкапа, сам бэкап выполняется в модуле ui.py функция backup_files"""
+    # Настройка логирования
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
     # Определяем путь к исходным и резервным файлам
     backup_dir = 'files/config/backup'
-    city_file_path = 'files/config/city.json'
-    diplomaties_file_path = 'files/config/status/diplomaties.json'
     backup_dir_resources = 'files/config/backup/default_resources'
-    resources_file_path_ark = r'files\config\manage_ii\resources\arkadia_resources.json'
-    resources_file_path_cel = r'files\config\manage_ii\resources\celestia_resources.json'
-    resources_file_path_gip = r'files\config\manage_ii\resources\giperion_resources.json'
-    resources_file_path_hal = r'files\config\manage_ii\resources\halidon_resources.json'
-    resources_file_path_eter = r'files\config\manage_ii\resources\eteria_resources.json'
-    dip_relations_file_path = r'files\config\status\dipforce\relation.json'
+    resources_dir = r'files\config\manage_ii\resources'  # Директория для восстановления ресурсов
 
-    # Определяем пути для резервных копий
+    # Пути к резервным копиям
     city_backup_path = os.path.join(backup_dir, 'city_backup.json')
     diplomaties_backup_path = os.path.join(backup_dir, 'diplomaties_backup.json')
     resources_backup_path_ark = os.path.join(backup_dir_resources, 'arkadia_resources.json')
@@ -47,7 +44,18 @@ def restore_from_backup():
     resources_backup_path_gip = os.path.join(backup_dir_resources, 'giperion_resources.json')
     resources_backup_path_hal = os.path.join(backup_dir_resources, 'halidon_resources.json')
     resources_backup_path_eter = os.path.join(backup_dir_resources, 'eteria_resources.json')
-    dip_relations_backup_file_path = os.path.join(backup_dir, 'relation.json.json')
+    dip_relations_backup_file_path = os.path.join(backup_dir, 'relation.json')
+
+    # Пути к исходным файлам
+    city_file_path = os.path.join('files', 'config', 'city.json')
+    diplomaties_file_path = os.path.join('files', 'config', 'status', 'diplomaties.json')
+    resources_file_path_ark = os.path.join(resources_dir, 'arkadia_resources.json')
+    resources_file_path_cel = os.path.join(resources_dir, 'celestia_resources.json')
+    resources_file_path_gip = os.path.join(resources_dir, 'giperion_resources.json')
+    resources_file_path_hal = os.path.join(resources_dir, 'halidon_resources.json')
+    resources_file_path_eter = os.path.join(resources_dir, 'eteria_resources.json')
+    dip_relations_file_path = os.path.join('files', 'config', 'status', 'dipforce', 'relation.json')
+
     # Список пар (резервный путь, исходный путь)
     backup_files = [
         (city_backup_path, city_file_path),
@@ -63,13 +71,22 @@ def restore_from_backup():
     # Проверяем существование всех резервных копий
     all_backups_exist = all(os.path.exists(src) for src, _ in backup_files)
 
-    if all_backups_exist:
-        # Восстанавливаем все файлы
-        for src, dest in backup_files:
+    if not all_backups_exist:
+        logging.error("Не все резервные копии найдены. Восстановление невозможно.")
+        return
+
+    # Восстанавливаем все файлы
+    for src, dest in backup_files:
+        try:
+            # Создаём директорию для целевого файла, если она не существует
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            # Копируем файл с заменой
             shutil.copy(src, dest)
-        print("Все файлы восстановлены из бэкапа.")
-    else:
-        print("Не все резервные копии найдены. Восстановление невозможно.")
+            logging.info(f"Файл {dest} успешно восстановлен из бэкапа.")
+        except Exception as e:
+            logging.error(f"Ошибка при восстановлении файла {dest}: {e}")
+
+    logging.info("Все файлы восстановлены из бэкапа.")
 
 
 def clear_temp_files():
