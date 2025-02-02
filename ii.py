@@ -2,6 +2,9 @@ import random
 import json
 import os
 
+from kivy.uix.label import Label
+from kivy.uix.popup import Popup
+
 translation_dict = {
     "Аркадия": "arkadia",
     "Селестия": "celestia",
@@ -39,6 +42,7 @@ class AIController:
         self.garrison = {}
         self.resources = {}
         self.army = {}
+        self.relations = {}
         self.money = self.resources.get('Кроны', 0)
         self.workers = self.resources.get('Рабочие', 0)
         self.surie = self.resources.get('Сырье', 0)
@@ -244,7 +248,8 @@ class AIController:
                 loss = min(self.resources['Население'], 50)
             self.resources['Население'] -= loss
             self.resources['Рабочие'] = max(0, self.resources['Рабочие'] - loss)
-        self.trade_resources()
+
+        self.check_trade()
         self.load_and_add_resources()
 
         # Обеспечение положительных значений ресурсов
@@ -424,6 +429,118 @@ class AIController:
         else:
             raise ValueError(f"Неизвестный ресурс: {resource}")
 
+    def check_relations(self):
+        """Проверяет отношения с другими ИИ."""
+        relation_folder = "files/config/status/dipforce/relation.json"
+
+        try:
+            with open(relation_folder, 'r', encoding='utf-8') as relation_file:
+                content = relation_file.read().strip()
+                if not content:
+                    print(f"Файл {relation_folder} пуст.")
+                    return
+
+                relation_data = json.loads(content)
+
+                # Проверяем, есть ли данные о текущей фракции
+                if self.faction in relation_data.get("relations", {}):
+                    self.relations = relation_data["relations"][self.faction]
+                else:
+                    print(f"Данные о фракции {self.faction} отсутствуют в файле.")
+
+        except FileNotFoundError:
+            print(f"Файл {relation_folder} не найден.")
+        except json.JSONDecodeError:
+            print(f"Ошибка при декодировании JSON в файле {relation_folder}.")
+        print(f'Отношения:{self.relations}')
+
+    def show_popup(self, title, message):
+        """Создает и отображает всплывающее окно с сообщением."""
+        popup = Popup(title=title, size_hint=(0.8, 0.4))
+        popup.content = Label(text=message, font_size=16)
+        popup.open()
+
+    def check_trade(self):
+        self.check_relations()
+        """Проверяет выгодность торгового соглашения."""
+        trade_folder = "files/config/status/trade_dogovor"
+        trade_file_path = transform_filename(os.path.join(trade_folder, f"{self.faction}.json")) # Не трогать эту строчку
+
+        # Проверяем, существует ли файл
+        if not os.path.exists(trade_file_path):
+            print("Ошибка", f"Файл договора {trade_file_path} не найден.")
+            return
+
+        try:
+            with open(trade_file_path, 'r', encoding='utf-8') as trade_file:
+                content = trade_file.read().strip()
+                if not content:
+                    print("Ошибка", f"Файл {trade_file_path} пуст.")
+                    return
+
+                trade_data = json.loads(content)
+
+                # Получаем данные из файла
+                target_faction = trade_data.get("initiator")
+                initiator_summ_resource = float(trade_data.get("initiator_summ_resource", 0))
+                target_summ_resource = float(trade_data.get("target_summ_resource", 0))
+                initiator_type_resource = trade_data.get("initiator_type_resource")
+
+                # Проверяем, есть ли данные о целевой фракции в отношениях
+                if target_faction not in self.relations:
+                    print(f'Список отношений {self.faction}:', self.relations)
+                    print("Ошибка", f"Данные о фракции {target_faction} отсутствуют в отношениях.")
+                    return
+
+                # Получаем уровень отношений с целевой фракцией
+                relation_level = self.relations[target_faction]
+
+                # Определяем коэффициент на основе уровня отношений
+                if relation_level < 5:
+                    self.show_popup("Отказ", "С Вами мы никаких дел иметь не хотим, сделка невозможна, при текущих отношениях")
+                    self.return_resource_to_player(target_faction, initiator_type_resource, initiator_summ_resource)
+                    return
+                elif 5 <= relation_level < 15:
+                    coefficient = 0.08
+                elif 15 <= relation_level < 35:
+                    coefficient = 0.3
+                elif 35 <= relation_level < 45:
+                    coefficient = 0.8
+                elif 45 <= relation_level < 60:
+                    coefficient = 1.0
+                elif 60 <= relation_level < 80:
+                    coefficient = 1.4
+                elif 80 <= relation_level < 95:
+                    coefficient = 2.0
+                elif 95 <= relation_level <= 100:
+                    coefficient = 2.8
+                else:
+                    return
+
+                # Проверяем соотношение сделки
+                trade_ratio = target_summ_resource / initiator_summ_resource
+
+                if trade_ratio > 3.0:
+                    self.show_popup(f"Отказ от {self.faction}", "Вы слишком многого от нас хотите, сбавьте требования!")
+                    self.return_resource_to_player(target_faction, initiator_type_resource, initiator_summ_resource)
+                    # Очищаем выполненные сделки из торгового файла
+                    with open(trade_file_path, 'w', encoding='utf-8') as file:
+                        file.write('')
+                    return
+
+                if trade_ratio <= coefficient:
+                    self.trade_resources()  # Вызываем функцию для выполнения сделки
+                else:
+                    self.show_popup(f"Отказ от {self.faction}", f"Нам не выгодна сделка.")
+                    self.return_resource_to_player(target_faction, initiator_type_resource, initiator_summ_resource)
+                    # Очищаем выполненные сделки из торгового файла
+                    with open(trade_file_path, 'w', encoding='utf-8') as file:
+                        file.write('')
+        except Exception as e:
+            print("Ошибка", f"Ошибка при обработке файла {trade_file_path}: {e}")
+
+
+
     def trade_resources(self):
         """ИИ обновляет ресурсы с учетом торговых договоров и всегда записывает ресурсы в файл другой стороны сделки."""
         trade_folder = "files/config/status/trade_dogovor"
@@ -452,12 +569,16 @@ class AIController:
                     if trade["initiator"] == self.faction:
                         # ИИ инициатор сделки (отдает ресурс и получает ресурс от target)
                         if initiator_type_resource == "Сырье" and self.surie < initiator_summ_resource:
+                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
                             continue
                         if initiator_type_resource == "Кроны" and self.money < initiator_summ_resource:
+                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
                             continue
                         if initiator_type_resource == "Население" and self.population < initiator_summ_resource:
+                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
                             continue
                         if initiator_type_resource == "Рабочие" and self.workers < initiator_summ_resource:
+                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
                             continue
 
                         # Вычитаем ресурс у ИИ
@@ -482,17 +603,22 @@ class AIController:
                                 if content:
                                     ally_data = json.loads(content)
 
-                        ally_data[initiator_type_resource] = ally_data.get(initiator_type_resource, 0) + initiator_summ_resource
+                        ally_data[initiator_type_resource] = ally_data.get(initiator_type_resource,
+                                                                           0) + initiator_summ_resource
 
                     elif trade["target_faction"] == self.faction:
                         # ИИ получатель сделки (получает ресурс и отдает свой)
                         if target_type_resource == "Сырье" and self.surie < target_summ_resource:
+                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
                             continue
                         if target_type_resource == "Кроны" and self.money < target_summ_resource:
+                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
                             continue
                         if target_type_resource == "Население" and self.population < target_summ_resource:
+                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
                             continue
                         if target_type_resource == "Рабочие" and self.workers < target_summ_resource:
+                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
                             continue
 
                         # ИИ получает ресурс
@@ -527,8 +653,8 @@ class AIController:
                                 if content:
                                     ally_data = json.loads(content)
 
-                        ally_data[target_type_resource] = ally_data.get(target_type_resource,
-                                                                           0) + target_summ_resource
+                        self.show_popup(f"Согласие на сделку от {self.faction}", f"По рукам.")
+                        ally_data[target_type_resource] = ally_data.get(target_type_resource, 0) + target_summ_resource
 
                     # Записываем обновленный файл ресурсов союзника
                     with open(ally_resource_file, 'w', encoding='utf-8') as ally_file:
@@ -548,6 +674,39 @@ class AIController:
                 print(f"Ошибка при обработке торговых соглашений ИИ: {e}")
         else:
             print(f"Файл торговых соглашений для фракции {self.faction} не найден.")
+
+    def return_resource_to_player(self, trade, resource_type, resource_amount):
+        """Возвращает ресурс игроку, если у ИИ недостаточно ресурсов для выполнения сделки."""
+
+        # Определяем имя оппонента
+        if isinstance(trade, dict):
+            opponent_faction = trade["initiator"]
+        elif isinstance(trade, str):
+            opponent_faction = trade
+        else:
+            raise ValueError("Параметр 'trade' должен быть либо словарем, либо строкой.")
+
+        # Формируем путь к файлу ресурсов
+        ally_resource_file = transform_filename(
+            f"files/config/status/trade_dogovor/resources/{opponent_faction}.json"
+        )
+
+        # Загружаем данные о ресурсах
+        ally_data = {}
+        if os.path.exists(ally_resource_file):
+            with open(ally_resource_file, 'r', encoding='utf-8') as ally_file:
+                content = ally_file.read().strip()
+                if content:
+                    ally_data = json.loads(content)
+
+        # Обновляем количество ресурсов
+        ally_data[resource_type] = ally_data.get(resource_type, 0) + resource_amount
+
+        # Сохраняем обновленные данные
+        with open(ally_resource_file, 'w', encoding='utf-8') as ally_file:
+            json.dump(ally_data, ally_file, ensure_ascii=False, indent=4)
+
+        print(f"Ресурс {resource_type} в количестве {resource_amount} возвращен игроку {opponent_faction}.")
 
     def load_and_add_resources(self):
 

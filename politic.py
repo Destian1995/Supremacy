@@ -192,7 +192,7 @@ def show_trade_agreement_form(faction, game_area):
             agreement_summary.text = "Пожалуйста, выберите фракцию для соглашения."
             return
         if not our_percentage.isdigit() or not their_percentage.isdigit():
-            agreement_summary.text = "Пожалуйста, укажите желаемую сумму."
+            agreement_summary.text = "Укажите желаемую сумму."
             return
         # Формируем текст для отображения
         agreement_summary.text = (

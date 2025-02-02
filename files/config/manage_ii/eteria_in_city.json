@@ -29,11 +29,11 @@
                 {
                     "unit_image": "files/army/eteria/d-400.jpg",
                     "unit_name": "Д-400",
-                    "unit_count": 76,
+                    "unit_count": 383,
                     "units_stats": {
-                        "Урон": 3800,
-                        "Защита": 152000,
-                        "Живучесть": 33440
+                        "Урон": 19150,
+                        "Защита": 766000,
+                        "Живучесть": 168520
                     }
                 }
             ]
@@ -49,31 +49,31 @@
                 {
                     "unit_image": "files/army/eteria/legions.jpg",
                     "unit_name": "Легионеры",
-                    "unit_count": 28,
+                    "unit_count": 59,
                     "units_stats": {
-                        "Урон": 3360,
-                        "Защита": 1400,
-                        "Живучесть": 2240
+                        "Урон": 7080,
+                        "Защита": 2950,
+                        "Живучесть": 4720
                     }
                 },
                 {
                     "unit_image": "files/army/eteria/tiger.jpg",
                     "unit_name": "Тигр",
-                    "unit_count": 26,
+                    "unit_count": 67,
                     "units_stats": {
-                        "Урон": 8320,
-                        "Защита": 5200,
-                        "Живучесть": 2860
+                        "Урон": 21440,
+                        "Защита": 13400,
+                        "Живучесть": 7370
                     }
                 },
                 {
                     "unit_image": "files/army/eteria/d-400.jpg",
                     "unit_name": "Д-400",
-                    "unit_count": 1,
+                    "unit_count": 199,
                     "units_stats": {
-                        "Урон": 50,
-                        "Защита": 2000,
-                        "Живучесть": 440
+                        "Урон": 9950,
+                        "Защита": 398000,
+                        "Живучесть": 87560
                     }
                 }
             ]
@@ -89,21 +89,31 @@
                 {
                     "unit_image": "files/army/eteria/legions.jpg",
                     "unit_name": "Легионеры",
-                    "unit_count": 45,
+                    "unit_count": 49,
                     "units_stats": {
-                        "Урон": 5400,
-                        "Защита": 2250,
-                        "Живучесть": 3600
+                        "Урон": 5880,
+                        "Защита": 2450,
+                        "Живучесть": 3920
                     }
                 },
                 {
                     "unit_image": "files/army/eteria/tiger.jpg",
                     "unit_name": "Тигр",
-                    "unit_count": 48,
+                    "unit_count": 55,
                     "units_stats": {
-                        "Урон": 15360,
-                        "Защита": 9600,
-                        "Живучесть": 5280
+                        "Урон": 17600,
+                        "Защита": 11000,
+                        "Живучесть": 6050
+                    }
+                },
+                {
+                    "unit_image": "files/army/eteria/d-400.jpg",
+                    "unit_name": "Д-400",
+                    "unit_count": 144,
+                    "units_stats": {
+                        "Урон": 7200,
+                        "Защита": 288000,
+                        "Живучесть": 63360
                     }
                 }
             ]
@@ -119,21 +129,31 @@
                 {
                     "unit_image": "files/army/eteria/legions.jpg",
                     "unit_name": "Легионеры",
-                    "unit_count": 35,
+                    "unit_count": 76,
                     "units_stats": {
-                        "Урон": 4200,
-                        "Защита": 1750,
-                        "Живучесть": 2800
+                        "Урон": 9120,
+                        "Защита": 3800,
+                        "Живучесть": 6080
                     }
                 },
                 {
                     "unit_image": "files/army/eteria/tiger.jpg",
                     "unit_name": "Тигр",
-                    "unit_count": 32,
+                    "unit_count": 95,
                     "units_stats": {
-                        "Урон": 10240,
-                        "Защита": 6400,
-                        "Живучесть": 3520
+                        "Урон": 30400,
+                        "Защита": 19000,
+                        "Живучесть": 10450
+                    }
+                },
+                {
+                    "unit_image": "files/army/eteria/d-400.jpg",
+                    "unit_name": "Д-400",
+                    "unit_count": 234,
+                    "units_stats": {
+                        "Урон": 11700,
+                        "Защита": 468000,
+                        "Живучесть": 102960
                     }
                 }
             ]

@@ -9,21 +9,21 @@
                 {
                     "unit_image": "files/army/celestia/grenader.jpg",
                     "unit_name": "Гренадеры",
-                    "unit_count": 337,
+                    "unit_count": 453,
                     "units_stats": {
-                        "Урон": 48865,
-                        "Защита": 26960,
-                        "Живучесть": 30330
+                        "Урон": 65685,
+                        "Защита": 36240,
+                        "Живучесть": 40770
                     }
                 },
                 {
                     "unit_image": "files/army/celestia/S-19.jpg",
                     "unit_name": "С-19",
-                    "unit_count": 16,
+                    "unit_count": 268,
                     "units_stats": {
-                        "Урон": 1600,
-                        "Защита": 12432,
-                        "Живучесть": 9920
+                        "Урон": 26800,
+                        "Защита": 208236,
+                        "Живучесть": 166160
                     }
                 }
             ]
@@ -39,21 +39,21 @@
                 {
                     "unit_image": "files/army/celestia/grenader.jpg",
                     "unit_name": "Гренадеры",
-                    "unit_count": 82,
+                    "unit_count": 211,
                     "units_stats": {
-                        "Урон": 11890,
-                        "Защита": 6560,
-                        "Живучесть": 7380
+                        "Урон": 30595,
+                        "Защита": 16880,
+                        "Живучесть": 18990
                     }
                 },
                 {
                     "unit_image": "files/army/celestia/S-19.jpg",
                     "unit_name": "С-19",
-                    "unit_count": 1,
+                    "unit_count": 304,
                     "units_stats": {
-                        "Урон": 100,
-                        "Защита": 777,
-                        "Живучесть": 620
+                        "Урон": 30400,
+                        "Защита": 236208,
+                        "Живучесть": 188480
                     }
                 }
             ]
@@ -69,21 +69,21 @@
                 {
                     "unit_image": "files/army/celestia/grenader.jpg",
                     "unit_name": "Гренадеры",
-                    "unit_count": 122,
+                    "unit_count": 257,
                     "units_stats": {
-                        "Урон": 17690,
-                        "Защита": 9760,
-                        "Живучесть": 10980
+                        "Урон": 37265,
+                        "Защита": 20560,
+                        "Живучесть": 23130
                     }
                 },
                 {
                     "unit_image": "files/army/celestia/S-19.jpg",
                     "unit_name": "С-19",
-                    "unit_count": 5,
+                    "unit_count": 403,
                     "units_stats": {
-                        "Урон": 500,
-                        "Защита": 3885,
-                        "Живучесть": 3100
+                        "Урон": 40300,
+                        "Защита": 313131,
+                        "Живучесть": 249860
                     }
                 }
             ]
@@ -99,21 +99,21 @@
                 {
                     "unit_image": "files/army/celestia/grenader.jpg",
                     "unit_name": "Гренадеры",
-                    "unit_count": 79,
+                    "unit_count": 261,
                     "units_stats": {
-                        "Урон": 11455,
-                        "Защита": 6320,
-                        "Живучесть": 7110
+                        "Урон": 37845,
+                        "Защита": 20880,
+                        "Живучесть": 23490
                     }
                 },
                 {
                     "unit_image": "files/army/celestia/S-19.jpg",
                     "unit_name": "С-19",
-                    "unit_count": 1,
+                    "unit_count": 204,
                     "units_stats": {
-                        "Урон": 100,
-                        "Защита": 777,
-                        "Живучесть": 620
+                        "Урон": 20400,
+                        "Защита": 158508,
+                        "Живучесть": 126480
                     }
                 }
             ]

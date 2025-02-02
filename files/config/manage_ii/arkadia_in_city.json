@@ -1,0 +1,62 @@
+{
+    "Аргенвилль": [
+        {
+            "coordinates": [
+                100,
+                630
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/arkadia/vepr.jpg",
+                    "unit_name": "Вепрь",
+                    "unit_count": 7,
+                    "units_stats": {
+                        "Урон": 840,
+                        "Защита": 3430,
+                        "Живучесть": 2310
+                    }
+                },
+                {
+                    "unit_image": "files/army/arkadia/gvardia.jpg",
+                    "unit_name": "Гвардия",
+                    "unit_count": 15,
+                    "units_stats": {
+                        "Урон": 2400,
+                        "Защита": 1650,
+                        "Живучесть": 1500
+                    }
+                },
+                {
+                    "unit_image": "files/army/arkadia/pancir.jpg",
+                    "unit_name": "Панцирь - С4М",
+                    "unit_count": 6,
+                    "units_stats": {
+                        "Урон": 1320,
+                        "Защита": 85800,
+                        "Живучесть": 8700
+                    }
+                }
+            ]
+        }
+    ],
+    "Бастион Милитель": [
+        {
+            "coordinates": [
+                80,
+                460
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/arkadia/pancir.jpg",
+                    "unit_name": "Панцирь - С4М",
+                    "unit_count": 12,
+                    "units_stats": {
+                        "Урон": 2640,
+                        "Защита": 171600,
+                        "Живучесть": 17400
+                    }
+                }
+            ]
+        }
+    ]
+}
