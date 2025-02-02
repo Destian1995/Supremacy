@@ -574,9 +574,6 @@ class AIController:
                         if initiator_type_resource == "Кроны" and self.money < initiator_summ_resource:
                             self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
                             continue
-                        if initiator_type_resource == "Население" and self.population < initiator_summ_resource:
-                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
-                            continue
                         if initiator_type_resource == "Рабочие" and self.workers < initiator_summ_resource:
                             self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
                             continue
@@ -586,8 +583,6 @@ class AIController:
                             self.resources['Сырье'] -= initiator_summ_resource
                         elif initiator_type_resource == "Кроны":
                             self.resources['Кроны'] -= initiator_summ_resource
-                        elif initiator_type_resource == "Население":
-                            self.resources['Население'] -= initiator_summ_resource
                         elif initiator_type_resource == "Рабочие":
                             self.resources['Рабочие'] -= initiator_summ_resource
 
@@ -610,15 +605,15 @@ class AIController:
                         # ИИ получатель сделки (получает ресурс и отдает свой)
                         if target_type_resource == "Сырье" and self.surie < target_summ_resource:
                             self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
+                            self.show_popup(f"У {self.faction} не хватает ресурсов", f"Напишите нам позже с этим предложением, у нас пока нет этих ресурсов.")
                             continue
                         if target_type_resource == "Кроны" and self.money < target_summ_resource:
                             self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
-                            continue
-                        if target_type_resource == "Население" and self.population < target_summ_resource:
-                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
+                            self.show_popup(f"У {self.faction} не хватает ресурсов", f"Напишите нам позже с этим предложением, у нас пока нет этих ресурсов.")
                             continue
                         if target_type_resource == "Рабочие" and self.workers < target_summ_resource:
                             self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
+                            self.show_popup(f"У {self.faction} не хватает ресурсов", f"Напишите нам позже с этим предложением, у нас пока нет этих ресурсов.")
                             continue
 
                         # ИИ получает ресурс
@@ -626,8 +621,6 @@ class AIController:
                             self.resources['Сырье'] += initiator_summ_resource
                         elif initiator_type_resource == "Кроны":
                             self.resources['Кроны'] += initiator_summ_resource
-                        elif initiator_type_resource == "Население":
-                            self.resources['Население'] += initiator_summ_resource
                         elif initiator_type_resource == "Рабочие":
                             self.resources['Рабочие'] += initiator_summ_resource
 
@@ -636,8 +629,6 @@ class AIController:
                             self.resources['Сырье'] -= target_summ_resource
                         elif target_type_resource == "Кроны":
                             self.resources['Кроны'] -= target_summ_resource
-                        elif target_type_resource == "Население":
-                            self.resources['Население'] -= target_summ_resource
                         elif target_type_resource == "Рабочие":
                             self.resources['Рабочие'] -= target_summ_resource
 
