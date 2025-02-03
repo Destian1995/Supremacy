@@ -7,23 +7,93 @@
             ],
             "units": [
                 {
+                    "unit_image": "files/army/giperion/pretorian.jpg",
+                    "unit_name": "Преторианцы",
+                    "unit_count": 40,
+                    "units_stats": {
+                        "Урон": 7200,
+                        "Защита": 3600,
+                        "Живучесть": 4800
+                    }
+                },
+                {
                     "unit_image": "files/army/giperion/CPS-12.jpg",
                     "unit_name": "HPAAL",
-                    "unit_count": 2,
+                    "unit_count": 7,
                     "units_stats": {
-                        "Урон": 160,
-                        "Защита": 3200,
-                        "Живучесть": 440
+                        "Урон": 560,
+                        "Защита": 11200,
+                        "Живучесть": 1540
+                    }
+                }
+            ]
+        }
+    ],
+    "Форт Бастария": [
+        {
+            "coordinates": [
+                310,
+                170
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 8,
+                    "units_stats": {
+                        "Урон": 640,
+                        "Защита": 12800,
+                        "Живучесть": 1760
                     }
                 },
                 {
                     "unit_image": "files/army/giperion/pretorian.jpg",
                     "unit_name": "Преторианцы",
-                    "unit_count": 2,
+                    "unit_count": 70,
                     "units_stats": {
-                        "Урон": 360,
-                        "Защита": 180,
-                        "Живучесть": 240
+                        "Урон": 12600,
+                        "Защита": 6300,
+                        "Живучесть": 8400
+                    }
+                }
+            ]
+        }
+    ],
+    "Арданис": [
+        {
+            "coordinates": [
+                750,
+                540
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 5,
+                    "units_stats": {
+                        "Урон": 400,
+                        "Защита": 8000,
+                        "Живучесть": 1100
+                    }
+                }
+            ]
+        }
+    ],
+    "Феррадан": [
+        {
+            "coordinates": [
+                890,
+                520
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 6,
+                    "units_stats": {
+                        "Урон": 480,
+                        "Защита": 9600,
+                        "Живучесть": 1320
                     }
                 }
             ]
@@ -37,55 +107,15 @@
             ],
             "units": [
                 {
-                    "unit_image": "files/army/giperion/CPS-12.jpg",
-                    "unit_name": "HPAAL",
-                    "unit_count": 5,
-                    "units_stats": {
-                        "Урон": 400,
-                        "Защита": 8000,
-                        "Живучесть": 1100
-                    }
-                },
-                {
                     "unit_image": "files/army/giperion/pretorian.jpg",
                     "unit_name": "Преторианцы",
-                    "unit_count": 13,
+                    "unit_count": 30,
                     "units_stats": {
-                        "Урон": 2340,
-                        "Защита": 1170,
-                        "Живучесть": 1560
+                        "Урон": 5400,
+                        "Защита": 2700,
+                        "Живучесть": 3600
                     }
-                }
-            ]
-        }
-    ],
-    "Башня Малергейна": [
-        {
-            "coordinates": [
-                520,
-                620
-            ],
-            "units": [
-                {
-                    "unit_image": "files/army/giperion/CPS-12.jpg",
-                    "unit_name": "HPAAL",
-                    "unit_count": 9,
-                    "units_stats": {
-                        "Урон": 720,
-                        "Защита": 14400,
-                        "Живучесть": 1980
-                    }
-                }
-            ]
-        }
-    ],
-    "Феррадан": [
-        {
-            "coordinates": [
-                890,
-                520
-            ],
-            "units": [
+                },
                 {
                     "unit_image": "files/army/giperion/CPS-12.jpg",
                     "unit_name": "HPAAL",
@@ -107,63 +137,13 @@
             ],
             "units": [
                 {
-                    "unit_image": "files/army/giperion/CPS-12.jpg",
-                    "unit_name": "HPAAL",
-                    "unit_count": 6,
-                    "units_stats": {
-                        "Урон": 480,
-                        "Защита": 9600,
-                        "Живучесть": 1320
-                    }
-                }
-            ]
-        }
-    ],
-    "Штормград": [
-        {
-            "coordinates": [
-                410,
-                320
-            ],
-            "units": [
-                {
-                    "unit_image": "files/army/giperion/CPS-12.jpg",
-                    "unit_name": "HPAAL",
-                    "unit_count": 2,
-                    "units_stats": {
-                        "Урон": 160,
-                        "Защита": 3200,
-                        "Живучесть": 440
-                    }
-                },
-                {
                     "unit_image": "files/army/giperion/pretorian.jpg",
                     "unit_name": "Преторианцы",
-                    "unit_count": 16,
+                    "unit_count": 26,
                     "units_stats": {
-                        "Урон": 2880,
-                        "Защита": 1440,
-                        "Живучесть": 1920
-                    }
-                }
-            ]
-        }
-    ],
-    "Цитадель Последней Надежды": [
-        {
-            "coordinates": [
-                940,
-                660
-            ],
-            "units": [
-                {
-                    "unit_image": "files/army/giperion/pretorian.jpg",
-                    "unit_name": "Преторианцы",
-                    "unit_count": 8,
-                    "units_stats": {
-                        "Урон": 1440,
-                        "Защита": 720,
-                        "Живучесть": 960
+                        "Урон": 4680,
+                        "Защита": 2340,
+                        "Живучесть": 3120
                     }
                 },
                 {

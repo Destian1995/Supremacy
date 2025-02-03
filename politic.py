@@ -1,3 +1,5 @@
+import os
+
 from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
@@ -43,24 +45,67 @@ class StyledButton(ButtonBehavior, BoxLayout):
         self.size_hint = (1, None)  # Ширина адаптируется, высота фиксированная
         self.height = 40  # Уменьшили высоту кнопки
         self.padding = [5, 5]  # Уменьшили отступы внутри кнопки
+
+        # Цвета для разных состояний
+        self.normal_color = (0.2, 0.6, 1, 1)  # Обычный цвет
+        self.hover_color = (0.15, 0.5, 0.9, 1)  # Цвет при наведении
+        self.pressed_color = (0.1, 0.4, 0.8, 1)  # Цвет при нажатии
+        self.current_color = self.normal_color
+
         with self.canvas.before:
-            Color(0.2, 0.6, 1, 1)  # Цвет фона кнопки
+            self.color = Color(*self.current_color)
             self.rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[8])  # Скругление углов
+
         self.bind(pos=self.update_rect, size=self.update_rect)
+
         self.label = Label(
             text=text,
-            font_size=14,  # Уменьшили размер шрифта
+            font_size=14,
             color=(1, 1, 1, 1),
             bold=True,
             halign='center',
             valign='middle'
         )
-        self.label.bind(size=self.label.setter('text_size'))  # Для центрирования текста
+        self.label.bind(size=self.label.setter('text_size'))
         self.add_widget(self.label)
+
+        # Применяем эффекты при наведении и клике
+        self.bind(on_press=self.on_press_effect, on_release=self.on_release_effect)
+        self.bind(on_touch_move=self.on_hover, on_touch_up=self.on_leave)
 
     def update_rect(self, *args):
         self.rect.pos = self.pos
         self.rect.size = self.size
+
+    def on_press_effect(self, instance):
+        """Эффект затемнения при нажатии"""
+        self.current_color = self.pressed_color
+        self.update_color()
+
+    def on_release_effect(self, instance):
+        """Возвращаем цвет после нажатия"""
+        self.current_color = self.normal_color
+        self.update_color()
+
+    def on_hover(self, instance, touch):
+        """Эффект при наведении"""
+        if self.collide_point(*touch.pos):
+            self.current_color = self.hover_color
+            self.update_color()
+
+    def on_leave(self, instance, touch):
+        """Возвращаем цвет, если курсор ушел с кнопки"""
+        if not self.collide_point(*touch.pos):
+            self.current_color = self.normal_color
+            self.update_color()
+
+    def update_color(self):
+        """Обновляет цвет фона"""
+        self.canvas.before.clear()
+        with self.canvas.before:
+            self.color = Color(*self.current_color)
+            self.rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[8])
+
 
 def show_new_agreement_window(faction, game_area):
     """Создание красивого окна с кнопками"""
@@ -308,8 +353,140 @@ def show_trade_agreement_form(faction, game_area):
 
 
 def show_cultural_exchange_form(faction, game_area):
-    """Заглушка: Договор о культурном обмене"""
-    pass
+    """Окно формы для договора о культурном обмене"""
+    all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
+    available_factions = [f for f in all_factions if f != faction]
+
+    content = BoxLayout(orientation='vertical', padding=10, spacing=8)
+
+    title = Label(
+        text="Договор о культурном обмене",
+        size_hint=(1, None),
+        height=35,
+        font_size=16,
+        color=(1, 1, 1, 1),
+        bold=True,
+        halign='center'
+    )
+    content.add_widget(title)
+
+    factions_spinner = Spinner(
+        text="С какой фракцией?",
+        values=available_factions,
+        size_hint=(1, None),
+        height=30,
+        font_size=12,
+        background_color=(0.2, 0.6, 1, 1),
+        background_normal=''
+    )
+    content.add_widget(factions_spinner)
+
+    description_label = Label(
+        text="Обмен культурными ценностями повышает доверие между фракциями.(+7% к отношениям).\nСтоимость 1 000 000 крон",
+        size_hint=(1, None),
+        height=60,
+        font_size=12,
+        color=(1, 1, 1, 1),
+        halign='center'
+    )
+    description_label.bind(size=description_label.setter('text_size'))
+    content.add_widget(description_label)
+
+    message_label = Label(
+        text="",
+        size_hint=(1, None),
+        height=30,
+        font_size=12,
+        color=(0, 1, 0, 1),
+        halign='center'
+    )
+    content.add_widget(message_label)
+
+    def show_warning():
+        """Выводит предупреждение, если фракция не выбрана"""
+        message_label.text = "Пожалуйста, выберите фракцию!"
+        message_label.color = (1, 0, 0, 1)  # Красный цвет
+
+    def send_proposal(instance):
+        """Отправляет предложение, если фракция выбрана и хватает денег"""
+        if factions_spinner.text == "С какой фракцией?":
+            show_warning()
+            return
+
+        # Проверяем, хватает ли денег
+        cash_file = 'files/config/resources/cash.json'
+        if os.path.exists(cash_file):
+            try:
+                with open(cash_file, 'r') as file:
+                    resources_data = json.load(file)
+                    money = resources_data.get('Кроны', 0)
+
+                if money < 1_000_000:
+                    message_label.text = "Недостаточно крон для заключения договора!"
+                    message_label.color = (1, 0, 0, 1)  # Красный цвет
+                    return
+
+                # Списываем деньги
+                resources_data['Кроны'] -= 1_000_000
+                with open(cash_file, 'w') as file:
+                    json.dump(resources_data, file, indent=4)
+
+                send_cultural_exchange_proposal(factions_spinner.text, faction)
+                message_label.text = f"Договор заключён с {factions_spinner.text}! (-1 млн крон)"
+                message_label.color = (0, 1, 0, 1)  # Зеленый цвет
+
+            except json.JSONDecodeError:
+                message_label.text = "Ошибка чтения файла ресурсов!"
+                message_label.color = (1, 0, 0, 1)  # Красный цвет
+        else:
+            message_label.text = "Файл ресурсов не найден!"
+            message_label.color = (1, 0, 0, 1)  # Красный цвет
+
+    button_layout = BoxLayout(orientation='horizontal', size_hint=(1, None), height=35, spacing=8)
+
+    send_button = StyledButton(text="Отправить предложение", size_hint=(0.5, None), height=30)
+    send_button.bind(on_press=send_proposal)
+
+    back_button = StyledButton(text="Назад", size_hint=(0.5, None), height=30)
+    back_button.bind(on_press=lambda x: popup.dismiss())
+
+    button_layout.add_widget(send_button)
+    button_layout.add_widget(back_button)
+    content.add_widget(button_layout)
+
+    popup = Popup(
+        title="Культурный обмен",
+        content=content,
+        size_hint=(0.7, 0.5),
+        auto_dismiss=False
+    )
+
+    popup.open()
+
+
+def send_cultural_exchange_proposal(fraction, target_faction):
+    # Преобразуем путь к файлу
+    source_faction = transform_filename(target_faction)
+    dogovor_path_target = transform_filename(rf'files\config\status\dipforce\{fraction}\{source_faction}.json')
+    dogovor_path_my_fraction = transform_filename(rf'files\config\status\dipforce\{source_faction}\{fraction}.json')
+    # Создаем директорию, если она не существует
+    os.makedirs(os.path.dirname(dogovor_path_target), exist_ok=True)
+    os.makedirs(os.path.dirname(dogovor_path_my_fraction), exist_ok=True)
+
+    # Данные для записи в JSON
+    data = {
+        "Source_faction": target_faction,
+        "Target_faction": fraction
+    }
+    # Записываем данные в JSON-файл
+    with open(dogovor_path_my_fraction, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+    # Записываем данные в JSON-файл
+    with open(dogovor_path_target, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+    print(f"Договор о культурном обмене между {source_faction} и {target_faction} успешно записан в {dogovor_path_target}")
 
 
 def show_diplomatic_data_form(faction, game_area):

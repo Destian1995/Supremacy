@@ -44,7 +44,7 @@ def restore_from_backup():
     resources_backup_path_gip = os.path.join(backup_dir_resources, 'giperion_resources.json')
     resources_backup_path_hal = os.path.join(backup_dir_resources, 'halidon_resources.json')
     resources_backup_path_eter = os.path.join(backup_dir_resources, 'eteria_resources.json')
-    dip_relations_backup_file_path = os.path.join(backup_dir, 'relation.json')
+    dip_relations_backup_file_path = os.path.join(backup_dir, 'relations.json')
 
     # Пути к исходным файлам
     city_file_path = os.path.join('files', 'config', 'city.json')
@@ -54,7 +54,7 @@ def restore_from_backup():
     resources_file_path_gip = os.path.join(resources_dir, 'giperion_resources.json')
     resources_file_path_hal = os.path.join(resources_dir, 'halidon_resources.json')
     resources_file_path_eter = os.path.join(resources_dir, 'eteria_resources.json')
-    dip_relations_file_path = os.path.join('files', 'config', 'status', 'dipforce', 'relation.json')
+    dip_relations_file_path = os.path.join('files', 'config', 'status', 'dipforce', 'relations.json')
 
     # Список пар (резервный путь, исходный путь)
     backup_files = [
@@ -114,6 +114,20 @@ def clear_temp_files():
         with open(file, 'w', encoding='utf-8') as f:
             f.write('')  # Записываем пустую строку, чтобы очистить файл
 
+def delete_dipforce_files():
+    """Удаляет указанные файлы в поддиректориях files/config/status/dipforce."""
+    filenames = {'halidon.json', 'giperion.json', 'eteria.json', 'celestia.json', 'arkadia.json'}
+    folder_path = os.path.join("files", "config", "status", "dipforce")
+
+    for root, _, files in os.walk(folder_path):  # Рекурсивный обход всех поддиректорий
+        for file in files:
+            if file in filenames:
+                file_path = os.path.join(root, file)
+                try:
+                    os.remove(file_path)
+                    print(f"Файл {file_path} удалён.")
+                except Exception as e:
+                    print(f"Ошибка при удалении {file_path}: {e}")
 
 class HallOfFameWidget(FloatLayout):
     def __init__(self, **kwargs):
@@ -512,6 +526,8 @@ class KingdomSelectionWidget(FloatLayout):
         cities = data['kingdoms'][selected_kingdom]['fortresses']
         # Очистка временных файлов
         clear_temp_files()
+        # Удаление дипломатических файлов
+        delete_dipforce_files()
         # Загрузка дампа дефолтных файлов.
         restore_from_backup()
         # Передаем выбранное княжество на новый экран игры

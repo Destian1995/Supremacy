@@ -5,6 +5,7 @@ from kivy.uix.image import Image
 from kivy.uix.popup import Popup
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
+from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.graphics import Color, Rectangle
 import os
@@ -32,45 +33,130 @@ foreign_ministers = {
     "Халидон": "Сулейман",
 }
 
+reverse_translation_dict = {v: k for k, v in translation_dict.items()}
 
 class AdvisorView(FloatLayout):
     def __init__(self, faction, **kwargs):
         super(AdvisorView, self).__init__(**kwargs)
         self.faction = faction
-        self.size_hint = (0.8, 0.8)
-        self.pos_hint = {'center_x': 0.5, 'center_y': 0.5}
+        self.relations_path = r'files\config\status\dipforce'
+        self.relations_file = r'files\config\status\dipforce\relations.json'
 
-        # Инициализация истории ресурсов
-        self.resource_history = {resource: [] for resource in ["cash", "people", "food"]}
+        # Создаем окно интерфейса (Popup)
+        self.interface_window = FloatLayout(size_hint=(1, 1))  # Окно занимает весь доступный размер
+        self.interface_window.pos_hint = {'center_x': 0.5, 'center_y': 0.5}  # Центрируем окно
 
-        # Вкладки слева
-        self.tabs_layout = BoxLayout(
-            orientation='vertical',
-            size_hint=(0.4, 0.6),
-            pos_hint={'x': 0.4, 'top': 0.95}
+        # Разделим окно на 2 части: Левую (картинка) и Правую (кнопки и информация)
+        layout = GridLayout(cols=2, size_hint=(1, 1), spacing=10, padding=[20, 20, 20, 20])
+
+        # Левый блок — картинка (фото парламента или советника)
+        left_layout = FloatLayout(size_hint=(0.5, 1))
+        palace_image_path = f"files/sov/parlament/{self.faction}_palace.jpg"
+        if os.path.exists(palace_image_path):
+            palace_image = Image(
+                source=palace_image_path,
+                size_hint=(1, 1),
+                allow_stretch=True,
+                keep_ratio=True
+            )
+            left_layout.add_widget(palace_image)
+
+        # Правый блок — кнопки и информация
+        right_layout = GridLayout(cols=1, size_hint=(0.5, 1), spacing=10, padding=5)
+
+        # Блок для отображения мнения советника (в правом верхнем углу)
+        opinion_box = TextInput(
+            text="Здесь будет мнение советника...",
+            font_size='12sp',
+            size_hint=(1, 0.3),
+            readonly=True,
+            background_color=(0.95, 0.95, 0.95, 1),
+            foreground_color=(0, 0, 0, 1),
+            padding=[5, 5, 5, 5]
         )
+        right_layout.add_widget(opinion_box)
+
+        # Добавление вкладок (кнопок)
+        self.tabs_layout = ScrollView(size_hint=(1, 0.6))  # Скроллинг вкладок
+        self.tabs_content = GridLayout(cols=1, size_hint_y=None)
+        self.tabs_content.bind(minimum_height=self.tabs_content.setter('height'))  # Адаптивная высота
         self.add_tab_button("Сообщения")
         self.add_tab_button("Состояние отношений", self.show_relations)
         self.add_tab_button("Мнения советника", self.show_advisor_opinion)
-        self.add_widget(self.tabs_layout)
+        self.tabs_layout.add_widget(self.tabs_content)  # Добавляем контейнер в ScrollView
+        right_layout.add_widget(self.tabs_layout)
 
-        # Путь к картинке парламента
-        palace_image_path = f"files/sov/parlament/{translation_dict.get(self.faction)}_palace.jpg"
+        # Добавление левой и правой части в главный макет
+        layout.add_widget(left_layout)
+        layout.add_widget(right_layout)
 
-        # Загрузка изображения парламента
-        if os.path.exists(palace_image_path):
-            palace_layout = FloatLayout(size_hint=(0.5, 0.5), pos_hint={'x': 0.0, 'y': 0.3})
+        # Добавляем главный макет в окно интерфейса
+        self.interface_window.add_widget(layout)
 
-            # Добавляем изображение
-            advisor_image = Image(
-                source=palace_image_path,
-                size_hint=(1.2, 1.2),  # Увеличиваем изображение
-                pos_hint={'center_x': 0.1, 'center_y': 0.7}  # Центрируем внутри layout
-            )
-            palace_layout.add_widget(advisor_image)
-            self.add_widget(palace_layout)
+        # Кнопки внизу окна
+        buttons_layout = BoxLayout(
+            orientation='horizontal',
+            size_hint=(1, None),
+            height=50,
+            spacing=10,
+            padding=10
+        )
+        close_button = Button(
+            text="Закрыть",
+            size_hint=(None, None),
+            size=(100, 40),
+            background_color=(0.8, 0.2, 0.2, 1)
+        )
+        close_button.bind(on_press=self.close_window)
+        buttons_layout.add_widget(close_button)
 
-    # Инициализация истории ресурсов
+        # Добавляем кнопки в нижнюю часть окна
+        self.interface_window.add_widget(buttons_layout)
+        buttons_layout.pos_hint = {'x': 0, 'y': 0}
+
+        # Создаем Popup с окном интерфейса
+        self.popup = Popup(
+            title="Министерство Иностранных Дел",
+            content=self.interface_window,
+            size_hint=(0.8, 0.8),  # Размер окна
+            pos_hint={'center_x': 0.5, 'center_y': 0.5}  # Центрирование окна
+        )
+        self.popup.open()  # Открываем окно
+
+    def close_window(self, instance):
+        """Закрытие окна"""
+        self.popup.dismiss()  # Закрывает окно Popup
+
+    def add_tab_button(self, text, on_press=None):
+        """Добавляет кнопку вкладки с эффектом при наведении"""
+        button = Button(
+            text=text,
+            size_hint=(1, None),  # Убираем фиксированную высоту кнопок
+            height=40,  # Компактная высота
+            font_size='14sp',
+            background_normal='',
+            background_color=(0.2, 0.6, 0.9, 1),
+            color=(1, 1, 1, 1),
+            border=(5, 5, 5, 5)
+        )
+        if on_press:
+            button.bind(on_press=on_press)
+
+        # Эффект на кнопке при наведении
+        button.bind(on_enter=self.on_button_hover)
+        button.bind(on_leave=self.on_button_leave)
+        self.tabs_content.add_widget(button)  # Добавляем кнопку в контейнер
+
+    def on_button_hover(self, instance):
+        """Меняет цвет кнопки при наведении мыши"""
+        instance.background_color = (0.3, 0.7, 1, 1)
+
+    def on_button_leave(self, instance):
+        """Возвращает цвет кнопки при уходе мыши"""
+        instance.background_color = (0.2, 0.6, 0.9, 1)
+
+
+
     def load_resources(self):
         try:
             # Detect encoding
@@ -217,26 +303,70 @@ class AdvisorView(FloatLayout):
         # Добавление основного макета в виджет
         self.add_widget(main_layout)
 
+    def manage_relations(self):
+        """Управление отношениями только для фракций, заключивших дипломатическое соглашение"""
+        my_fraction = translation_dict.get(self.faction)
+        faction_dir_path = os.path.join(self.relations_path, my_fraction)
 
-    def add_tab_button(self, text, on_press=None):
-        """Добавляет кнопку вкладки."""
-        button = Button(
-            text=text,
-            size_hint=(1, 0.2),
-            font_size='16sp'
-        )
-        if on_press:
-            button.bind(on_press=on_press)
-        self.tabs_layout.add_widget(button)
+        if not os.path.exists(faction_dir_path):
+            print(f"Путь {faction_dir_path} не существует.")
+            return
+
+        relations_data = self.load_relations()
+
+        if self.faction not in relations_data["relations"]:
+            print(f"Отношения для фракции {self.faction} не найдены.")
+            return
+
+        # Перебираем файлы в директории, обрабатываем только тех, с кем заключены соглашения
+        for filename in os.listdir(faction_dir_path):
+            if filename.endswith(".json"):
+                faction_name_en = filename.replace('.json', '')
+                faction_name_ru = reverse_translation_dict.get(faction_name_en, faction_name_en)
+
+                # Проверяем, есть ли дипломатическое соглашение
+                if faction_name_ru in relations_data["relations"][self.faction]:
+                    current_value_self = relations_data["relations"][self.faction][faction_name_ru]
+                    current_value_other = relations_data["relations"][faction_name_ru][self.faction]
+
+                    relations_data["relations"][self.faction][faction_name_ru] = min(current_value_self + 7, 100)
+                    relations_data["relations"][faction_name_ru][self.faction] = min(current_value_other + 7, 100)
+
+                # Удаляем обработанный файл (чтобы это изменение было одноразовым)
+                os.remove(os.path.join(faction_dir_path, filename))
+
+        # Сохраняем обновленные данные
+        self.save_relations(relations_data)
+
+    def load_relations(self):
+        """Загружаем текущие отношения из файла relations.json"""
+        try:
+            with open(self.relations_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            print("Файл relations.json не найден. Создаем новый.")
+            return {"relations": {}}
+
+    def save_relations(self, relations_data):
+        """Сохраняем обновленные отношения в файл relations.json"""
+        try:
+            with open(self.relations_file, "w", encoding="utf-8") as f:
+                json.dump(relations_data, f, ensure_ascii=False, indent=4)
+        except PermissionError:
+            print("Ошибка доступа к файлу relations.json. Проверьте права доступа.")
+
 
     def show_relations(self, instance):
         """Отображает окно с таблицей отношений."""
+        # Перезагружаем данные о отношениях
+        self.manage_relations()
+
         try:
             # Загрузка файлов
-            with open("files/config/status/dipforce/relation.json", "r", encoding="utf-8") as f:
+            with open(self.relations_file, "r", encoding="utf-8") as f:
                 relation = json.load(f)
         except FileNotFoundError:
-            print("Файл relation.json не найден.")
+            print("Файл relations.json не найден.")
             return
 
         # Получение отношений для текущей фракции

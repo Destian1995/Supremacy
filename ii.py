@@ -23,6 +23,7 @@ def transform_filename(file_path):
     transformed_path = '/'.join(path_parts)
     return transformed_path
 
+reverse_translation_dict = {v: k for k, v in translation_dict.items()}
 
 class AIController:
     def __init__(self, faction):
@@ -43,6 +44,8 @@ class AIController:
         self.resources = {}
         self.army = {}
         self.relations = {}
+        self.relations_path = transform_filename(rf'files\config\status\dipforce\{self.faction}')
+        self.relations_file = r'files\config\status\dipforce\relations.json'
         self.money = self.resources.get('Кроны', 0)
         self.workers = self.resources.get('Рабочие', 0)
         self.surie = self.resources.get('Сырье', 0)
@@ -431,7 +434,7 @@ class AIController:
 
     def check_relations(self):
         """Проверяет отношения с другими ИИ."""
-        relation_folder = "files/config/status/dipforce/relation.json"
+        relation_folder = "files/config/status/dipforce/relations.json"
 
         try:
             with open(relation_folder, 'r', encoding='utf-8') as relation_file:
@@ -496,13 +499,16 @@ class AIController:
                 relation_level = self.relations[target_faction]
 
                 # Определяем коэффициент на основе уровня отношений
-                if relation_level < 5:
-                    self.show_popup("Отказ", "С Вами мы никаких дел иметь не хотим, сделка невозможна, при текущих отношениях")
+                if relation_level < 10:
+                    self.show_popup(f"Отказ от {self.faction}", "Как Вы себе представляете сделку между нами? \n Да мы плевать хотели на Ваше предложение!")
                     self.return_resource_to_player(target_faction, initiator_type_resource, initiator_summ_resource)
+                    # Очищаем выполненные сделки из торгового файла
+                    with open(trade_file_path, 'w', encoding='utf-8') as file:
+                        file.write('')
                     return
-                elif 5 <= relation_level < 15:
+                elif 10 <= relation_level < 20:
                     coefficient = 0.08
-                elif 15 <= relation_level < 35:
+                elif 20 <= relation_level < 35:
                     coefficient = 0.3
                 elif 35 <= relation_level < 45:
                     coefficient = 0.8
@@ -513,7 +519,7 @@ class AIController:
                 elif 80 <= relation_level < 95:
                     coefficient = 2.0
                 elif 95 <= relation_level <= 100:
-                    coefficient = 2.8
+                    coefficient = 2.9
                 else:
                     return
 
@@ -531,7 +537,7 @@ class AIController:
                 if trade_ratio <= coefficient:
                     self.trade_resources()  # Вызываем функцию для выполнения сделки
                 else:
-                    self.show_popup(f"Отказ от {self.faction}", f"Нам не выгодна сделка.")
+                    self.show_popup(f"Отказ от {self.faction}", f"Для Вас у нас другие условия по сделкам.\nСбавьте требования или ищите другого поставщика.")
                     self.return_resource_to_player(target_faction, initiator_type_resource, initiator_summ_resource)
                     # Очищаем выполненные сделки из торгового файла
                     with open(trade_file_path, 'w', encoding='utf-8') as file:
@@ -605,15 +611,15 @@ class AIController:
                         # ИИ получатель сделки (получает ресурс и отдает свой)
                         if target_type_resource == "Сырье" and self.surie < target_summ_resource:
                             self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
-                            self.show_popup(f"У {self.faction} не хватает ресурсов", f"Напишите нам позже с этим предложением, у нас пока нет этих ресурсов.")
+                            self.show_popup(f"У {self.faction} не хватает ресурсов", f"Напишите нам позже с этим предложением, у нас пока нет этих ресурсов.\nСпасибо за понимание!")
                             continue
                         if target_type_resource == "Кроны" and self.money < target_summ_resource:
                             self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
-                            self.show_popup(f"У {self.faction} не хватает ресурсов", f"Напишите нам позже с этим предложением, у нас пока нет этих ресурсов.")
+                            self.show_popup(f"У {self.faction} не хватает ресурсов", f"Напишите нам позже с этим предложением, у нас пока нет этих ресурсов.\nСпасибо за понимание!")
                             continue
                         if target_type_resource == "Рабочие" and self.workers < target_summ_resource:
                             self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
-                            self.show_popup(f"У {self.faction} не хватает ресурсов", f"Напишите нам позже с этим предложением, у нас пока нет этих ресурсов.")
+                            self.show_popup(f"У {self.faction} не хватает ресурсов", f"Напишите нам позже с этим предложением, у нас пока нет этих ресурсов.\nСпасибо за понимание!")
                             continue
 
                         # ИИ получает ресурс
@@ -644,7 +650,7 @@ class AIController:
                                 if content:
                                     ally_data = json.loads(content)
 
-                        self.show_popup(f"Согласие на сделку от {self.faction}", f"По рукам.")
+                        self.show_popup(f"Согласие на сделку от {self.faction}", f"По рукам.\nВысылаю поставку, скоро прибудет.")
                         ally_data[target_type_resource] = ally_data.get(target_type_resource, 0) + target_summ_resource
 
                     # Записываем обновленный файл ресурсов союзника
@@ -743,6 +749,59 @@ class AIController:
         """Управление армией ИИ"""
         self.build_army()
 
+    def manage_relations(self):
+        """Управление отношениями только для фракций, заключивших дипломатическое соглашение"""
+        my_fraction = translation_dict.get(self.faction)
+        faction_dir_path = os.path.join(self.relations_path, my_fraction)
+
+        if not os.path.exists(faction_dir_path):
+            print(f"Путь {faction_dir_path} не существует.")
+            return
+
+        relations_data = self.load_relations()
+
+        if self.faction not in relations_data["relations"]:
+            print(f"Отношения для фракции {self.faction} не найдены.")
+            return
+
+        # Перебираем файлы в директории, обрабатываем только тех, с кем заключены соглашения
+        for filename in os.listdir(faction_dir_path):
+            if filename.endswith(".json"):
+                faction_name_en = filename.replace('.json', '')
+                faction_name_ru = reverse_translation_dict.get(faction_name_en, faction_name_en)
+
+                # Проверяем, есть ли дипломатическое соглашение
+                if faction_name_ru in relations_data["relations"][self.faction]:
+                    current_value_self = relations_data["relations"][self.faction][faction_name_ru]
+                    current_value_other = relations_data["relations"][faction_name_ru][self.faction]
+
+                    relations_data["relations"][self.faction][faction_name_ru] = min(current_value_self + 7, 100)
+                    relations_data["relations"][faction_name_ru][self.faction] = min(current_value_other + 7, 100)
+
+                # Удаляем обработанный файл (чтобы это изменение было одноразовым)
+                os.remove(os.path.join(faction_dir_path, filename))
+
+        # Сохраняем обновленные данные
+        self.save_relations(relations_data)
+
+    def load_relations(self):
+        """Загружаем текущие отношения из файла relations.json"""
+        try:
+            with open(self.relations_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            print("Файл relations.json не найден. Создаем новый.")
+            return {"relations": {}}
+
+    def save_relations(self, relations_data):
+        """Сохраняем обновленные отношения в файл relations.json"""
+        try:
+            with open(self.relations_file, "w", encoding="utf-8") as f:
+                json.dump(relations_data, f, ensure_ascii=False, indent=4)
+        except PermissionError:
+            print("Ошибка доступа к файлу relations.json. Проверьте права доступа.")
+
+
     def attack_enemy(self):
         """Атака на соседнюю фракцию"""
         pass
@@ -771,6 +830,7 @@ class AIController:
         """Обработка хода ИИ фракции"""
         #print(f"ИИ {self.faction} делает ход...")
         self.update_resources()
+        self.manage_relations()
         self.load_all_data()
         self.load_data_fractions()
         # Экономические действия
