@@ -1,3 +1,4 @@
+import random
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
@@ -36,6 +37,7 @@ foreign_ministers = {
 
 reverse_translation_dict = {v: k for k, v in translation_dict.items()}
 
+
 class AdvisorView(FloatLayout):
     def __init__(self, faction, **kwargs):
         super(AdvisorView, self).__init__(**(kwargs))
@@ -73,26 +75,6 @@ class AdvisorView(FloatLayout):
             padding=0
         )
 
-        # Блок с мнением советника
-        advice_card = BoxLayout(
-            orientation='vertical',
-            size_hint_y=None,
-            height=Window.height * 0.15,  # Адаптивная высота
-            padding=dp(10)
-        )
-        with advice_card.canvas.before:
-            Color(*self.colors['card'])
-            RoundedRectangle(pos=advice_card.pos, size=advice_card.size, radius=[10])
-        advice_text = Label(
-            text="Наши дипломатические усилия должны быть сосредоточены на укреплении связей с нейтральными фракциями.",
-            font_size=Window.height * 0.02,  # Размер шрифта зависит от высоты окна
-            color=(0.2, 0.2, 0.2, 1),
-            halign='left',
-            valign='top',
-            size_hint=(1, 1),
-            text_size=(Window.width * 0.5 - dp(40), None)
-        )
-        advice_card.add_widget(advice_text)
 
         # Панель вкладок
         tabs_panel = ScrollView(
@@ -108,9 +90,7 @@ class AdvisorView(FloatLayout):
             padding=dp(5)
         )
         self.tabs_content.bind(minimum_height=self.tabs_content.setter('height'))
-
         tabs_panel.add_widget(self.tabs_content)
-        right_panel.add_widget(advice_card)
         right_panel.add_widget(tabs_panel)
 
         # Сборка интерфейса
@@ -175,14 +155,17 @@ class AdvisorView(FloatLayout):
 
         # Создаем Popup
         self.popup = Popup(
-            title=f"Министерство Иностранных Дел",
+            title=f"Министерство Иностранных Дел",  # Жирный шрифт с помощью [b][/b]
             title_size=Window.height * 0.03,  # Размер заголовка зависит от высоты окна
+            title_align="center",  # Центрирование текста (по умолчанию уже centered, но явно указываем)
             content=self.interface_window,
             size_hint=(0.7, 0.7),
             separator_height=dp(0),
-            background=f'files/sov/parlament/{translation_dict.get(self.faction)}_palace.jpg' if os.path.exists(f'files/sov/parlament/{translation_dict.get(self.faction)}_palace.jpg') else ''
+            background=f'files/sov/parlament/{translation_dict.get(self.faction)}_palace.jpg' if os.path.exists(
+                f'files/sov/parlament/{translation_dict.get(self.faction)}_palace.jpg') else ''
         )
         self.popup.open()
+
 
     def close_window(self, instance):
         """Закрытие окна"""
