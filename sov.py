@@ -38,11 +38,10 @@ reverse_translation_dict = {v: k for k, v in translation_dict.items()}
 
 class AdvisorView(FloatLayout):
     def __init__(self, faction, **kwargs):
-        super(AdvisorView, self).__init__(**kwargs)
+        super(AdvisorView, self).__init__(**(kwargs))
         self.faction = faction
         self.relations_path = r'files\config\status\dipforce'
         self.relations_file = r'files\config\status\dipforce\relations.json'
-
         # Настройки темы
         self.colors = {
             'background': (0.95, 0.95, 0.95, 1),
@@ -65,38 +64,28 @@ class AdvisorView(FloatLayout):
 
         # Левая панель с изображением
         left_panel = FloatLayout(size_hint=(0.45, 1))
-        palace_image_path = f"files/sov/parlament/{self.faction}_palace.jpg"
-        if os.path.exists(palace_image_path):
-            palace_image = Image(
-                source=palace_image_path,
-                size_hint=(1, 1),
-                allow_stretch=True,
-                keep_ratio=False
-            )
-            left_panel.add_widget(palace_image)
 
         # Правая панель
         right_panel = BoxLayout(
             orientation='vertical',
             size_hint=(0.55, 1),
-            spacing=0,  # Убираем промежутки между элементами
-            padding=0   # Убираем отступы
+            spacing=0,
+            padding=0
         )
 
-        # Блок с мнением советника (ВПЛОТНУЮ К ВЕРХУ)
+        # Блок с мнением советника
         advice_card = BoxLayout(
             orientation='vertical',
-            size_hint_y=None,  # Убираем растяжение по высоте
-            height=dp(120),    # Фиксированная высота, можно увеличить
+            size_hint_y=None,
+            height=Window.height * 0.15,  # Адаптивная высота
             padding=dp(10)
         )
         with advice_card.canvas.before:
             Color(*self.colors['card'])
             RoundedRectangle(pos=advice_card.pos, size=advice_card.size, radius=[10])
-
         advice_text = Label(
             text="Наши дипломатические усилия должны быть сосредоточены на укреплении связей с нейтральными фракциями.",
-            font_size=dp(14),
+            font_size=Window.height * 0.02,  # Размер шрифта зависит от высоты окна
             color=(0.2, 0.2, 0.2, 1),
             halign='left',
             valign='top',
@@ -105,12 +94,10 @@ class AdvisorView(FloatLayout):
         )
         advice_card.add_widget(advice_text)
 
-        # Добавляем советника в правую панель
-        right_panel.add_widget(advice_card)
-
-        # Панель вкладок (СРАЗУ ПОД СОВЕТНИКОМ)
+        # Панель вкладок
         tabs_panel = ScrollView(
-            size_hint=(1, 1),  # Позволяет вкладкам заполнять оставшееся пространство
+            size_hint=(1, None),
+            height=Window.height * 0.3,  # Адаптивная высота
             bar_width=dp(8),
             bar_color=(0.5, 0.5, 0.5, 0.5)
         )
@@ -122,88 +109,86 @@ class AdvisorView(FloatLayout):
         )
         self.tabs_content.bind(minimum_height=self.tabs_content.setter('height'))
 
-        # Добавляем вкладки
-        self.add_tab_button("Последние новости", self.last_news)
-        self.add_tab_button("Состояние отношений", self.show_relations)
-
         tabs_panel.add_widget(self.tabs_content)
+        right_panel.add_widget(advice_card)
         right_panel.add_widget(tabs_panel)
 
         # Сборка интерфейса
         main_layout.add_widget(left_panel)
         main_layout.add_widget(right_panel)
-        self.interface_window.add_widget(main_layout)
 
         # Нижняя панель с кнопками
         bottom_panel = BoxLayout(
             size_hint=(1, None),
-            height=dp(60),
+            height=Window.height * 0.1,  # Адаптивная высота
             padding=dp(10),
-            pos_hint={'x': 0, 'y': 0}
+            pos_hint={'x': 0, 'y': 0},
+            spacing=dp(10)
         )
+
+        # Кнопки в нижней панели
         close_button = Button(
             text="Закрыть",
             size_hint=(None, None),
-            size=(dp(120), dp(50)),
+            size=(Window.width * 0.2, Window.height * 0.08),  # Адаптивный размер
             background_normal='',
             background_color=(0.8, 0.2, 0.2, 1),
             color=(1, 1, 1, 1),
-            font_size=dp(16),
+            font_size=Window.height * 0.02,  # Размер шрифта зависит от высоты окна
             bold=True,
             border=(0, 0, 0, 0)
         )
         close_button.bind(on_press=self.close_window)
+
+        news_button = Button(
+            text="Новости",
+            size_hint=(None, None),
+            size=(Window.width * 0.2, Window.height * 0.08),  # Адаптивный размер
+            background_normal='',
+            background_color=(0.227, 0.525, 0.835, 1),
+            color=(1, 1, 1, 1),
+            font_size=Window.height * 0.02,  # Размер шрифта зависит от высоты окна
+            bold=True,
+            border=(0, 0, 0, 0)
+        )
+        news_button.bind(on_press=lambda x: self.last_news("Последние новости"))
+
+        relations_button = Button(
+            text="Отношения",
+            size_hint=(None, None),
+            size=(Window.width * 0.2, Window.height * 0.08),  # Адаптивный размер
+            background_normal='',
+            background_color=(0.118, 0.255, 0.455, 1),
+            color=(1, 1, 1, 1),
+            font_size=Window.height * 0.02,  # Размер шрифта зависит от высоты окна
+            bold=True,
+            border=(0, 0, 0, 0)
+        )
+        relations_button.bind(on_press=lambda x: self.show_relations("Состояние отношений"))
+
         bottom_panel.add_widget(close_button)
+        bottom_panel.add_widget(news_button)
+        bottom_panel.add_widget(relations_button)
+
+        self.interface_window.add_widget(main_layout)
         self.interface_window.add_widget(bottom_panel)
 
-        # Создаем Popup (уменьшен размер до 70%)
+        # Создаем Popup
         self.popup = Popup(
-            title=f"[size=20][b]{foreign_ministers[self.faction]}[/b], Министр Иностранных Дел[/size]",
-            title_size=dp(18),
+            title=f"Министерство Иностранных Дел",
+            title_size=Window.height * 0.03,  # Размер заголовка зависит от высоты окна
             content=self.interface_window,
-            size_hint=(0.7, 0.7),  # Уменьшено с 0.85 до 0.7
+            size_hint=(0.7, 0.7),
             separator_height=dp(0),
-            background='files/sov/parlament/popup_bg.png' if os.path.exists('files/sov/parlament/popup_bg.png') else ''
+            background=f'files/sov/parlament/{translation_dict.get(self.faction)}_palace.jpg' if os.path.exists(f'files/sov/parlament/{translation_dict.get(self.faction)}_palace.jpg') else ''
         )
         self.popup.open()
 
-    def add_tab_button(self, text, on_press=None):
-        """Создает стилизованную кнопку вкладки"""
-        btn = Button(
-            text=text,
-            size_hint=(1, None),
-            height=dp(60),
-            font_size=dp(16),
-            bold=True,
-            background_normal='',
-            background_color=(0.95, 0.95, 0.95, 1),
-            color=self.colors['primary'],
-            border=(0, 0, 0, 0)
-        )
-        with btn.canvas.before:
-            Color(*self.colors['primary'])
-            RoundedRectangle(pos=btn.pos, size=btn.size, radius=[5])
-            Color(rgba=(1, 1, 1, 0.1))
-            Rectangle(pos=btn.pos, size=(btn.width, 2))
-
-        btn.bind(on_press=on_press)
-        btn.bind(on_enter=lambda x: setattr(btn, 'background_color', (0.9, 0.9, 0.9, 1)))
-        btn.bind(on_leave=lambda x: setattr(btn, 'background_color', (0.95, 0.95, 0.95, 1)))
-        self.tabs_content.add_widget(btn)
-
     def close_window(self, instance):
         """Закрытие окна"""
-        self.popup.dismiss()  # Закрывает окно Popup
+        self.popup.dismiss()
 
-    def on_button_hover(self, instance):
-        """Меняет цвет кнопки при наведении мыши"""
-        instance.background_color = (0.3, 0.7, 1, 1)
-
-    def on_button_leave(self, instance):
-        """Возвращает цвет кнопки при уходе мыши"""
-        instance.background_color = (0.2, 0.6, 0.9, 1)
-
-    def last_news(self):
+    def last_news(self, name):
         pass
 
     def manage_relations(self):
@@ -277,16 +262,17 @@ class AdvisorView(FloatLayout):
         main_layout = BoxLayout(
             orientation='vertical',
             spacing=dp(10),
-            padding=dp(10)
+            padding=dp(10),
+            size_hint=(1, 1)
         )
 
         # Заголовок
         header = Label(
             text=f"Отношения {self.faction}",
-            font_size='20sp',
+            font_size=Window.height * 0.03,  # Адаптивный размер шрифта
             bold=True,
             size_hint_y=None,
-            height=dp(40),
+            height=Window.height * 0.06,  # Адаптивная высота
             color=(0.15, 0.15, 0.15, 1)
         )
         main_layout.add_widget(header)
@@ -296,7 +282,7 @@ class AdvisorView(FloatLayout):
             cols=2,
             size_hint_y=None,
             spacing=dp(5),
-            row_default_height=dp(40)
+            row_default_height=Window.height * 0.06  # Адаптивная высота строки
         )
         table.bind(minimum_height=table.setter('height'))
 
@@ -333,10 +319,10 @@ class AdvisorView(FloatLayout):
         lbl = Label(
             text=text,
             bold=True,
-            font_size='18sp',
+            font_size=Window.height * 0.025,  # Адаптивный размер шрифта
             color=(1, 1, 1, 1),
             size_hint_y=None,
-            height=dp(45)
+            height=Window.height * 0.06  # Адаптивная высота
         )
         with lbl.canvas.before:
             Color(0.15, 0.24, 0.35, 1)  # Темно-синий фон
@@ -349,14 +335,14 @@ class AdvisorView(FloatLayout):
         """Создает ячейку с названием фракции (белый цвет и жирный шрифт)"""
         lbl = Label(
             text=text,
-            font_size='16sp',
+            font_size=Window.height * 0.022,  # Адаптивный размер шрифта
             bold=True,
             color=(1, 1, 1, 1),  # Белый цвет текста
             halign='left',
             valign='middle',
             padding_x=dp(15),
             size_hint_y=None,
-            height=dp(40)
+            height=Window.height * 0.06  # Адаптивная высота
         )
         lbl.bind(size=lbl.setter('text_size'))  # Автоматический перенос текста
         return lbl
@@ -366,13 +352,13 @@ class AdvisorView(FloatLayout):
         color = self.get_relation_color(value)
         lbl = Label(
             text=f"{value}%",
-            font_size='16sp',
+            font_size=Window.height * 0.022,  # Адаптивный размер шрифта
             bold=True,
             color=color,
             halign='center',
             valign='middle',
             size_hint_y=None,
-            height=dp(40)
+            height=Window.height * 0.06  # Адаптивная высота
         )
         return lbl
 

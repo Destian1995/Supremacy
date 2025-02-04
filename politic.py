@@ -154,7 +154,7 @@ def show_new_agreement_window(faction, game_area):
     categories = [
         ("Торговое соглашение", show_trade_agreement_form),
         ("Договор об культурном обмене", show_cultural_exchange_form),
-        ("Предоставление дип. данных", show_diplomatic_data_form),
+        ("Заключение мира", show_peace_form),
         ("Заключение альянса", show_alliance_form),
         ("Объявление войны", show_declare_war_form),
     ]
@@ -554,7 +554,7 @@ def save_relations(relations_data):
         print("Ошибка доступа к файлу relations.json. Проверьте права доступа.")
 
 
-def show_diplomatic_data_form(faction, game_area):
+def show_peace_form(faction, game_area):
     """Заглушка: Предоставление дип. данных"""
     pass
 
