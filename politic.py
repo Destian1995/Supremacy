@@ -1,5 +1,6 @@
 import os
 
+from kivy.animation import Animation
 from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
@@ -41,30 +42,38 @@ def transform_filename(file_path):
 reverse_translation_dict = {v: k for k, v in translation_dict.items()}
 
 
+# Функция для расчета базового размера шрифта
+def calculate_font_size():
+    """Рассчитывает базовый размер шрифта на основе высоты окна."""
+    base_height = 720  # Базовая высота окна для нормального размера шрифта
+    default_font_size = 16  # Базовый размер шрифта
+    scale_factor = Window.height / base_height  # Коэффициент масштабирования
+    return max(8, int(default_font_size * scale_factor))  # Минимальный размер шрифта — 8
+
+
+# Кастомная кнопка с анимациями и эффектами
 class StyledButton(ButtonBehavior, BoxLayout):
-    def __init__(self, text, **kwargs):
+    def __init__(self, text, font_size, button_color, text_color, **kwargs):
         super().__init__(**kwargs)
         self.orientation = 'vertical'
-        self.size_hint = (1, None)  # Ширина адаптируется, высота фиксированная
-        self.height = 40  # Уменьшили высоту кнопки
-        self.padding = [5, 5]  # Уменьшили отступы внутри кнопки
-
-        # Цвета для разных состояний
-        self.normal_color = (0.2, 0.6, 1, 1)  # Обычный цвет
-        self.hover_color = (0.15, 0.5, 0.9, 1)  # Цвет при наведении
-        self.pressed_color = (0.1, 0.4, 0.8, 1)  # Цвет при нажатии
+        self.size_hint = (1, None)
+        self.height = font_size * 3  # Высота кнопки зависит от размера шрифта
+        self.padding = [font_size // 2, font_size // 4]  # Отступы внутри кнопки
+        self.normal_color = button_color
+        self.hover_color = [c * 0.9 for c in button_color]  # Темнее при наведении
+        self.pressed_color = [c * 0.8 for c in button_color]  # Еще темнее при нажатии
         self.current_color = self.normal_color
 
         with self.canvas.before:
             self.color = Color(*self.current_color)
-            self.rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[8])  # Скругление углов
+            self.rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[font_size // 2])
 
         self.bind(pos=self.update_rect, size=self.update_rect)
 
         self.label = Label(
             text=text,
-            font_size=14,
-            color=(1, 1, 1, 1),
+            font_size=font_size * 1.2,
+            color=text_color,
             bold=True,
             halign='center',
             valign='middle'
@@ -72,7 +81,6 @@ class StyledButton(ButtonBehavior, BoxLayout):
         self.label.bind(size=self.label.setter('text_size'))
         self.add_widget(self.label)
 
-        # Применяем эффекты при наведении и клике
         self.bind(on_press=self.on_press_effect, on_release=self.on_release_effect)
         self.bind(on_touch_move=self.on_hover, on_touch_up=self.on_leave)
 
@@ -82,43 +90,49 @@ class StyledButton(ButtonBehavior, BoxLayout):
 
     def on_press_effect(self, instance):
         """Эффект затемнения при нажатии"""
-        self.current_color = self.pressed_color
+        anim = Animation(current_color=self.pressed_color, duration=0.1)
+        anim.start(self)
         self.update_color()
 
     def on_release_effect(self, instance):
         """Возвращаем цвет после нажатия"""
-        self.current_color = self.normal_color
+        anim = Animation(current_color=self.normal_color, duration=0.1)
+        anim.start(self)
         self.update_color()
 
     def on_hover(self, instance, touch):
         """Эффект при наведении"""
         if self.collide_point(*touch.pos):
-            self.current_color = self.hover_color
+            anim = Animation(current_color=self.hover_color, duration=0.1)
+            anim.start(self)
             self.update_color()
 
     def on_leave(self, instance, touch):
         """Возвращаем цвет, если курсор ушел с кнопки"""
         if not self.collide_point(*touch.pos):
-            self.current_color = self.normal_color
+            anim = Animation(current_color=self.normal_color, duration=0.1)
+            anim.start(self)
             self.update_color()
 
     def update_color(self):
         """Обновляет цвет фона"""
         self.canvas.before.clear()
         with self.canvas.before:
-            self.color = Color(*self.current_color)
-            self.rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[8])
+            Color(*self.current_color)
+            self.rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[self.height // 4])
 
 
 def show_new_agreement_window(faction, game_area):
     """Создание красивого окна с кнопками"""
     game_area.clear_widgets()
+
     # Создаем модальное окно
     modal = ModalView(
         size_hint=(0.8, 0.8),
         pos_hint={'center_x': 0.5, 'center_y': 0.5},
         background_color=(0, 0, 0, 0)  # Прозрачный фон
     )
+
     # Основной контейнер для окна
     window = BoxLayout(
         orientation='vertical',
@@ -126,12 +140,14 @@ def show_new_agreement_window(faction, game_area):
         spacing=15,
         size_hint=(1, 1)
     )
+
     # Фон окна
     with window.canvas.before:
         Color(0.1, 0.1, 0.1, 1)  # Темный фон
         window.rect = RoundedRectangle(size=window.size, pos=window.pos, radius=[15])
     window.bind(pos=lambda obj, pos: setattr(window.rect, 'pos', pos),
                 size=lambda obj, size: setattr(window.rect, 'size', size))
+
     # Заголовок
     title = Label(
         text="Новый договор",
@@ -141,6 +157,7 @@ def show_new_agreement_window(faction, game_area):
         color=(1, 1, 1, 1),
         bold=True
     )
+
     # Список кнопок
     button_layout = BoxLayout(
         orientation='vertical',
@@ -150,6 +167,13 @@ def show_new_agreement_window(faction, game_area):
     )
     button_layout.bind(minimum_height=button_layout.setter('height'))  # Автоматическая высота
 
+    # Рассчитываем базовый размер шрифта
+    font_size = calculate_font_size()
+
+    # Цвета для кнопок
+    default_button_color = (0.2, 0.6, 1, 1)  # Синий цвет
+    default_text_color = (1, 1, 1, 1)  # Белый текст
+
     # Создаем кнопки для каждой категории
     categories = [
         ("Торговое соглашение", show_trade_agreement_form),
@@ -158,13 +182,24 @@ def show_new_agreement_window(faction, game_area):
         ("Заключение альянса", show_alliance_form),
         ("Объявление войны", show_declare_war_form),
     ]
+
     for category_name, callback in categories:
-        button = StyledButton(text=category_name)
+        button = StyledButton(
+            text=category_name,
+            font_size=font_size * 1.2,
+            button_color=default_button_color,
+            text_color=default_text_color
+        )
         button.bind(on_press=lambda instance, cb=callback: cb(faction, game_area))
         button_layout.add_widget(button)
 
     # Кнопка "Вернуться"
-    back_button = StyledButton(text="Вернуться")
+    back_button = StyledButton(
+        text="Вернуться",
+        font_size=font_size * 1.2,
+        button_color=(0.8, 0.2, 0.2, 1),  # Красный цвет
+        text_color=default_text_color
+    )
     back_button.bind(on_press=lambda x: modal.dismiss())
 
     # Добавляем всё в основное окно
@@ -178,15 +213,7 @@ def show_new_agreement_window(faction, game_area):
     modal.open()
 
 
-# Функция для расчета базового размера шрифта
-# Функция для расчета базового размера шрифта
-def calculate_font_size():
-    """Рассчитывает базовый размер шрифта на основе высоты окна."""
-    base_height = 720  # Базовая высота окна для нормального размера шрифта
-    default_font_size = 16  # Базовый размер шрифта
-    scale_factor = Window.height / base_height  # Коэффициент масштабирования
-    return max(8, int(default_font_size * scale_factor))  # Минимальный размер шрифта — 8
-
+# Обновленная функция для формы торгового соглашения
 # Обновленная функция для создания формы торгового соглашения
 def show_trade_agreement_form(faction, game_area):
     """Окно формы для торгового соглашения"""
@@ -398,59 +425,78 @@ def on_window_resize(instance, width, height):
 
 def show_cultural_exchange_form(faction, game_area):
     """Окно формы для договора о культурном обмене"""
+    # Рассчитываем базовый размер шрифта
+    font_size = calculate_font_size()
+    button_height = font_size * 3  # Высота кнопок
+    input_height = font_size * 2.5  # Высота полей ввода
+    padding = font_size // 2  # Отступы
+    spacing = font_size // 4  # Промежутки между элементами
+
+    # Список всех фракций
     all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
     available_factions = [f for f in all_factions if f != faction]
 
-    content = BoxLayout(orientation='vertical', padding=10, spacing=8)
+    # Создаем контент для Popup
+    content = BoxLayout(
+        orientation='vertical',
+        padding=padding,
+        spacing=spacing
+    )
 
+    # Заголовок
     title = Label(
         text="Договор о культурном обмене",
         size_hint=(1, None),
-        height=35,
-        font_size=16,
+        height=button_height,
+        font_size=font_size * 1.5,
         color=(1, 1, 1, 1),
         bold=True,
         halign='center'
     )
     content.add_widget(title)
 
+    # Спиннер для выбора фракции
     factions_spinner = Spinner(
         text="С какой фракцией?",
         values=available_factions,
         size_hint=(1, None),
-        height=30,
-        font_size=12,
+        height=input_height,
+        font_size=font_size,
         background_color=(0.2, 0.6, 1, 1),
         background_normal=''
     )
     content.add_widget(factions_spinner)
 
+    # Описание
     description_label = Label(
-        text="Обмен культурными ценностями повышает доверие между фракциями.(+7% к отношениям).\nСтоимость 10 000 000 крон",
+        text="Обмен культурными ценностями повышает доверие между фракциями (+7% к отношениям).\nСтоимость: 10 000 000 крон",
         size_hint=(1, None),
-        height=60,
-        font_size=12,
+        height=font_size * 4,  # Высота зависит от количества строк
+        font_size=font_size,
         color=(1, 1, 1, 1),
         halign='center'
     )
     description_label.bind(size=description_label.setter('text_size'))
     content.add_widget(description_label)
 
+    # Сообщения пользователю
     message_label = Label(
         text="",
         size_hint=(1, None),
-        height=30,
-        font_size=12,
+        height=font_size * 2,
+        font_size=font_size,
         color=(0, 1, 0, 1),
         halign='center'
     )
     content.add_widget(message_label)
 
+    # Функция для вывода предупреждений
     def show_warning():
         """Выводит предупреждение, если фракция не выбрана"""
         message_label.text = "Пожалуйста, выберите фракцию!"
         message_label.color = (1, 0, 0, 1)  # Красный цвет
 
+    # Функция для отправки предложения
     def send_proposal(instance):
         """Отправляет предложение, если фракция выбрана и хватает денег"""
         if factions_spinner.text == "С какой фракцией?":
@@ -463,8 +509,7 @@ def show_cultural_exchange_form(faction, game_area):
             try:
                 with open(cash_file, 'r') as file:
                     resources_data = json.load(file)
-                    money = resources_data.get('Кроны', 0)
-
+                money = resources_data.get('Кроны', 0)
                 if money < 10_000_000:
                     message_label.text = "Недостаточно крон для заключения договора!"
                     message_label.color = (1, 0, 0, 1)  # Красный цвет
@@ -475,10 +520,10 @@ def show_cultural_exchange_form(faction, game_area):
                 with open(cash_file, 'w') as file:
                     json.dump(resources_data, file, indent=4)
 
+                # Отправляем предложение
                 send_cultural_exchange_proposal(factions_spinner.text, faction)
                 message_label.text = f"Договор заключён с {factions_spinner.text}! (-10 млн крон)"
                 message_label.color = (0, 1, 0, 1)  # Зеленый цвет
-
             except json.JSONDecodeError:
                 message_label.text = "Ошибка чтения файла ресурсов!"
                 message_label.color = (1, 0, 0, 1)  # Красный цвет
@@ -486,27 +531,50 @@ def show_cultural_exchange_form(faction, game_area):
             message_label.text = "Файл ресурсов не найден!"
             message_label.color = (1, 0, 0, 1)  # Красный цвет
 
-    button_layout = BoxLayout(orientation='horizontal', size_hint=(1, None), height=35, spacing=8)
+    # Кнопки
+    button_layout = BoxLayout(
+        orientation='horizontal',
+        size_hint=(1, None),
+        height=button_height,
+        spacing=font_size // 2
+    )
 
-    send_button = StyledButton(text="Отправить предложение", size_hint=(0.5, None), height=30)
+    # Цвета для кнопок
+    default_button_color = (0.2, 0.6, 1, 1)  # Синий цвет
+    default_text_color = (1, 1, 1, 1)  # Белый текст
+
+    send_button = StyledButton(
+        text="Отправить предложение",
+        font_size=font_size,
+        button_color=default_button_color,
+        text_color=default_text_color,
+        size_hint=(0.5, None),
+        height=button_height
+    )
     send_button.bind(on_press=send_proposal)
 
-    back_button = StyledButton(text="Назад", size_hint=(0.5, None), height=30)
+    back_button = StyledButton(
+        text="Назад",
+        font_size=font_size,
+        button_color=(0.8, 0.2, 0.2, 1),  # Красный цвет
+        text_color=default_text_color,
+        size_hint=(0.5, None),
+        height=button_height
+    )
     back_button.bind(on_press=lambda x: popup.dismiss())
 
     button_layout.add_widget(send_button)
     button_layout.add_widget(back_button)
     content.add_widget(button_layout)
 
+    # Создаем и открываем Popup
     popup = Popup(
         title="Культурный обмен",
         content=content,
         size_hint=(0.7, 0.5),
         auto_dismiss=False
     )
-
     popup.open()
-
 
 def send_cultural_exchange_proposal(fraction, target_faction):
     # Преобразуем путь к файлу

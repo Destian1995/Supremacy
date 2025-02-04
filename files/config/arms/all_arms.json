@@ -295,11 +295,11 @@
                     {
                         "unit_image": "files/army/giperion/CPS-12.jpg",
                         "unit_name": "HPAAL",
-                        "unit_count": 7,
+                        "unit_count": 37,
                         "units_stats": {
-                            "Урон": 560,
-                            "Защита": 11200,
-                            "Живучесть": 1540
+                            "Урон": 2960,
+                            "Защита": 59200,
+                            "Живучесть": 8140
                         }
                     }
                 ]
