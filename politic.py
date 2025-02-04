@@ -178,23 +178,43 @@ def show_new_agreement_window(faction, game_area):
     modal.open()
 
 
+# Функция для расчета базового размера шрифта
+# Функция для расчета базового размера шрифта
+def calculate_font_size():
+    """Рассчитывает базовый размер шрифта на основе высоты окна."""
+    base_height = 720  # Базовая высота окна для нормального размера шрифта
+    default_font_size = 16  # Базовый размер шрифта
+    scale_factor = Window.height / base_height  # Коэффициент масштабирования
+    return max(8, int(default_font_size * scale_factor))  # Минимальный размер шрифта — 8
+
+# Обновленная функция для создания формы торгового соглашения
 def show_trade_agreement_form(faction, game_area):
     """Окно формы для торгового соглашения"""
+    # Рассчитываем базовый размер шрифта
+    font_size = calculate_font_size()
+    button_height = font_size * 3  # Увеличиваем высоту кнопок (в 3 раза от размера шрифта)
+    input_height = font_size * 2.5  # Увеличиваем высоту полей ввода (в 2.5 раза от размера шрифта)
+    padding = font_size // 2  # Отступы
+    spacing = font_size // 4  # Промежутки между элементами
+
     # Список всех фракций
     all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
-    # Исключаем текущую фракцию
     available_factions = [f for f in all_factions if f != faction]
 
     # Создаем контент для Popup
-    content = BoxLayout(orientation='vertical', padding=10, spacing=8)  # Уменьшили отступы и промежутки
+    content = BoxLayout(
+        orientation='vertical',
+        padding=padding,
+        spacing=spacing
+    )
 
     # Заголовок
     title = Label(
         text="Торговое соглашение",
         size_hint=(1, None),
-        height=35,  # Уменьшили высоту заголовка
-        font_size=16,  # Уменьшили размер шрифта для заголовка
-        color=(1, 1, 1, 1),  # Белый цвет текста
+        height=button_height,
+        font_size=font_size * 1.5,  # Заголовок крупнее
+        color=(1, 1, 1, 1),
         bold=True,
         halign='center'
     )
@@ -205,10 +225,10 @@ def show_trade_agreement_form(faction, game_area):
         text="С какой фракцией?",
         values=available_factions,
         size_hint=(1, None),
-        height=30,  # Уменьшили высоту спиннера
-        font_size=12,  # Уменьшили размер шрифта
-        background_color=(0.2, 0.6, 1, 1),  # Цвет фона спиннера
-        background_normal=''  # Убираем стандартный фон
+        height=input_height,
+        font_size=font_size,
+        background_color=(0.2, 0.6, 1, 1),
+        background_normal=''
     )
     content.add_widget(factions_spinner)
 
@@ -216,8 +236,8 @@ def show_trade_agreement_form(faction, game_area):
         text="Наш ресурс",
         values=["Рабочие", "Сырье", "Кроны"],
         size_hint=(1, None),
-        height=30,
-        font_size=12,
+        height=input_height,
+        font_size=font_size,
         background_color=(0.2, 0.6, 1, 1),
         background_normal=''
     )
@@ -227,8 +247,8 @@ def show_trade_agreement_form(faction, game_area):
         text="Их ресурс",
         values=["Рабочие", "Сырье", "Кроны"],
         size_hint=(1, None),
-        height=30,
-        font_size=12,
+        height=input_height,
+        font_size=font_size,
         background_color=(0.2, 0.6, 1, 1),
         background_normal=''
     )
@@ -238,10 +258,10 @@ def show_trade_agreement_form(faction, game_area):
         hint_text="Сумма отчислений с нашей стороны",
         multiline=False,
         size_hint=(1, None),
-        height=30,  # Уменьшили высоту поля ввода
-        font_size=12,  # Уменьшили размер шрифта
-        background_color=(0.1, 0.1, 0.1, 1),  # Темный фон
-        foreground_color=(1, 1, 1, 1)  # Белый текст
+        height=input_height,
+        font_size=font_size,
+        background_color=(0.1, 0.1, 0.1, 1),
+        foreground_color=(1, 1, 1, 1)
     )
     content.add_widget(our_percentage_input)
 
@@ -249,8 +269,8 @@ def show_trade_agreement_form(faction, game_area):
         hint_text="Сумма прихода с их стороны",
         multiline=False,
         size_hint=(1, None),
-        height=30,
-        font_size=12,
+        height=input_height,
+        font_size=font_size,
         background_color=(0.1, 0.1, 0.1, 1),
         foreground_color=(1, 1, 1, 1)
     )
@@ -260,19 +280,35 @@ def show_trade_agreement_form(faction, game_area):
         readonly=True,
         multiline=True,
         size_hint=(1, None),
-        height=60,  # Уменьшили высоту текстового поля
-        font_size=12,
+        height=button_height * 2,
+        font_size=font_size,
         background_color=(0.1, 0.1, 0.1, 1),
         foreground_color=(1, 1, 1, 1)
     )
     content.add_widget(agreement_summary)
 
     # Кнопки
-    button_layout = BoxLayout(orientation='horizontal', size_hint=(1, None), height=35, spacing=8)
+    button_layout = BoxLayout(
+        orientation='horizontal',
+        size_hint=(1, None),
+        height=button_height,
+        spacing=font_size // 2
+    )
 
-    generate_button = StyledButton(text="Сформировать условия", size_hint=(1, None), height=30)
-    send_button = StyledButton(text="Отправить условия договора", size_hint=(1, None), height=30)
-    send_button.opacity = 0  # Скрываем кнопку изначально
+    generate_button = Button(
+        text="Сформировать условия",
+        size_hint=(1, None),
+        height=button_height,
+        font_size=font_size * 1.2  # Увеличиваем размер текста на кнопках
+    )
+
+    send_button = Button(
+        text="Отправить условия договора",
+        size_hint=(1, None),
+        height=button_height,
+        font_size=font_size * 1.2,
+        opacity=0
+    )
 
     def generate_agreement(instance):
         """Формирование текста соглашения"""
@@ -285,11 +321,15 @@ def show_trade_agreement_form(faction, game_area):
         if faction_selected == "С какой фракцией?":
             agreement_summary.text = "Пожалуйста, выберите фракцию для соглашения."
             return
+
+        if our_resource_selected == "Наш ресурс" or their_resource_selected == "Их ресурс":
+            agreement_summary.text = "Пожалуйста, выберите ресурсы для обмена."
+            return
+
         if not our_percentage.isdigit() or not their_percentage.isdigit():
             agreement_summary.text = "Укажите желаемую сумму."
             return
 
-        # Формируем текст для отображения
         agreement_summary.text = (
             f"Торговое соглашение с фракцией {faction_selected}.\n"
             f"Инициатор: {faction}.\n"
@@ -298,7 +338,6 @@ def show_trade_agreement_form(faction, game_area):
             f"Мы отправляем союзнику: {our_percentage} единиц.\n"
             f"Мы получаем от союзника: {their_percentage} единиц."
         )
-        # Показываем кнопку отправки условий договора
         send_button.opacity = 1
 
     def send_agreement(instance):
@@ -307,9 +346,8 @@ def show_trade_agreement_form(faction, game_area):
         if faction_selected == "С какой фракцией?":
             return
 
-        # Собираем данные в словарь
         agreement_data = {
-            "initiator": faction,  # Добавляем инициатора
+            "initiator": faction,
             "target_faction": faction_selected,
             "initiator_type_resource": our_resource_spinner.text,
             "target_type_resource": their_resource_spinner.text,
@@ -317,42 +355,45 @@ def show_trade_agreement_form(faction, game_area):
             "target_summ_resource": their_percentage_input.text
         }
 
-        # Генерируем путь к файлу
         filename_friend = transform_filename(f'files/config/status/trade_dogovor/{faction_selected}.json')
         filename_i_am = transform_filename(f'files/config/status/trade_dogovor/{faction}.json')
 
-        # Сохраняем данные в файл JSON
         with open(filename_friend, 'w', encoding='utf-8') as file:
             json.dump(agreement_data, file, ensure_ascii=False, indent=4)
         with open(filename_i_am, 'w', encoding='utf-8') as file:
             json.dump(agreement_data, file, ensure_ascii=False, indent=4)
 
-        # Подтверждение отправки
         agreement_summary.text = (f"Условия договора отправлены фракции {faction_selected}. \n"
                                   f"Если его примут поставки придут через 1 ход")
 
     generate_button.bind(on_press=generate_agreement)
     send_button.bind(on_press=send_agreement)
-
     button_layout.add_widget(generate_button)
     button_layout.add_widget(send_button)
     content.add_widget(button_layout)
 
-    # Кнопка "Назад"
-    back_button = StyledButton(text="Назад", size_hint=(1, None), height=30)
+    back_button = Button(
+        text="Назад",
+        size_hint=(1, None),
+        height=button_height,
+        font_size=font_size * 1.2
+    )
     back_button.bind(on_press=lambda x: popup.dismiss())
     content.add_widget(back_button)
 
-    # Создаем Popup с увеличенными размерами
     popup = Popup(
         title="Торговое соглашение",
         content=content,
-        size_hint=(0.7, 0.8),  # Увеличили размер окна
+        size_hint=(0.7, 0.8),
         auto_dismiss=False
     )
-
-    # Открываем Popup
     popup.open()
+
+# Обработчик изменения размера окна
+def on_window_resize(instance, width, height):
+    """Обновляет интерфейс при изменении размера окна."""
+    global font_size
+    font_size = calculate_font_size()
 
 
 def show_cultural_exchange_form(faction, game_area):

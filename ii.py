@@ -499,26 +499,26 @@ class AIController:
                 relation_level = self.relations[target_faction]
 
                 # Определяем коэффициент на основе уровня отношений
-                if relation_level < 10:
+                if relation_level < 15:
                     self.show_popup(f"Отказ от {self.faction}", "Как Вы себе представляете сделку между нами? \n Да мы плевать хотели на Ваше предложение!")
                     self.return_resource_to_player(target_faction, initiator_type_resource, initiator_summ_resource)
                     # Очищаем выполненные сделки из торгового файла
                     with open(trade_file_path, 'w', encoding='utf-8') as file:
                         file.write('')
                     return
-                elif 10 <= relation_level < 20:
+                elif 15 <= relation_level < 25:
                     coefficient = 0.08
-                elif 20 <= relation_level < 35:
+                elif 25 <= relation_level < 35:
                     coefficient = 0.3
-                elif 35 <= relation_level < 45:
+                elif 35 <= relation_level < 50:
                     coefficient = 0.8
-                elif 45 <= relation_level < 60:
+                elif 50 <= relation_level < 60:
                     coefficient = 1.0
-                elif 60 <= relation_level < 80:
+                elif 60 <= relation_level < 75:
                     coefficient = 1.4
-                elif 80 <= relation_level < 95:
+                elif 75 <= relation_level < 90:
                     coefficient = 2.0
-                elif 95 <= relation_level <= 100:
+                elif 90 <= relation_level <= 100:
                     coefficient = 2.9
                 else:
                     return

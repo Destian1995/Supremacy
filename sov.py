@@ -356,9 +356,9 @@ class AdvisorView(FloatLayout):
             return (0.8, 0.1, 0.1, 1)
         elif 15 < value <= 25:
             return (1.0, 0.5, 0.0, 1)
-        elif 25 < value <= 40:
+        elif 25 < value <= 35:
             return (1.0, 0.8, 0.0, 1)
-        elif 40 < value <= 50:
+        elif 35 < value <= 50:
             return (0.2, 0.7, 0.3, 1)
         elif 50 < value <= 60:
             return (0.0, 0.8, 0.8, 1)
