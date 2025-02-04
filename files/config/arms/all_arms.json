@@ -1,7 +1,431 @@
 {
     "arkadia_in_city": {},
-    "celestia_in_city": {},
-    "eteria_in_city": {},
-    "giperion_in_city": {},
-    "halidon_in_city": {}
+    "celestia_in_city": {
+        "Эледрин": [
+            {
+                "coordinates": [
+                    130,
+                    400
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/celestia/grenader.jpg",
+                        "unit_name": "Гренадеры",
+                        "unit_count": 141,
+                        "units_stats": {
+                            "Урон": 20445,
+                            "Защита": 11280,
+                            "Живучесть": 12690
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/celestia/S-19.jpg",
+                        "unit_name": "С-19",
+                        "unit_count": 13,
+                        "units_stats": {
+                            "Урон": 1300,
+                            "Защита": 10101,
+                            "Живучесть": 8060
+                        }
+                    }
+                ]
+            }
+        ],
+        "Миреллия": [
+            {
+                "coordinates": [
+                    100,
+                    250
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/celestia/grenader.jpg",
+                        "unit_name": "Гренадеры",
+                        "unit_count": 183,
+                        "units_stats": {
+                            "Урон": 26535,
+                            "Защита": 14640,
+                            "Живучесть": 16470
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/celestia/S-19.jpg",
+                        "unit_name": "С-19",
+                        "unit_count": 8,
+                        "units_stats": {
+                            "Урон": 800,
+                            "Защита": 6216,
+                            "Живучесть": 4960
+                        }
+                    }
+                ]
+            }
+        ],
+        "Селария": [
+            {
+                "coordinates": [
+                    260,
+                    140
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/celestia/grenader.jpg",
+                        "unit_name": "Гренадеры",
+                        "unit_count": 19,
+                        "units_stats": {
+                            "Урон": 2755,
+                            "Защита": 1520,
+                            "Живучесть": 1710
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "eteria_in_city": {
+        "Лунчжоу": [
+            {
+                "coordinates": [
+                    960,
+                    370
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/eteria/legions.jpg",
+                        "unit_name": "Легионеры",
+                        "unit_count": 29,
+                        "units_stats": {
+                            "Урон": 3480,
+                            "Защита": 1450,
+                            "Живучесть": 2320
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/eteria/tiger.jpg",
+                        "unit_name": "Тигр",
+                        "unit_count": 22,
+                        "units_stats": {
+                            "Урон": 7040,
+                            "Защита": 4400,
+                            "Живучесть": 2420
+                        }
+                    }
+                ]
+            }
+        ],
+        "Фэйху": [
+            {
+                "coordinates": [
+                    1120,
+                    310
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/eteria/tiger.jpg",
+                        "unit_name": "Тигр",
+                        "unit_count": 38,
+                        "units_stats": {
+                            "Урон": 12160,
+                            "Защита": 7600,
+                            "Живучесть": 4180
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/eteria/legions.jpg",
+                        "unit_name": "Легионеры",
+                        "unit_count": 24,
+                        "units_stats": {
+                            "Урон": 2880,
+                            "Защита": 1200,
+                            "Живучесть": 1920
+                        }
+                    }
+                ]
+            }
+        ],
+        "Юншань": [
+            {
+                "coordinates": [
+                    1070,
+                    610
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/eteria/legions.jpg",
+                        "unit_name": "Легионеры",
+                        "unit_count": 11,
+                        "units_stats": {
+                            "Урон": 1320,
+                            "Защита": 550,
+                            "Живучесть": 880
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/eteria/tiger.jpg",
+                        "unit_name": "Тигр",
+                        "unit_count": 7,
+                        "units_stats": {
+                            "Урон": 2240,
+                            "Защита": 1400,
+                            "Живучесть": 770
+                        }
+                    }
+                ]
+            }
+        ],
+        "Тяньчжоу": [
+            {
+                "coordinates": [
+                    1070,
+                    440
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/eteria/legions.jpg",
+                        "unit_name": "Легионеры",
+                        "unit_count": 23,
+                        "units_stats": {
+                            "Урон": 2760,
+                            "Защита": 1150,
+                            "Живучесть": 1840
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/eteria/tiger.jpg",
+                        "unit_name": "Тигр",
+                        "unit_count": 30,
+                        "units_stats": {
+                            "Урон": 9600,
+                            "Защита": 6000,
+                            "Живучесть": 3300
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "giperion_in_city": {
+        "Солисграад": [
+            {
+                "coordinates": [
+                    519,
+                    370
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/giperion/pretorian.jpg",
+                        "unit_name": "Преторианцы",
+                        "unit_count": 40,
+                        "units_stats": {
+                            "Урон": 7200,
+                            "Защита": 3600,
+                            "Живучесть": 4800
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 7,
+                        "units_stats": {
+                            "Урон": 560,
+                            "Защита": 11200,
+                            "Живучесть": 1540
+                        }
+                    }
+                ]
+            }
+        ],
+        "Форт Бастария": [
+            {
+                "coordinates": [
+                    310,
+                    170
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 8,
+                        "units_stats": {
+                            "Урон": 640,
+                            "Защита": 12800,
+                            "Живучесть": 1760
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/giperion/pretorian.jpg",
+                        "unit_name": "Преторианцы",
+                        "unit_count": 70,
+                        "units_stats": {
+                            "Урон": 12600,
+                            "Защита": 6300,
+                            "Живучесть": 8400
+                        }
+                    }
+                ]
+            }
+        ],
+        "Арданис": [
+            {
+                "coordinates": [
+                    750,
+                    540
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 5,
+                        "units_stats": {
+                            "Урон": 400,
+                            "Защита": 8000,
+                            "Живучесть": 1100
+                        }
+                    }
+                ]
+            }
+        ],
+        "Феррадан": [
+            {
+                "coordinates": [
+                    890,
+                    520
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 6,
+                        "units_stats": {
+                            "Урон": 480,
+                            "Защита": 9600,
+                            "Живучесть": 1320
+                        }
+                    }
+                ]
+            }
+        ],
+        "Ауренбург": [
+            {
+                "coordinates": [
+                    660,
+                    380
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/giperion/pretorian.jpg",
+                        "unit_name": "Преторианцы",
+                        "unit_count": 30,
+                        "units_stats": {
+                            "Урон": 5400,
+                            "Защита": 2700,
+                            "Живучесть": 3600
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 3,
+                        "units_stats": {
+                            "Урон": 240,
+                            "Защита": 4800,
+                            "Живучесть": 660
+                        }
+                    }
+                ]
+            }
+        ],
+        "Элдирия": [
+            {
+                "coordinates": [
+                    510,
+                    200
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/giperion/pretorian.jpg",
+                        "unit_name": "Преторианцы",
+                        "unit_count": 26,
+                        "units_stats": {
+                            "Урон": 4680,
+                            "Защита": 2340,
+                            "Живучесть": 3120
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 1,
+                        "units_stats": {
+                            "Урон": 80,
+                            "Защита": 1600,
+                            "Живучесть": 220
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "halidon_in_city": {
+        "Тамир": [
+            {
+                "coordinates": [
+                    940,
+                    280
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/halidon/shadows.jpg",
+                        "unit_name": "Тени",
+                        "unit_count": 4,
+                        "units_stats": {
+                            "Урон": 340,
+                            "Защита": 40,
+                            "Живучесть": 280
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/halidon/pikap.jpg",
+                        "unit_name": "Саид 4х4",
+                        "unit_count": 99,
+                        "units_stats": {
+                            "Урон": 12870,
+                            "Защита": 25740,
+                            "Живучесть": 9900
+                        }
+                    }
+                ]
+            }
+        ],
+        "Аль-Шахара": [
+            {
+                "coordinates": [
+                    820,
+                    160
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/halidon/pikap.jpg",
+                        "unit_name": "Саид 4х4",
+                        "unit_count": 83,
+                        "units_stats": {
+                            "Урон": 10790,
+                            "Защита": 21580,
+                            "Живучесть": 8300
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/halidon/shadows.jpg",
+                        "unit_name": "Тени",
+                        "unit_count": 4,
+                        "units_stats": {
+                            "Урон": 340,
+                            "Защита": 40,
+                            "Живучесть": 280
+                        }
+                    }
+                ]
+            }
+        ]
+    }
 }

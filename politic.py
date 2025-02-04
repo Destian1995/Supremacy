@@ -19,7 +19,6 @@ from kivy.uix.image import Image
 from kivy.uix.behaviors import ButtonBehavior
 import json
 
-
 translation_dict = {
     "Аркадия": "arkadia",
     "Селестия": "celestia",
@@ -27,6 +26,7 @@ translation_dict = {
     "Хиперион": "giperion",
     "Халидон": "halidon",
 }
+
 
 def transform_filename(file_path):
     path_parts = file_path.split('/')
@@ -36,7 +36,10 @@ def transform_filename(file_path):
                 path_parts[i] = part.replace(ru_name, en_name)
     return '/'.join(path_parts)
 
+
 # transform_filename(f'files/config/status/trade_dogovor/{имя фракции которой направляется договор}.json')
+reverse_translation_dict = {v: k for k, v in translation_dict.items()}
+
 
 class StyledButton(ButtonBehavior, BoxLayout):
     def __init__(self, text, **kwargs):
@@ -382,7 +385,7 @@ def show_cultural_exchange_form(faction, game_area):
     content.add_widget(factions_spinner)
 
     description_label = Label(
-        text="Обмен культурными ценностями повышает доверие между фракциями.(+7% к отношениям).\nСтоимость 1 000 000 крон",
+        text="Обмен культурными ценностями повышает доверие между фракциями.(+7% к отношениям).\nСтоимость 10 000 000 крон",
         size_hint=(1, None),
         height=60,
         font_size=12,
@@ -421,18 +424,18 @@ def show_cultural_exchange_form(faction, game_area):
                     resources_data = json.load(file)
                     money = resources_data.get('Кроны', 0)
 
-                if money < 1_000_000:
+                if money < 10_000_000:
                     message_label.text = "Недостаточно крон для заключения договора!"
                     message_label.color = (1, 0, 0, 1)  # Красный цвет
                     return
 
                 # Списываем деньги
-                resources_data['Кроны'] -= 1_000_000
+                resources_data['Кроны'] -= 10_000_000
                 with open(cash_file, 'w') as file:
                     json.dump(resources_data, file, indent=4)
 
                 send_cultural_exchange_proposal(factions_spinner.text, faction)
-                message_label.text = f"Договор заключён с {factions_spinner.text}! (-1 млн крон)"
+                message_label.text = f"Договор заключён с {factions_spinner.text}! (-10 млн крон)"
                 message_label.color = (0, 1, 0, 1)  # Зеленый цвет
 
             except json.JSONDecodeError:
@@ -486,7 +489,69 @@ def send_cultural_exchange_proposal(fraction, target_faction):
     with open(dogovor_path_target, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-    print(f"Договор о культурном обмене между {source_faction} и {target_faction} успешно записан в {dogovor_path_target}")
+    print(
+        f"Договор о культурном обмене между {fraction} и {target_faction} успешно записан в {dogovor_path_target}")
+    manage_relations(source_faction)
+
+
+def manage_relations(faction):
+    """Управление отношениями только для фракций, заключивших дипломатическое соглашение"""
+    # Проверяем, есть ли фракция в translation_dict
+    ru_name_fraction = reverse_translation_dict.get(faction, faction)
+    # Формируем путь к директории фракции
+    relations_path = r'files\config\status\dipforce'
+    faction_dir_path = os.path.join(relations_path, faction)
+
+    # Проверяем существование директории
+    if not os.path.exists(faction_dir_path):
+        print(f"Путь {faction_dir_path} не существует.")
+        return
+
+    # Загружаем текущие отношения
+    relations_data = load_relations()
+    if ru_name_fraction not in relations_data["relations"]:
+        print(f"Отношения для фракции {ru_name_fraction} не найдены.")
+        return
+
+    # Перебираем файлы в директории, обрабатываем только тех, с кем заключены соглашения
+    for filename in os.listdir(faction_dir_path):
+        if filename.endswith(".json"):
+            faction_name_en = filename.replace('.json', '')
+            faction_name_ru = reverse_translation_dict.get(faction_name_en, faction_name_en)
+
+            # Проверяем, есть ли дипломатическое соглашение
+            if faction_name_ru in relations_data["relations"][ru_name_fraction]:
+                current_value_self = relations_data["relations"][ru_name_fraction][faction_name_ru]
+                current_value_other = relations_data["relations"][faction_name_ru][ru_name_fraction]
+                relations_data["relations"][ru_name_fraction][faction_name_ru] = min(current_value_self + 7, 100)
+                relations_data["relations"][faction_name_ru][ru_name_fraction] = min(current_value_other + 7, 100)
+
+            # Удаляем обработанный файл (чтобы это изменение было одноразовым)
+            os.remove(os.path.join(faction_dir_path, filename))
+
+    # Сохраняем обновленные данные
+    save_relations(relations_data)
+
+
+def load_relations():
+    relations_file = r'files\config\status\dipforce\relations.json'
+    """Загружаем текущие отношения из файла relations.json"""
+    try:
+        with open(relations_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print("Файл relations.json не найден. Создаем новый.")
+        return {"relations": {}}
+
+
+def save_relations(relations_data):
+    """Сохраняем обновленные отношения в файл relations.json"""
+    relations_file = r'files\config\status\dipforce\relations.json'
+    try:
+        with open(relations_file, "w", encoding="utf-8") as f:
+            json.dump(relations_data, f, ensure_ascii=False, indent=4)
+    except PermissionError:
+        print("Ошибка доступа к файлу relations.json. Проверьте права доступа.")
 
 
 def show_diplomatic_data_form(faction, game_area):
@@ -502,8 +567,6 @@ def show_alliance_form(faction, game_area):
 def show_declare_war_form(faction, game_area):
     """Заглушка: Объявление войны"""
     pass
-
-
 
 
 def start_politic_mode(faction, game_area):
@@ -533,10 +596,12 @@ def switch_to_army(faction, game_area):
     game_area.clear_widgets()
     army.start_army_mode(faction, game_area)
 
+
 def switch_to_economy(faction, game_area):
     import economic  # Импортируем здесь, чтобы избежать циклического импорта
     game_area.clear_widgets()
     economic.start_economy_mode(faction, game_area)
+
 
 def switch_to_politics(faction, game_area):
     import politic  # Импортируем здесь, чтобы избежать циклического импорта

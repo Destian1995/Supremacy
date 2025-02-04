@@ -39,21 +39,21 @@
                 {
                     "unit_image": "files/army/giperion/CPS-12.jpg",
                     "unit_name": "HPAAL",
-                    "unit_count": 8,
+                    "unit_count": 37,
                     "units_stats": {
-                        "Урон": 640,
-                        "Защита": 12800,
-                        "Живучесть": 1760
+                        "Урон": 2960,
+                        "Защита": 59200,
+                        "Живучесть": 8140
                     }
                 },
                 {
                     "unit_image": "files/army/giperion/pretorian.jpg",
                     "unit_name": "Преторианцы",
-                    "unit_count": 70,
+                    "unit_count": 92,
                     "units_stats": {
-                        "Урон": 12600,
-                        "Защита": 6300,
-                        "Живучесть": 8400
+                        "Урон": 16560,
+                        "Защита": 8280,
+                        "Живучесть": 11040
                     }
                 }
             ]
@@ -69,11 +69,11 @@
                 {
                     "unit_image": "files/army/giperion/CPS-12.jpg",
                     "unit_name": "HPAAL",
-                    "unit_count": 5,
+                    "unit_count": 219,
                     "units_stats": {
-                        "Урон": 400,
-                        "Защита": 8000,
-                        "Живучесть": 1100
+                        "Урон": 17520,
+                        "Защита": 350400,
+                        "Живучесть": 48180
                     }
                 }
             ]
@@ -109,21 +109,21 @@
                 {
                     "unit_image": "files/army/giperion/pretorian.jpg",
                     "unit_name": "Преторианцы",
-                    "unit_count": 30,
+                    "unit_count": 70,
                     "units_stats": {
-                        "Урон": 5400,
-                        "Защита": 2700,
-                        "Живучесть": 3600
+                        "Урон": 12600,
+                        "Защита": 6300,
+                        "Живучесть": 8400
                     }
                 },
                 {
                     "unit_image": "files/army/giperion/CPS-12.jpg",
                     "unit_name": "HPAAL",
-                    "unit_count": 3,
+                    "unit_count": 471,
                     "units_stats": {
-                        "Урон": 240,
-                        "Защита": 4800,
-                        "Живучесть": 660
+                        "Урон": 37680,
+                        "Защита": 753600,
+                        "Живучесть": 103620
                     }
                 }
             ]
@@ -154,6 +154,126 @@
                         "Урон": 80,
                         "Защита": 1600,
                         "Живучесть": 220
+                    }
+                }
+            ]
+        }
+    ],
+    "Цитадель Последней Надежды": [
+        {
+            "coordinates": [
+                940,
+                660
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/pretorian.jpg",
+                    "unit_name": "Преторианцы",
+                    "unit_count": 92,
+                    "units_stats": {
+                        "Урон": 16560,
+                        "Защита": 8280,
+                        "Живучесть": 11040
+                    }
+                },
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 12,
+                    "units_stats": {
+                        "Урон": 960,
+                        "Защита": 19200,
+                        "Живучесть": 2640
+                    }
+                }
+            ]
+        }
+    ],
+    "Штормград": [
+        {
+            "coordinates": [
+                410,
+                320
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 293,
+                    "units_stats": {
+                        "Урон": 23440,
+                        "Защита": 468800,
+                        "Живучесть": 64460
+                    }
+                }
+            ]
+        }
+    ],
+    "Башня Малергейна": [
+        {
+            "coordinates": [
+                520,
+                620
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 229,
+                    "units_stats": {
+                        "Урон": 18320,
+                        "Защита": 366400,
+                        "Живучесть": 50380
+                    }
+                },
+                {
+                    "unit_image": "files/army/giperion/pretorian.jpg",
+                    "unit_name": "Преторианцы",
+                    "unit_count": 17,
+                    "units_stats": {
+                        "Урон": 3060,
+                        "Защита": 1530,
+                        "Живучесть": 2040
+                    }
+                }
+            ]
+        }
+    ],
+    "Терранора": [
+        {
+            "coordinates": [
+                790,
+                300
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 796,
+                    "units_stats": {
+                        "Урон": 63680,
+                        "Защита": 1273600,
+                        "Живучесть": 175120
+                    }
+                }
+            ]
+        }
+    ],
+    "Валориан": [
+        {
+            "coordinates": [
+                523,
+                505
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 298,
+                    "units_stats": {
+                        "Урон": 23840,
+                        "Защита": 476800,
+                        "Живучесть": 65560
                     }
                 }
             ]

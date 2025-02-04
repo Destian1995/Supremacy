@@ -5,9 +5,10 @@ from kivy.uix.image import Image
 from kivy.uix.popup import Popup
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
-from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.scrollview import ScrollView
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
+from kivy.metrics import dp
+from kivy.core.window import Window
 import os
 import yaml
 import json
@@ -42,110 +43,157 @@ class AdvisorView(FloatLayout):
         self.relations_path = r'files\config\status\dipforce'
         self.relations_file = r'files\config\status\dipforce\relations.json'
 
-        # Создаем окно интерфейса (Popup)
-        self.interface_window = FloatLayout(size_hint=(1, 1))  # Окно занимает весь доступный размер
-        self.interface_window.pos_hint = {'center_x': 0.5, 'center_y': 0.5}  # Центрируем окно
+        # Настройки темы
+        self.colors = {
+            'background': (0.95, 0.95, 0.95, 1),
+            'primary': (0.118, 0.255, 0.455, 1),  # Темно-синий
+            'accent': (0.227, 0.525, 0.835, 1),   # Голубой
+            'text': (1, 1, 1, 1),
+            'card': (1, 1, 1, 1)
+        }
 
-        # Разделим окно на 2 части: Левую (картинка) и Правую (кнопки и информация)
-        layout = GridLayout(cols=2, size_hint=(1, 1), spacing=10, padding=[20, 20, 20, 20])
+        # Создаем главное окно
+        self.interface_window = FloatLayout(size_hint=(1, 1))
 
-        # Левый блок — картинка (фото парламента или советника)
-        left_layout = FloatLayout(size_hint=(0.5, 1))
+        # Основной контейнер
+        main_layout = BoxLayout(
+            orientation='horizontal',
+            spacing=dp(20),
+            padding=dp(20),
+            size_hint=(1, 1)
+        )
+
+        # Левая панель с изображением
+        left_panel = FloatLayout(size_hint=(0.45, 1))
         palace_image_path = f"files/sov/parlament/{self.faction}_palace.jpg"
         if os.path.exists(palace_image_path):
             palace_image = Image(
                 source=palace_image_path,
                 size_hint=(1, 1),
                 allow_stretch=True,
-                keep_ratio=True
+                keep_ratio=False
             )
-            left_layout.add_widget(palace_image)
+            left_panel.add_widget(palace_image)
 
-        # Правый блок — кнопки и информация
-        right_layout = GridLayout(cols=1, size_hint=(0.5, 1), spacing=10, padding=5)
-
-        # Блок для отображения мнения советника (в правом верхнем углу)
-        opinion_box = TextInput(
-            text="Здесь будет мнение советника...",
-            font_size='12sp',
-            size_hint=(1, 0.3),
-            readonly=True,
-            background_color=(0.95, 0.95, 0.95, 1),
-            foreground_color=(0, 0, 0, 1),
-            padding=[5, 5, 5, 5]
+        # Правая панель
+        right_panel = BoxLayout(
+            orientation='vertical',
+            size_hint=(0.55, 1),
+            spacing=0,  # Убираем промежутки между элементами
+            padding=0   # Убираем отступы
         )
-        right_layout.add_widget(opinion_box)
 
-        # Добавление вкладок (кнопок)
-        self.tabs_layout = ScrollView(size_hint=(1, 0.6))  # Скроллинг вкладок
-        self.tabs_content = GridLayout(cols=1, size_hint_y=None)
-        self.tabs_content.bind(minimum_height=self.tabs_content.setter('height'))  # Адаптивная высота
-        self.add_tab_button("Сообщения")
+        # Блок с мнением советника (ВПЛОТНУЮ К ВЕРХУ)
+        advice_card = BoxLayout(
+            orientation='vertical',
+            size_hint_y=None,  # Убираем растяжение по высоте
+            height=dp(120),    # Фиксированная высота, можно увеличить
+            padding=dp(10)
+        )
+        with advice_card.canvas.before:
+            Color(*self.colors['card'])
+            RoundedRectangle(pos=advice_card.pos, size=advice_card.size, radius=[10])
+
+        advice_text = Label(
+            text="Наши дипломатические усилия должны быть сосредоточены на укреплении связей с нейтральными фракциями.",
+            font_size=dp(14),
+            color=(0.2, 0.2, 0.2, 1),
+            halign='left',
+            valign='top',
+            size_hint=(1, 1),
+            text_size=(Window.width * 0.5 - dp(40), None)
+        )
+        advice_card.add_widget(advice_text)
+
+        # Добавляем советника в правую панель
+        right_panel.add_widget(advice_card)
+
+        # Панель вкладок (СРАЗУ ПОД СОВЕТНИКОМ)
+        tabs_panel = ScrollView(
+            size_hint=(1, 1),  # Позволяет вкладкам заполнять оставшееся пространство
+            bar_width=dp(8),
+            bar_color=(0.5, 0.5, 0.5, 0.5)
+        )
+        self.tabs_content = GridLayout(
+            cols=1,
+            size_hint_y=None,
+            spacing=dp(10),
+            padding=dp(5)
+        )
+        self.tabs_content.bind(minimum_height=self.tabs_content.setter('height'))
+
+        # Добавляем вкладки
+        self.add_tab_button("Последние новости", self.last_news)
         self.add_tab_button("Состояние отношений", self.show_relations)
-        self.add_tab_button("Мнения советника", self.show_advisor_opinion)
-        self.tabs_layout.add_widget(self.tabs_content)  # Добавляем контейнер в ScrollView
-        right_layout.add_widget(self.tabs_layout)
 
-        # Добавление левой и правой части в главный макет
-        layout.add_widget(left_layout)
-        layout.add_widget(right_layout)
+        tabs_panel.add_widget(self.tabs_content)
+        right_panel.add_widget(tabs_panel)
 
-        # Добавляем главный макет в окно интерфейса
-        self.interface_window.add_widget(layout)
+        # Сборка интерфейса
+        main_layout.add_widget(left_panel)
+        main_layout.add_widget(right_panel)
+        self.interface_window.add_widget(main_layout)
 
-        # Кнопки внизу окна
-        buttons_layout = BoxLayout(
-            orientation='horizontal',
+        # Нижняя панель с кнопками
+        bottom_panel = BoxLayout(
             size_hint=(1, None),
-            height=50,
-            spacing=10,
-            padding=10
+            height=dp(60),
+            padding=dp(10),
+            pos_hint={'x': 0, 'y': 0}
         )
         close_button = Button(
             text="Закрыть",
             size_hint=(None, None),
-            size=(100, 40),
-            background_color=(0.8, 0.2, 0.2, 1)
+            size=(dp(120), dp(50)),
+            background_normal='',
+            background_color=(0.8, 0.2, 0.2, 1),
+            color=(1, 1, 1, 1),
+            font_size=dp(16),
+            bold=True,
+            border=(0, 0, 0, 0)
         )
         close_button.bind(on_press=self.close_window)
-        buttons_layout.add_widget(close_button)
+        bottom_panel.add_widget(close_button)
+        self.interface_window.add_widget(bottom_panel)
 
-        # Добавляем кнопки в нижнюю часть окна
-        self.interface_window.add_widget(buttons_layout)
-        buttons_layout.pos_hint = {'x': 0, 'y': 0}
-
-        # Создаем Popup с окном интерфейса
+        # Создаем Popup (уменьшен размер до 70%)
         self.popup = Popup(
-            title="Министерство Иностранных Дел",
+            title=f"[size=20][b]{foreign_ministers[self.faction]}[/b], Министр Иностранных Дел[/size]",
+            title_size=dp(18),
             content=self.interface_window,
-            size_hint=(0.8, 0.8),  # Размер окна
-            pos_hint={'center_x': 0.5, 'center_y': 0.5}  # Центрирование окна
+            size_hint=(0.7, 0.7),  # Уменьшено с 0.85 до 0.7
+            separator_height=dp(0),
+            background='files/sov/parlament/popup_bg.png' if os.path.exists('files/sov/parlament/popup_bg.png') else ''
         )
-        self.popup.open()  # Открываем окно
+        self.popup.open()
+
+    def add_tab_button(self, text, on_press=None):
+        """Создает стилизованную кнопку вкладки"""
+        btn = Button(
+            text=text,
+            size_hint=(1, None),
+            height=dp(60),
+            font_size=dp(16),
+            bold=True,
+            background_normal='',
+            background_color=(0.95, 0.95, 0.95, 1),
+            color=self.colors['primary'],
+            border=(0, 0, 0, 0)
+        )
+        with btn.canvas.before:
+            Color(*self.colors['primary'])
+            RoundedRectangle(pos=btn.pos, size=btn.size, radius=[5])
+            Color(rgba=(1, 1, 1, 0.1))
+            Rectangle(pos=btn.pos, size=(btn.width, 2))
+
+        btn.bind(on_press=on_press)
+        btn.bind(on_enter=lambda x: setattr(btn, 'background_color', (0.9, 0.9, 0.9, 1)))
+        btn.bind(on_leave=lambda x: setattr(btn, 'background_color', (0.95, 0.95, 0.95, 1)))
+        self.tabs_content.add_widget(btn)
 
     def close_window(self, instance):
         """Закрытие окна"""
         self.popup.dismiss()  # Закрывает окно Popup
-
-    def add_tab_button(self, text, on_press=None):
-        """Добавляет кнопку вкладки с эффектом при наведении"""
-        button = Button(
-            text=text,
-            size_hint=(1, None),  # Убираем фиксированную высоту кнопок
-            height=40,  # Компактная высота
-            font_size='14sp',
-            background_normal='',
-            background_color=(0.2, 0.6, 0.9, 1),
-            color=(1, 1, 1, 1),
-            border=(5, 5, 5, 5)
-        )
-        if on_press:
-            button.bind(on_press=on_press)
-
-        # Эффект на кнопке при наведении
-        button.bind(on_enter=self.on_button_hover)
-        button.bind(on_leave=self.on_button_leave)
-        self.tabs_content.add_widget(button)  # Добавляем кнопку в контейнер
 
     def on_button_hover(self, instance):
         """Меняет цвет кнопки при наведении мыши"""
@@ -155,153 +203,8 @@ class AdvisorView(FloatLayout):
         """Возвращает цвет кнопки при уходе мыши"""
         instance.background_color = (0.2, 0.6, 0.9, 1)
 
-
-
-    def load_resources(self):
-        try:
-            # Detect encoding
-            with open('files/config/resources/cash.json', 'rb') as file:
-                raw_data = file.read()
-                result = chardet.detect(raw_data)
-                encoding = result['encoding']
-
-            # Use the detected encoding to read the file
-            with open('files/config/resources/cash.json', 'r', encoding=encoding) as file:
-                result = json.load(file)
-                print('Данные по ресурсам игрока:', result)
-                return result
-
-        except FileNotFoundError:
-            print("Файл с ресурсами не найден.")
-            return {}
-
-    def track_resources(self):
-        """Сохраняет текущие ресурсы в историю."""
-        resources = self.load_resources()
-        if resources:
-            for key in self.resource_history:
-                self.resource_history[key].append(resources.get(key, 0))
-                # Сохраняем только последние три значения
-                if len(self.resource_history[key]) > 3:
-                    self.resource_history[key].pop(0)
-
-    def analyze_resource_trend(self):
-        """Анализирует тенденцию изменения ресурсов."""
-        resources = self.load_resources()
-        if not resources:
-            return "Нет данных о ресурсах."
-
-        changes = {}
-        for resource, history in self.resource_history.items():
-            if len(history) < 2:
-                continue
-            # Считаем разницу между последними значениями
-            change = history[-1] - history[-2]
-            changes[resource] = change
-
-        # Определяем какой ресурс изменился больше всего
-        if not changes:
-            return "Нет изменений в ресурсах."
-
-        # Сортируем ресурсы по величине изменения
-        sorted_changes = sorted(changes.items(), key=lambda item: abs(item[1]), reverse=True)
-        resource, change = sorted_changes[0]
-
-        if change > 0:
-            return f"Ресурс '{resource}' растет. Хорошие новости!"
-        elif change < 0:
-            return f"Ресурс '{resource}' падает. Нам нужно что-то делать!"
-        else:
-            return f"Ресурс '{resource}' стабилен."
-
-    # Отображение мнения советника
-    def show_advisor_opinion(self, instance):
-        """Отображает мнение советника с его изображением, именем и рамкой."""
-        # Очистка текущих виджетов
-        self.clear_widgets()
-
-        opinions_path = f'files/config/status/dipforce/{translation_dict.get(self.faction)}/message.yaml'
-        try:
-            with open(opinions_path, 'r', encoding='utf-8') as file:
-                opinions = yaml.safe_load(file)
-                print(f'Подгруженные opinions: {opinions}')
-        except FileNotFoundError:
-            opinions = {}
-            print(f"Файл {opinions_path} не найден.")
-        except yaml.YAMLError as e:
-            opinions = {}
-            print(f"Ошибка декодирования YAML в файле {opinions_path}: {e}")
-
-        # Словарь путей к изображениям советников
-        advisor_images = {
-            "Аркадия": "files/sov/sov_arkadia.jpg",
-            "Селестия": "files/sov/sov_celestia.jpg",
-            "Хиперион": "files/sov/sov_giperion.jpg",
-            "Этерия": "files/sov/sov_eteria.jpg",
-            "Халидон": "files/sov/sov_halidon.jpg",
-        }
-
-        # Внешний макет с отступом вправо
-        main_layout = BoxLayout(orientation='horizontal', spacing=20, padding=[200, 10, 10, 10])
-
-        # Левый блок: изображение, имя и мнение советника
-        advisor_layout = BoxLayout(orientation='vertical', size_hint=(0.4, 1), spacing=10)
-
-        # Изображение советника
-        advisor_image_path = advisor_images.get(self.faction)
-        if advisor_image_path:
-            advisor_image = Image(source=advisor_image_path, size_hint=(1, 0.7), allow_stretch=True, keep_ratio=True)
-        else:
-            advisor_image = Image(source="files/sov/default.jpg", size_hint=(1, 0.7), allow_stretch=True,
-                                  keep_ratio=True)
-
-        advisor_layout.add_widget(advisor_image)
-
-        # Имя советника с рамкой
-        advisor_name = foreign_ministers.get(self.faction, "Неизвестен")
-        advisor_name_box = BoxLayout(size_hint=(1, 0.1), padding=[10, 10])
-        with advisor_name_box.canvas.before:
-            Color(0.8, 0.8, 0.8, 1)  # Цвет фона рамки
-            advisor_name_box.rect = Rectangle(size=advisor_name_box.size, pos=advisor_name_box.pos)
-            advisor_name_box.bind(size=lambda _, s: setattr(advisor_name_box.rect, 'size', s))
-            advisor_name_box.bind(pos=lambda _, p: setattr(advisor_name_box.rect, 'pos', p))
-
-        advisor_name_label = Label(
-            text=advisor_name,
-            font_size='20sp',
-            halign='center',
-            valign='middle',
-            color=(0, 0, 0, 1)  # Цвет текста
-        )
-        advisor_name_box.add_widget(advisor_name_label)
-        advisor_layout.add_widget(advisor_name_box)
-
-        # Мнение советника
-        faction_opinion = opinions.get("Экономические", [])
-        opinion_message = faction_opinion[0].get("сообщение",
-                                                 "Нет данных.") if faction_opinion else "Мне нечего Вам сказать."
-
-        # Анализ изменений ресурсов
-        resource_trend_message = self.analyze_resource_trend()
-        opinion_message = f"{opinion_message} {resource_trend_message}"
-
-        opinion_box = TextInput(
-            text=opinion_message,
-            size_hint=(1, 0.2),
-            font_size='16sp',
-            halign='center',
-            readonly=True,
-            background_color=(0.9, 0.9, 0.9, 1),
-            foreground_color=(0, 0, 0, 1),
-            padding=[10, 10, 10, 10]
-        )
-        advisor_layout.add_widget(opinion_box)
-
-        # Добавляем левый блок в основной макет
-        main_layout.add_widget(advisor_layout)
-
-        # Добавление основного макета в виджет
-        self.add_widget(main_layout)
+    def last_news(self):
+        pass
 
     def manage_relations(self):
         """Управление отношениями только для фракций, заключивших дипломатическое соглашение"""
@@ -358,67 +261,141 @@ class AdvisorView(FloatLayout):
 
     def show_relations(self, instance):
         """Отображает окно с таблицей отношений."""
-        # Перезагружаем данные о отношениях
         self.manage_relations()
-
         try:
-            # Загрузка файлов
             with open(self.relations_file, "r", encoding="utf-8") as f:
                 relation = json.load(f)
         except FileNotFoundError:
             print("Файл relations.json не найден.")
             return
-
-        # Получение отношений для текущей фракции
         faction_relations = relation.get("relations", {}).get(self.faction, {})
         if not faction_relations:
             print(f"Нет данных об отношениях для фракции {self.faction}.")
             return
 
-        # Создание основного макета для таблицы
-        layout = GridLayout(cols=2, size_hint_y=None, spacing=10)
-        layout.bind(minimum_height=layout.setter('height'))
+        # Создаем основной контейнер
+        main_layout = BoxLayout(
+            orientation='vertical',
+            spacing=dp(10),
+            padding=dp(10)
+        )
 
-        # Заголовки столбцов
-        layout.add_widget(Label(
-            text="Фракция",
+        # Заголовок
+        header = Label(
+            text=f"Отношения {self.faction}",
+            font_size='20sp',
             bold=True,
-            font_size="18sp",
             size_hint_y=None,
-            height=40
-        ))
-        layout.add_widget(Label(
-            text="Отношения",
-            bold=True,
-            font_size="18sp",
-            size_hint_y=None,
-            height=40
-        ))
+            height=dp(40),
+            color=(0.15, 0.15, 0.15, 1)
+        )
+        main_layout.add_widget(header)
 
-        # Добавление данных в таблицу
+        # Таблица с данными
+        table = GridLayout(
+            cols=2,
+            size_hint_y=None,
+            spacing=dp(5),
+            row_default_height=dp(40)
+        )
+        table.bind(minimum_height=table.setter('height'))
+
+        # Заголовки таблицы
+        table.add_widget(self.create_header("Фракция"))
+        table.add_widget(self.create_header("Отношения"))
+
+        # Добавление данных
         for country, value in faction_relations.items():
-            layout.add_widget(Label(
-                text=country,
-                font_size="16sp",
-                size_hint_y=None,
-                height=30
-            ))
-            layout.add_widget(Label(
-                text=f"{value}%",
-                font_size="16sp",
-                size_hint_y=None,
-                height=30
-            ))
+            table.add_widget(self.create_cell(country))
+            table.add_widget(self.create_value_cell(value))
 
-        # Добавление прокрутки для большого количества данных
-        scroll_view = ScrollView(size_hint=(1, None), size=(400, 300))
-        scroll_view.add_widget(layout)
+        # Прокрутка
+        scroll = ScrollView(
+            size_hint=(1, 1),
+            bar_width=dp(8),
+            bar_color=(0.4, 0.4, 0.4, 0.6)
+        )
+        scroll.add_widget(table)
+        main_layout.add_widget(scroll)
 
-        # Создание всплывающего окна
+        # Настройка попапа
         popup = Popup(
-            title=f"Отношения {self.faction}",
-            content=scroll_view,
-            size_hint=(0.8, 0.6),
-            auto_dismiss=True
+            title='',
+            content=main_layout,
+            size_hint=(0.8, 0.8),
+            background_color=(0.96, 0.96, 0.96, 1),
+            overlay_color=(0, 0, 0, 0.2)
         )
         popup.open()
+
+    def create_header(self, text):
+        """Создает ячейку заголовка таблицы"""
+        lbl = Label(
+            text=text,
+            bold=True,
+            font_size='18sp',
+            color=(1, 1, 1, 1),
+            size_hint_y=None,
+            height=dp(45)
+        )
+        with lbl.canvas.before:
+            Color(0.15, 0.24, 0.35, 1)  # Темно-синий фон
+            rect = Rectangle(size=lbl.size, pos=lbl.pos)
+        lbl.bind(pos=lambda instance, value: setattr(rect, 'pos', instance.pos))
+        lbl.bind(size=lambda instance, value: setattr(rect, 'size', instance.size))
+        return lbl
+
+    def create_cell(self, text):
+        """Создает ячейку с названием фракции (белый цвет и жирный шрифт)"""
+        lbl = Label(
+            text=text,
+            font_size='16sp',
+            bold=True,
+            color=(1, 1, 1, 1),  # Белый цвет текста
+            halign='left',
+            valign='middle',
+            padding_x=dp(15),
+            size_hint_y=None,
+            height=dp(40)
+        )
+        lbl.bind(size=lbl.setter('text_size'))  # Автоматический перенос текста
+        return lbl
+
+    def create_value_cell(self, value):
+        """Создает ячейку со значением отношений"""
+        color = self.get_relation_color(value)
+        lbl = Label(
+            text=f"{value}%",
+            font_size='16sp',
+            bold=True,
+            color=color,
+            halign='center',
+            valign='middle',
+            size_hint_y=None,
+            height=dp(40)
+        )
+        return lbl
+
+    def update_rect(self, instance, value):
+        """Обновляет позицию и размер прямоугольника фона"""
+        self.rect.pos = instance.pos
+        self.rect.size = instance.size
+
+    def get_relation_color(self, value):
+        """Возвращает цвет в зависимости от значения"""
+        if value <= 15:
+            return (0.8, 0.1, 0.1, 1)
+        elif 15 < value <= 25:
+            return (1.0, 0.5, 0.0, 1)
+        elif 25 < value <= 40:
+            return (1.0, 0.8, 0.0, 1)
+        elif 40 < value <= 50:
+            return (0.2, 0.7, 0.3, 1)
+        elif 50 < value <= 60:
+            return (0.0, 0.8, 0.8, 1)
+        elif 60 < value <= 75:
+            return (0.0, 0.6, 1.0, 1)
+        elif 75 < value <= 90:
+            return (0.1, 0.3, 0.9, 1)
+        else:
+            return (1, 1, 1, 1)

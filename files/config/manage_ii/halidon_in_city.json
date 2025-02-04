@@ -19,11 +19,11 @@
                 {
                     "unit_image": "files/army/halidon/pikap.jpg",
                     "unit_name": "Саид 4х4",
-                    "unit_count": 99,
+                    "unit_count": 157,
                     "units_stats": {
-                        "Урон": 12870,
-                        "Защита": 25740,
-                        "Живучесть": 9900
+                        "Урон": 20410,
+                        "Защита": 40820,
+                        "Живучесть": 15700
                     }
                 }
             ]
@@ -39,21 +39,51 @@
                 {
                     "unit_image": "files/army/halidon/pikap.jpg",
                     "unit_name": "Саид 4х4",
-                    "unit_count": 83,
+                    "unit_count": 2520,
                     "units_stats": {
-                        "Урон": 10790,
-                        "Защита": 21580,
-                        "Живучесть": 8300
+                        "Урон": 327600,
+                        "Защита": 655200,
+                        "Живучесть": 252000
                     }
                 },
                 {
                     "unit_image": "files/army/halidon/shadows.jpg",
                     "unit_name": "Тени",
-                    "unit_count": 4,
+                    "unit_count": 8,
                     "units_stats": {
-                        "Урон": 340,
-                        "Защита": 40,
-                        "Живучесть": 280
+                        "Урон": 680,
+                        "Защита": 80,
+                        "Живучесть": 560
+                    }
+                }
+            ]
+        }
+    ],
+    "Эркан": [
+        {
+            "coordinates": [
+                1020,
+                100
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/halidon/shadows.jpg",
+                    "unit_name": "Тени",
+                    "unit_count": 2,
+                    "units_stats": {
+                        "Урон": 170,
+                        "Защита": 20,
+                        "Живучесть": 140
+                    }
+                },
+                {
+                    "unit_image": "files/army/halidon/pikap.jpg",
+                    "unit_name": "Саид 4х4",
+                    "unit_count": 4182,
+                    "units_stats": {
+                        "Урон": 543660,
+                        "Защита": 1087320,
+                        "Живучесть": 418200
                     }
                 }
             ]

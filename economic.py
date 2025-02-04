@@ -118,7 +118,7 @@ class Faction:
     def __init__(self, name):
         self.faction = name
         self.cities = self.load_cities_from_file()
-        self.money = 100000
+        self.money = 100000000
         self.free_peoples = 10000
         self.raw_material = 20000
         self.population = 30

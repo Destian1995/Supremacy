@@ -9,21 +9,21 @@
                 {
                     "unit_image": "files/army/celestia/grenader.jpg",
                     "unit_name": "Гренадеры",
-                    "unit_count": 141,
+                    "unit_count": 189,
                     "units_stats": {
-                        "Урон": 20445,
-                        "Защита": 11280,
-                        "Живучесть": 12690
+                        "Урон": 27405,
+                        "Защита": 15120,
+                        "Живучесть": 17010
                     }
                 },
                 {
                     "unit_image": "files/army/celestia/S-19.jpg",
                     "unit_name": "С-19",
-                    "unit_count": 13,
+                    "unit_count": 2137,
                     "units_stats": {
-                        "Урон": 1300,
-                        "Защита": 10101,
-                        "Живучесть": 8060
+                        "Урон": 213700,
+                        "Защита": 1660449,
+                        "Живучесть": 1324940
                     }
                 }
             ]
@@ -39,21 +39,21 @@
                 {
                     "unit_image": "files/army/celestia/grenader.jpg",
                     "unit_name": "Гренадеры",
-                    "unit_count": 183,
+                    "unit_count": 356,
                     "units_stats": {
-                        "Урон": 26535,
-                        "Защита": 14640,
-                        "Живучесть": 16470
+                        "Урон": 51620,
+                        "Защита": 28480,
+                        "Живучесть": 32040
                     }
                 },
                 {
                     "unit_image": "files/army/celestia/S-19.jpg",
                     "unit_name": "С-19",
-                    "unit_count": 8,
+                    "unit_count": 131,
                     "units_stats": {
-                        "Урон": 800,
-                        "Защита": 6216,
-                        "Живучесть": 4960
+                        "Урон": 13100,
+                        "Защита": 101787,
+                        "Живучесть": 81220
                     }
                 }
             ]
@@ -69,11 +69,51 @@
                 {
                     "unit_image": "files/army/celestia/grenader.jpg",
                     "unit_name": "Гренадеры",
-                    "unit_count": 19,
+                    "unit_count": 80,
                     "units_stats": {
-                        "Урон": 2755,
-                        "Защита": 1520,
-                        "Живучесть": 1710
+                        "Урон": 11600,
+                        "Защита": 6400,
+                        "Живучесть": 7200
+                    }
+                },
+                {
+                    "unit_image": "files/army/celestia/S-19.jpg",
+                    "unit_name": "С-19",
+                    "unit_count": 15,
+                    "units_stats": {
+                        "Урон": 1500,
+                        "Защита": 11655,
+                        "Живучесть": 9300
+                    }
+                }
+            ]
+        }
+    ],
+    "Каландор": [
+        {
+            "coordinates": [
+                190,
+                220
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/celestia/grenader.jpg",
+                    "unit_name": "Гренадеры",
+                    "unit_count": 207,
+                    "units_stats": {
+                        "Урон": 30015,
+                        "Защита": 16560,
+                        "Живучесть": 18630
+                    }
+                },
+                {
+                    "unit_image": "files/army/celestia/S-19.jpg",
+                    "unit_name": "С-19",
+                    "unit_count": 34,
+                    "units_stats": {
+                        "Урон": 3400,
+                        "Защита": 26418,
+                        "Живучесть": 21080
                     }
                 }
             ]
