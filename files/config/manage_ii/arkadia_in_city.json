@@ -1,0 +1,55 @@
+{
+    "Тарпин": [
+        {
+            "coordinates": [
+                370,
+                600
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/arkadia/gvardia.jpg",
+                    "unit_name": "Гвардия",
+                    "unit_count": 150,
+                    "units_stats": {
+                        "Урон": 24000,
+                        "Защита": 16500,
+                        "Живучесть": 15000,
+                        "Класс юнита": "1"
+                    }
+                }
+            ]
+        }
+    ],
+    "Аргенвилль": [
+        {
+            "coordinates": [
+                100,
+                630
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/arkadia/vepr.jpg",
+                    "unit_name": "Вепрь",
+                    "unit_count": 250,
+                    "units_stats": {
+                        "Урон": 30000,
+                        "Защита": 122500,
+                        "Живучесть": 82500,
+                        "Класс юнита": "2"
+                    }
+                },
+                {
+                    "unit_image": "files/army/arkadia/pancir.jpg",
+                    "unit_name": "Панцирь - С4М",
+                    "unit_count": 50,
+                    "units_stats": {
+                        "Урон": 11000,
+                        "Защита": 715000,
+                        "Живучесть": 72500,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ]
+}

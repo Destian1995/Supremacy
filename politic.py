@@ -432,6 +432,23 @@ def show_cultural_exchange_form(faction, game_area):
     padding = font_size // 2  # Отступы
     spacing = font_size // 4  # Промежутки между элементами
 
+    # Чтение данных из файла diplomaties.json
+    file_path = os.path.join("files", "config", "status", "diplomaties.json")
+    if not os.path.exists(file_path):
+        print("Файл diplomaties.json не найден.")
+        return
+
+    with open(file_path, 'r', encoding='utf-8') as file:
+        diplomaties = json.load(file)
+
+    # Проверка, существует ли указанная фракция
+    if faction not in diplomaties:
+        print(f"Ошибка: Фракция '{faction}' не найдена.")
+        return
+
+    # Получение текущих отношений фракции
+    relations = diplomaties[faction]["отношения"]
+
     # Список всех фракций
     all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
     available_factions = [f for f in all_factions if f != faction]
@@ -491,16 +508,22 @@ def show_cultural_exchange_form(faction, game_area):
     content.add_widget(message_label)
 
     # Функция для вывода предупреждений
-    def show_warning():
-        """Выводит предупреждение, если фракция не выбрана"""
-        message_label.text = "Пожалуйста, выберите фракцию!"
-        message_label.color = (1, 0, 0, 1)  # Красный цвет
+    def show_warning(text, color=(1, 0, 0, 1)):
+        """Выводит предупреждение."""
+        message_label.text = text
+        message_label.color = color
 
     # Функция для отправки предложения
     def send_proposal(instance):
         """Отправляет предложение, если фракция выбрана и хватает денег"""
-        if factions_spinner.text == "С какой фракцией?":
-            show_warning()
+        target_faction = factions_spinner.text
+        if target_faction == "С какой фракцией?":
+            show_warning("Пожалуйста, выберите фракцию!")
+            return
+
+        # Проверяем состояние отношений
+        if relations.get(target_faction) == "война":
+            show_warning(f"Невозможно отправить предложение: идет война с {target_faction}!")
             return
 
         # Проверяем, хватает ли денег
@@ -511,25 +534,19 @@ def show_cultural_exchange_form(faction, game_area):
                     resources_data = json.load(file)
                 money = resources_data.get('Кроны', 0)
                 if money < 10_000_000:
-                    message_label.text = "Недостаточно крон для заключения договора!"
-                    message_label.color = (1, 0, 0, 1)  # Красный цвет
+                    show_warning("Недостаточно крон для заключения договора!")
                     return
-
                 # Списываем деньги
                 resources_data['Кроны'] -= 10_000_000
                 with open(cash_file, 'w') as file:
                     json.dump(resources_data, file, indent=4)
-
                 # Отправляем предложение
-                send_cultural_exchange_proposal(factions_spinner.text, faction)
-                message_label.text = f"Договор заключён с {factions_spinner.text}! (-10 млн крон)"
-                message_label.color = (0, 1, 0, 1)  # Зеленый цвет
+                send_cultural_exchange_proposal(target_faction, faction)
+                show_warning(f"Договор заключён с {target_faction}! (-10 млн крон)", color=(0, 1, 0, 1))
             except json.JSONDecodeError:
-                message_label.text = "Ошибка чтения файла ресурсов!"
-                message_label.color = (1, 0, 0, 1)  # Красный цвет
+                show_warning("Ошибка чтения файла ресурсов!")
         else:
-            message_label.text = "Файл ресурсов не найден!"
-            message_label.color = (1, 0, 0, 1)  # Красный цвет
+            show_warning("Файл ресурсов не найден!")
 
     # Кнопки
     button_layout = BoxLayout(
@@ -542,30 +559,23 @@ def show_cultural_exchange_form(faction, game_area):
     # Цвета для кнопок
     default_button_color = (0.2, 0.6, 1, 1)  # Синий цвет
     default_text_color = (1, 1, 1, 1)  # Белый текст
-
-    send_button = StyledButton(
+    send_button = Button(
         text="Отправить предложение",
         font_size=font_size,
-        button_color=default_button_color,
-        text_color=default_text_color,
+        background_color=default_button_color,
+        color=default_text_color,
         size_hint=(0.5, None),
         height=button_height
     )
     send_button.bind(on_press=send_proposal)
-
-    back_button = StyledButton(
+    back_button = Button(
         text="Назад",
         font_size=font_size,
-        button_color=(0.8, 0.2, 0.2, 1),  # Красный цвет
-        text_color=default_text_color,
+        background_color=(0.8, 0.2, 0.2, 1),  # Красный цвет
+        color=default_text_color,
         size_hint=(0.5, None),
         height=button_height
     )
-    back_button.bind(on_press=lambda x: popup.dismiss())
-
-    button_layout.add_widget(send_button)
-    button_layout.add_widget(back_button)
-    content.add_widget(button_layout)
 
     # Создаем и открываем Popup
     popup = Popup(
@@ -574,6 +584,12 @@ def show_cultural_exchange_form(faction, game_area):
         size_hint=(0.7, 0.5),
         auto_dismiss=False
     )
+    back_button.bind(on_press=popup.dismiss)
+
+    button_layout.add_widget(send_button)
+    button_layout.add_widget(back_button)
+    content.add_widget(button_layout)
+
     popup.open()
 
 def send_cultural_exchange_proposal(fraction, target_faction):
@@ -669,14 +685,386 @@ def show_peace_form(faction, game_area):
 
 
 def show_alliance_form(faction, game_area):
-    """Заглушка: Заключение альянса"""
-    pass
+    """Окно формы для предложения о создании альянса."""
+    # Рассчитываем базовый размер шрифта
+    font_size = calculate_font_size()
+    button_height = font_size * 3  # Высота кнопок
+    input_height = font_size * 2.5  # Высота полей ввода
+    padding = font_size // 2  # Отступы
+    spacing = font_size // 4  # Промежутки между элементами
+
+    # Чтение данных из файла diplomaties.json
+    diplomaties_file_path = os.path.join("files", "config", "status", "diplomaties.json")
+    if not os.path.exists(diplomaties_file_path):
+        print("Файл diplomaties.json не найден.")
+        return
+
+    with open(diplomaties_file_path, 'r', encoding='utf-8') as file:
+        diplomaties = json.load(file)
+
+    # Чтение данных из файла relations.json
+    relations_file_path = os.path.join("files", "config", "status", "dipforce", "relations.json")
+    if not os.path.exists(relations_file_path):
+        print("Файл relations.json не найден.")
+        return
+
+    with open(relations_file_path, 'r', encoding='utf-8') as file:
+        relations_data = json.load(file)
+
+    # Проверка, существует ли указанная фракция
+    if faction not in diplomaties or faction not in relations_data["relations"]:
+        print(f"Ошибка: Фракция '{faction}' не найдена.")
+        return
+
+    # Получение текущих отношений фракции
+    relations = relations_data["relations"][faction]
+
+    # Список всех фракций
+    all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
+    available_factions = [f for f in all_factions if f != faction]
+
+    # Создаем контент для Popup
+    content = BoxLayout(
+        orientation='vertical',
+        padding=padding,
+        spacing=spacing
+    )
+
+    # Заголовок
+    title = Label(
+        text="Предложение о создании альянса",
+        size_hint=(1, None),
+        height=button_height,
+        font_size=font_size * 1.5,
+        color=(1, 1, 1, 1),
+        bold=True,
+        halign='center'
+    )
+    content.add_widget(title)
+
+    # Спиннер для выбора фракции
+    factions_spinner = Spinner(
+        text="С какой фракцией?",
+        values=available_factions,
+        size_hint=(1, None),
+        height=input_height,
+        font_size=font_size,
+        background_color=(0.2, 0.6, 1, 1),
+        background_normal=''
+    )
+    content.add_widget(factions_spinner)
+
+    # Описание
+    description_label = Label(
+        text="Создание альянса возможно только при высоком уровне доверия (>90).\nУровень отношений влияет на возможность заключения союза.",
+        size_hint=(1, None),
+        height=font_size * 4,  # Высота зависит от количества строк
+        font_size=font_size,
+        color=(1, 1, 1, 1),
+        halign='center'
+    )
+    description_label.bind(size=description_label.setter('text_size'))
+    content.add_widget(description_label)
+
+    # Сообщения пользователю
+    message_label = Label(
+        text="",
+        size_hint=(1, None),
+        height=font_size * 2,
+        font_size=font_size,
+        color=(0, 1, 0, 1),
+        halign='center'
+    )
+    content.add_widget(message_label)
+
+    # Функция для вывода предупреждений
+    def show_warning(text, color=(1, 0, 0, 1)):
+        """Выводит предупреждение."""
+        message_label.text = text
+        message_label.color = color
+
+    # Функция для отправки предложения
+    def send_proposal(instance):
+        """Отправляет предложение о создании альянса."""
+        target_faction = factions_spinner.text
+        if target_faction == "С какой фракцией?":
+            show_warning("Пожалуйста, выберите фракцию!")
+            return
+
+        # Проверяем уровень отношений
+        relation_level = relations.get(target_faction, 0)
+
+        if relation_level >= 90:
+            # Меняем статус отношений на "союз"
+            diplomaties[faction]["отношения"][target_faction] = "союз"
+            diplomaties[target_faction]["отношения"][faction] = "союз"
+
+            # Сохраняем изменения в файл diplomaties.json
+            with open(diplomaties_file_path, 'w', encoding='utf-8') as file:
+                json.dump(diplomaties, file, ensure_ascii=False, indent=4)
+
+            show_warning("Пусть наши враги боятся нас! Светлого неба!", color=(0, 1, 0, 1))
+        elif 75 <= relation_level < 90:
+            show_warning("Друг. Мы должны сильнее доверять друг другу, тогда союз будет возможен.")
+        elif 50 <= relation_level < 75:
+            show_warning("Приятель. Пока сложно о чем-то конкретном говорить, давай лучше поближе узнаем друг друга.")
+        elif 30 <= relation_level < 50:
+            show_warning("Не сказал бы что в данный момент нас интересуют подобные предложения.")
+        elif 15 <= relation_level < 30:
+            show_warning("Да я лучше башку в осиное гнездо засуну чем вообще буду Вам отвечать.")
+        else:
+            show_warning("Вы там еще не сдохли? Ну ничего, мы это исправим.")
+
+    # Кнопки
+    button_layout = BoxLayout(
+        orientation='horizontal',
+        size_hint=(1, None),
+        height=button_height,
+        spacing=font_size // 2
+    )
+
+    # Цвета для кнопок
+    default_button_color = (0.2, 0.6, 1, 1)  # Синий цвет
+    default_text_color = (1, 1, 1, 1)  # Белый текст
+    send_button = Button(
+        text="Отправить предложение",
+        font_size=font_size,
+        background_color=default_button_color,
+        color=default_text_color,
+        size_hint=(0.5, None),
+        height=button_height
+    )
+    send_button.bind(on_press=send_proposal)
+    back_button = Button(
+        text="Назад",
+        font_size=font_size,
+        background_color=(0.8, 0.2, 0.2, 1),  # Красный цвет
+        color=default_text_color,
+        size_hint=(0.5, None),
+        height=button_height
+    )
+
+    # Создаем и открываем Popup
+    popup = Popup(
+        title="Создание альянса",
+        content=content,
+        size_hint=(0.7, 0.5),
+        auto_dismiss=False
+    )
+    back_button.bind(on_press=popup.dismiss)
+
+    button_layout.add_widget(send_button)
+    button_layout.add_widget(back_button)
+    content.add_widget(button_layout)
+
+    popup.open()
 
 
 def show_declare_war_form(faction, game_area):
-    """Заглушка: Объявление войны"""
-    pass
+    """Окно формы для объявления войны."""
+    # Рассчитываем базовый размер шрифта
+    font_size = calculate_font_size()
+    button_height = font_size * 3  # Высота кнопок
+    input_height = font_size * 2.5  # Высота полей ввода
+    padding = font_size // 2  # Отступы
+    spacing = font_size // 4  # Промежутки между элементами
 
+    # Чтение данных из файла diplomaties.json
+    file_path = os.path.join("files", "config", "status", "diplomaties.json")
+    if not os.path.exists(file_path):
+        print("Файл diplomaties.json не найден.")
+        return
+
+    with open(file_path, 'r', encoding='utf-8') as file:
+        diplomaties = json.load(file)
+
+    # Проверка, существует ли указанная фракция
+    if faction not in diplomaties:
+        print(f"Ошибка: Фракция '{faction}' не найдена.")
+        return
+
+    # Получение текущих отношений фракции
+    relations = diplomaties[faction]["отношения"]
+
+    # Фильтрация стран, которым можно объявить войну (не "война")
+    available_targets = [country for country, status in relations.items() if status != "война"]
+    if not available_targets:
+        print("Нет доступных целей для объявления войны.")
+        return
+
+    # Создаем контент для Popup
+    content = BoxLayout(
+        orientation='vertical',
+        padding=padding,
+        spacing=spacing
+    )
+
+    # Заголовок
+    title = Label(
+        text="Объявление войны",
+        size_hint=(1, None),
+        height=button_height,
+        font_size=font_size * 1.5,
+        color=(1, 1, 1, 1),
+        bold=True,
+        halign='center'
+    )
+    content.add_widget(title)
+
+    # Спиннер для выбора фракции
+    factions_spinner = Spinner(
+        text="Выберите цель",
+        values=available_targets,
+        size_hint=(1, None),
+        height=input_height,
+        font_size=font_size,
+        background_color=(0.2, 0.6, 1, 1),
+        background_normal=''
+    )
+    content.add_widget(factions_spinner)
+
+    # Сообщения пользователю
+    message_label = Label(
+        text="",
+        size_hint=(1, None),
+        height=font_size * 2,
+        font_size=font_size,
+        color=(0, 1, 0, 1),
+        halign='center'
+    )
+    content.add_widget(message_label)
+
+    # Функция для вывода предупреждений
+    def show_warning(text, color=(1, 0, 0, 1)):
+        """Выводит предупреждение."""
+        message_label.text = text
+        message_label.color = color
+
+    # Функция для объявления войны
+    def declare_war(instance):
+        """Объявляет войну выбранной фракции."""
+        target_faction = factions_spinner.text
+        if target_faction == "Выберите цель":
+            show_warning("Пожалуйста, выберите цель!")
+            return
+
+        # Обновление статуса отношений в diplomaties.json
+        diplomaties[faction]["отношения"][target_faction] = "война"
+        diplomaties[target_faction]["отношения"][faction] = "война"
+
+        # Сохранение изменений в файл diplomaties.json
+        with open(file_path, 'w', encoding='utf-8') as file:
+            json.dump(diplomaties, file, ensure_ascii=False, indent=4)
+
+        # Обнуление отношений в relations.json
+        reset_relations_between_factions(faction, target_faction)
+
+        # Вывод сообщения об успешном объявлении войны
+        show_warning(f"Война объявлена против {target_faction}!", color=(0, 1, 0, 1))
+
+    # Кнопки
+    button_layout = BoxLayout(
+        orientation='horizontal',
+        size_hint=(1, None),
+        height=button_height,
+        spacing=font_size // 2
+    )
+
+    # Цвета для кнопок
+    default_button_color = (0.2, 0.6, 1, 1)  # Синий цвет
+    default_text_color = (1, 1, 1, 1)  # Белый текст
+
+    declare_button = Button(
+        text="Объявить войну",
+        font_size=font_size,
+        background_color=default_button_color,
+        color=default_text_color,
+        size_hint=(0.5, None),
+        height=button_height
+    )
+    declare_button.bind(on_press=declare_war)
+
+    back_button = Button(
+        text="Назад",
+        font_size=font_size,
+        background_color=(0.8, 0.2, 0.2, 1),  # Красный цвет
+        color=default_text_color,
+        size_hint=(0.5, None),
+        height=button_height
+    )
+
+    # Создаем и открываем Popup
+    popup = Popup(
+        title="Объявление войны",
+        content=content,
+        size_hint=(0.7, 0.5),
+        auto_dismiss=False
+    )
+
+    # Привязываем кнопку "Назад" к закрытию Popup
+    back_button.bind(on_press=popup.dismiss)
+
+    # Добавляем кнопки в макет
+    button_layout.add_widget(declare_button)
+    button_layout.add_widget(back_button)
+    content.add_widget(button_layout)
+
+    # Открываем Popup
+    popup.open()
+
+def reset_relations_between_factions(faction, target_faction):
+    """
+    Обнуляет отношения между двумя фракциями в файле relations.json.
+
+    :param faction: Наша фракция (например, "Хиперион").
+    :param target_faction: Целевая фракция (например, "Аркадия").
+    """
+    # Путь к файлу relations.json
+    file_path = os.path.join("files", "config", "status", "dipforce", "relations.json")
+
+    # Проверка существования файла
+    if not os.path.exists(file_path):
+        print(f"Ошибка: Файл '{file_path}' не найден.")
+        return
+
+    # Чтение данных из файла
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            relations_data = json.load(file)
+    except json.JSONDecodeError:
+        print("Ошибка: Невозможно прочитать файл relations.json.")
+        return
+
+    # Проверка наличия ключей в данных
+    if "relations" not in relations_data:
+        print("Ошибка: В файле relations.json отсутствует ключ 'relations'.")
+        return
+
+    relations = relations_data["relations"]
+
+    # Проверка наличия наших фракций в данных
+    if faction not in relations or target_faction not in relations:
+        print(f"Ошибка: Фракция '{faction}' или '{target_faction}' не найдена в relations.json.")
+        return
+
+    # Обнуление отношений
+    if target_faction in relations[faction]:
+        relations[faction][target_faction] = 0
+    else:
+        print(f"Ошибка: Отношения между '{faction}' и '{target_faction}' не найдены.")
+
+    if faction in relations[target_faction]:
+        relations[target_faction][faction] = 0
+    else:
+        print(f"Ошибка: Отношения между '{target_faction}' и '{faction}' не найдены.")
+
+    # Сохранение изменений в файл
+    try:
+        with open(file_path, 'w', encoding='utf-8') as file:
+            json.dump(relations_data, file, ensure_ascii=False, indent=4)
+        print(f"Отношения между '{faction}' и '{target_faction}' успешно обнулены.")
+    except Exception as e:
+        print(f"Ошибка при сохранении файла: {e}")
 
 def start_politic_mode(faction, game_area):
     """Инициализация политического режима для выбранной фракции"""
