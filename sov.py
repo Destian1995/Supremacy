@@ -360,6 +360,16 @@ class AdvisorView(FloatLayout):
         # Сохраняем обновленные данные
         self.save_relations(relations_data)
 
+    def load_diplomacies(self):
+        """Загружает данные о дипломатических отношениях из файла."""
+        try:
+            file_path = "files/config/status/diplomaties.json"
+            with open(file_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            print("Файл diplomaties.json не найден.")
+            return {}
+
 
     def show_relations(self, instance):
         """Отображает окно с таблицей отношений."""
@@ -370,6 +380,9 @@ class AdvisorView(FloatLayout):
         except FileNotFoundError:
             print("Файл relations.json не найден.")
             return
+
+        # Загружаем данные из diplomaties.json
+        diplomacies = self.load_diplomacies()
         faction_relations = relation.get("relations", {}).get(self.faction, {})
         if not faction_relations:
             print(f"Нет данных об отношениях для фракции {self.faction}.")
@@ -386,31 +399,36 @@ class AdvisorView(FloatLayout):
         # Заголовок
         header = Label(
             text=f"Отношения {self.faction}",
-            font_size=Window.height * 0.03,  # Адаптивный размер шрифта
+            font_size=Window.height * 0.03,
             bold=True,
             size_hint_y=None,
-            height=Window.height * 0.06,  # Адаптивная высота
+            height=Window.height * 0.06,
             color=(0.15, 0.15, 0.15, 1)
         )
         main_layout.add_widget(header)
 
-        # Таблица с данными
+        # Таблица с данными (3 столбца)
         table = GridLayout(
-            cols=2,
+            cols=3,
             size_hint_y=None,
             spacing=dp(5),
-            row_default_height=Window.height * 0.06  # Адаптивная высота строки
+            row_default_height=Window.height * 0.06
         )
         table.bind(minimum_height=table.setter('height'))
 
         # Заголовки таблицы
         table.add_widget(self.create_header("Фракция"))
         table.add_widget(self.create_header("Отношения"))
+        table.add_widget(self.create_header("Статус"))
 
         # Добавление данных
         for country, value in faction_relations.items():
             table.add_widget(self.create_cell(country))
             table.add_widget(self.create_value_cell(value))
+
+            # Получаем статус из diplomaties.json
+            status = diplomacies.get(self.faction, {}).get("отношения", {}).get(country, "неизвестно")
+            table.add_widget(self.create_status_cell(status))
 
         # Прокрутка
         scroll = ScrollView(
@@ -430,6 +448,32 @@ class AdvisorView(FloatLayout):
             overlay_color=(0, 0, 0, 0.2)
         )
         popup.open()
+
+    def create_status_cell(self, status):
+        """Создает ячейку со статусом отношений и цветовой маркировкой."""
+        color = self.get_status_color(status)
+        lbl = Label(
+            text=status.capitalize(),
+            font_size=Window.height * 0.022,
+            bold=True,
+            color=color,
+            halign='center',
+            valign='middle',
+            size_hint_y=None,
+            height=Window.height * 0.06
+        )
+        return lbl
+
+    def get_status_color(self, status):
+        """Определяет цвет на основе статуса отношений."""
+        if status == "война":
+            return (1, 0, 0, 1)  # Красный
+        elif status == "нейтралитет":
+            return (1, 1, 1, 1)  # Белый
+        elif status == "союз":
+            return (0, 0.75, 0.8, 1)  # Синий
+        else:
+            return (0.5, 0.5, 0.5, 1)  # Серый (для неизвестного статуса)
 
     def create_header(self, text):
         """Создает ячейку заголовка таблицы"""
