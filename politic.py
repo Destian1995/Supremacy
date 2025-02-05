@@ -1323,20 +1323,53 @@ def reset_relations_between_factions(faction, target_faction):
 def start_politic_mode(faction, game_area):
     """Инициализация политического режима для выбранной фракции"""
 
-    # Кнопки для управления политикой
-    politics_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.1), pos_hint={'x': 0, 'y': 0})
+    # Создаем layout для кнопок
+    politics_layout = BoxLayout(
+        orientation='horizontal',
+        size_hint=(1, 0.1),
+        pos_hint={'x': 0, 'y': 0},
+        spacing=10,  # Расстояние между кнопками
+        padding=10   # Отступы внутри layout
+    )
 
-    negotiate_btn = Button(text="Новый договор", size_hint_x=0.33, size_hint_y=None, height=50)
-    form_alliance_btn = Button(text="Управление союзниками", size_hint_x=0.33, size_hint_y=None, height=50)
-    declare_war_btn = Button(text="Переговоры", size_hint_x=0.33, size_hint_y=None, height=50)
+    # Функция для создания стильных кнопок
+    def create_styled_button(text, on_press_callback):
+        button = Button(
+            text=text,
+            size_hint_x=0.33,
+            size_hint_y=None,
+            height=50,
+            background_color=(0, 0, 0, 0),  # Прозрачный фон
+            color=(1, 1, 1, 1),             # Цвет текста (белый)
+            font_size=16,                   # Размер шрифта
+            bold=True                       # Жирный текст
+        )
 
-    # Привязываем функцию для кнопки "Новый договор"
-    negotiate_btn.bind(on_press=lambda x: show_new_agreement_window(faction, game_area))
+        # Добавляем кастомный фон с помощью Canvas
+        with button.canvas.before:
+            Color(0.2, 0.6, 1, 1)  # Цвет фона кнопки (синий)
+            button.rect = Rectangle(pos=button.pos, size=button.size)
+
+        # Обновляем позицию и размер прямоугольника при изменении размера кнопки
+        def update_rect(instance, value):
+            instance.rect.pos = instance.pos
+            instance.rect.size = instance.size
+
+        button.bind(pos=update_rect, size=update_rect)
+
+        # Привязываем функцию к событию нажатия
+        button.bind(on_press=on_press_callback)
+        return button
+
+    # Создаем кнопки с новым стилем
+    negotiate_btn = create_styled_button("Новый договор", lambda x: show_new_agreement_window(faction, game_area))
+    form_alliance_btn = create_styled_button("Управление союзниками", lambda x: print("Управление союзниками"))
+    declare_raite_btn = create_styled_button("Рейтинги", lambda x: print("Рейтинги"))
 
     # Добавляем кнопки в layout
     politics_layout.add_widget(negotiate_btn)
     politics_layout.add_widget(form_alliance_btn)
-    politics_layout.add_widget(declare_war_btn)
+    politics_layout.add_widget(declare_raite_btn)
 
     # Добавляем layout с кнопками в нижнюю часть экрана
     game_area.add_widget(politics_layout)

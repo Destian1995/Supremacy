@@ -17,7 +17,7 @@ from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.dropdown import DropDown
-from kivy.graphics import Color, RoundedRectangle, Line
+from kivy.graphics import Color, RoundedRectangle, Line, Rectangle
 
 from kivy.uix.image import Image
 import os
@@ -1064,13 +1064,50 @@ def open_tax_popup(faction):
 def start_economy_mode(faction, game_area):
     """Инициализация экономического режима для выбранной фракции"""
 
-    # Кнопки для управления экономикой
-    economy_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.1), pos_hint={'x': 0, 'y': 0})
+    # Создаем layout для кнопок
+    economy_layout = BoxLayout(
+        orientation='horizontal',
+        size_hint=(1, 0.1),
+        pos_hint={'x': 0, 'y': 0},
+        spacing=10,  # Расстояние между кнопками
+        padding=10   # Отступы внутри layout
+    )
 
-    build_btn = Button(text="Состояние государства", size_hint_x=0.33, size_hint_y=None, height=50)
-    trade_btn = Button(text="Торговля", size_hint_x=0.33, size_hint_y=None, height=50)
-    tax_btn = Button(text="Управление налогами", size_hint_x=0.33, size_hint_y=None, height=50)
+    # Функция для создания стильных кнопок
+    def create_styled_button(text, on_press_callback):
+        button = Button(
+            text=text,
+            size_hint_x=0.33,
+            size_hint_y=None,
+            height=50,
+            background_color=(0, 0, 0, 0),  # Прозрачный фон
+            color=(1, 1, 1, 1),             # Цвет текста (белый)
+            font_size=16,                   # Размер шрифта
+            bold=True                       # Жирный текст
+        )
 
+        # Добавляем кастомный фон с помощью Canvas
+        with button.canvas.before:
+            Color(0.2, 0.8, 0.2, 1)  # Цвет фона кнопки (зеленый)
+            button.rect = Rectangle(pos=button.pos, size=button.size)
+
+        # Обновляем позицию и размер прямоугольника при изменении размера кнопки
+        def update_rect(instance, value):
+            instance.rect.pos = instance.pos
+            instance.rect.size = instance.size
+
+        button.bind(pos=update_rect, size=update_rect)
+
+        # Привязываем функцию к событию нажатия
+        button.bind(on_press=on_press_callback)
+        return button
+
+    # Создаем кнопки с новым стилем
+    build_btn = create_styled_button("Состояние государства", lambda x: open_build_popup(faction))
+    trade_btn = create_styled_button("Торговля", lambda x: open_trade_popup(faction))
+    tax_btn = create_styled_button("Управление налогами", lambda x: open_tax_popup(faction))
+
+    # Добавляем кнопки в layout
     economy_layout.add_widget(build_btn)
     economy_layout.add_widget(trade_btn)
     economy_layout.add_widget(tax_btn)
@@ -1078,7 +1115,3 @@ def start_economy_mode(faction, game_area):
     # Добавляем layout с кнопками в нижнюю часть экрана
     game_area.add_widget(economy_layout)
 
-    # Привязываем кнопку "Построить здание" к функции открытия попапа
-    build_btn.bind(on_press=lambda x: open_build_popup(faction))
-    tax_btn.bind(on_press=lambda x: open_tax_popup(faction))
-    trade_btn.bind(on_press=lambda x: open_trade_popup(faction))

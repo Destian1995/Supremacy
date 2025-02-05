@@ -1,6 +1,6 @@
 # army.py
 from kivy.animation import Animation
-from kivy.graphics import Line
+from kivy.graphics import Line, Rectangle
 from kivy.clock import Clock
 from kivy.uix.dropdown import DropDown
 from kivy.uix.floatlayout import FloatLayout
@@ -1272,26 +1272,61 @@ def get_weapons(faction):
 #------Базовая функция------------
 
 def start_army_mode(faction, game_area):
-    cities = load_cities_from_file(faction)
     """Инициализация армейского режима для выбранной фракции."""
-    army_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.1), pos_hint={'x': 0, 'y': 0})
 
-    train_btn = Button(text="Тренировка войск", size_hint_x=0.33, size_hint_y=None, height=50)
-    headquarters_btn = Button(text="Генштаб", size_hint_x=0.33, size_hint_y=None, height=50)
-    defend_btn = Button(text="Управление дб. оружием", size_hint_x=0.33, size_hint_y=None, height=50)
+    # Загружаем города из файла
+    cities = load_cities_from_file(faction)
 
+    # Создаем layout для кнопок
+    army_layout = BoxLayout(
+        orientation='horizontal',
+        size_hint=(1, 0.1),
+        pos_hint={'x': 0, 'y': 0},
+        spacing=10,  # Расстояние между кнопками
+        padding=10   # Отступы внутри layout
+    )
+
+    # Функция для создания стильных кнопок
+    def create_styled_button(text, on_press_callback):
+        button = Button(
+            text=text,
+            size_hint_x=0.33,
+            size_hint_y=None,
+            height=50,
+            background_color=(0, 0, 0, 0),  # Прозрачный фон
+            color=(1, 1, 1, 1),             # Цвет текста (белый)
+            font_size=16,                   # Размер шрифта
+            bold=True                       # Жирный текст
+        )
+
+        # Добавляем кастомный фон с помощью Canvas
+        with button.canvas.before:
+            Color(1, 0.2, 0.2, 1)  # Цвет фона кнопки (красный)
+            button.rect = Rectangle(pos=button.pos, size=button.size)
+
+        # Обновляем позицию и размер прямоугольника при изменении размера кнопки
+        def update_rect(instance, value):
+            instance.rect.pos = instance.pos
+            instance.rect.size = instance.size
+
+        button.bind(pos=update_rect, size=update_rect)
+
+        # Привязываем функцию к событию нажатия
+        button.bind(on_release=on_press_callback)
+        return button
+
+    # Создаем кнопки с новым стилем
+    train_btn = create_styled_button("Тренировка войск", lambda x: show_unit_selection(faction, ArmyCash(faction)))
+    headquarters_btn = create_styled_button("Генштаб", lambda x: show_army_headquarters(faction, cities))
+    defend_btn = create_styled_button("Управление дб. оружием", lambda x: open_weapon_db_management(faction, WeaponCash(faction)))
+
+    # Добавляем кнопки в layout
     army_layout.add_widget(train_btn)
     army_layout.add_widget(headquarters_btn)
     army_layout.add_widget(defend_btn)
-    game_area.add_widget(army_layout)
-    army_hire = ArmyCash(faction)  # Создаем экземпляр ArmyCash
-    weapon_hire = WeaponCash(faction)  # Создаем экземпляр WeaponCash
-    check_and_open_weapon_management(faction, weapon_hire)
 
-    train_btn.bind(on_release=lambda x: show_unit_selection(faction, army_hire))
-    headquarters_btn.bind(on_release=lambda x: show_army_headquarters(faction, cities))
-    defend_btn.bind(
-        on_release=lambda x: open_weapon_db_management(faction, weapon_hire))  # Открытие окна управления оружием
+    # Добавляем layout с кнопками в нижнюю часть экрана
+    game_area.add_widget(army_layout)
 
 
 def load_cities_from_file(faction):
