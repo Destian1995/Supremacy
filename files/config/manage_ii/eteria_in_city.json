@@ -1,0 +1,66 @@
+{
+    "Лунчжоу": [
+        {
+            "coordinates": [
+                960,
+                370
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/eteria/legions.jpg",
+                    "unit_name": "Легионеры",
+                    "unit_count": 19,
+                    "units_stats": {
+                        "Урон": 2280,
+                        "Защита": 950,
+                        "Живучесть": 1520,
+                        "Класс юнита": "1"
+                    }
+                },
+                {
+                    "unit_image": "files/army/eteria/tiger.jpg",
+                    "unit_name": "Тигр",
+                    "unit_count": 28,
+                    "units_stats": {
+                        "Урон": 8960,
+                        "Защита": 5600,
+                        "Живучесть": 3080,
+                        "Класс юнита": "2"
+                    }
+                }
+            ]
+        }
+    ],
+    "Юншань": [
+        {
+            "coordinates": [
+                1070,
+                610
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/eteria/tiger.jpg",
+                    "unit_name": "Тигр",
+                    "unit_count": 21,
+                    "units_stats": {
+                        "Урон": 6720,
+                        "Защита": 4200,
+                        "Живучесть": 2310,
+                        "Класс юнита": "2"
+                    }
+                },
+                {
+                    "unit_image": "files/army/eteria/legions.jpg",
+                    "unit_name": "Легионеры",
+                    "unit_count": 18,
+                    "units_stats": {
+                        "Урон": 2160,
+                        "Защита": 900,
+                        "Живучесть": 1440,
+                        "Класс юнита": "1"
+                    }
+                }
+            ]
+        }
+    ]
+}

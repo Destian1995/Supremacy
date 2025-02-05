@@ -3,6 +3,7 @@ import os
 from kivy.animation import Animation
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.popup import Popup
+from kivy.uix.screenmanager import Screen, ScreenManager
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
 from kivy.uix.tabbedpanel import TabbedPanelItem, TabbedPanel
@@ -1427,41 +1428,49 @@ def create_economy_rating_table(faction_files):
 
 
 def create_ratings_tab():
-    """Создает вкладку 'Рейтинги' с подвкладками."""
+    """Создает вкладку 'Рейтинги' с выпадающим меню для выбора таблиц."""
+    # Загружаем данные для армий и экономики
     faction_army_files = load_faction_files(os.path.join("files", "config", "manage_ii"))
     faction_economy_files = load_faction_files(os.path.join("files", "config", "buildings_in_city"))
 
-    ratings_tab = TabbedPanel(
-        do_default_tab=False,
-        background_color=(0.15, 0.15, 0.15, 1),
-        tab_width=Window.width / 2,
-        tab_height=40
+    # Основной контейнер
+    layout = BoxLayout(orientation="vertical")
+
+    # Выпадающее меню для выбора таблицы
+    spinner = Spinner(
+        text="Выберите рейтинг",
+        values=("Рейтинг армий", "Рейтинг экономик"),
+        size_hint=(1, None),
+        height=40,
+        background_color=(0.2, 0.6, 1, 1),  # Синий фон
+        color=(1, 1, 1, 1)  # Белый текст
     )
 
-    army_rating_tab = TabbedPanelItem(
-        text="Рейтинг армий",
-        background_color=(0.2, 0.6, 1, 1),
-        color=(1, 1, 1, 1)
-    )
-    army_rating_layout = create_army_rating_table(faction_army_files)
-    scroll_view_army = ScrollView(size_hint=(1, 1))
-    scroll_view_army.add_widget(army_rating_layout)
-    army_rating_tab.add_widget(scroll_view_army)
+    # Контейнер для отображения выбранной таблицы
+    content_area = BoxLayout(orientation="vertical", size_hint=(1, 1))
 
-    economy_rating_tab = TabbedPanelItem(
-        text="Рейтинг экономик",
-        background_color=(0.2, 0.6, 1, 1),
-        color=(1, 1, 1, 1)
-    )
-    economy_rating_layout = create_economy_rating_table(faction_economy_files)
-    scroll_view_economy = ScrollView(size_hint=(1, 1))
-    scroll_view_economy.add_widget(economy_rating_layout)
-    economy_rating_tab.add_widget(scroll_view_economy)
+    # Функция для обновления содержимого при выборе элемента из Spinner
+    def update_content(instance, value):
+        content_area.clear_widgets()  # Очищаем текущее содержимое
+        if value == "Рейтинг армий":
+            table_layout = create_army_rating_table(faction_army_files)
+        elif value == "Рейтинг экономик":
+            table_layout = create_economy_rating_table(faction_economy_files)
+        else:
+            table_layout = Label(text="Нет данных", color=(1, 1, 1, 1))
 
-    ratings_tab.add_widget(army_rating_tab)
-    ratings_tab.add_widget(economy_rating_tab)
+        scroll_view = ScrollView(size_hint=(1, 1))
+        scroll_view.add_widget(table_layout)
+        content_area.add_widget(scroll_view)
 
-    return ratings_tab
+    # Привязываем обработчик к событию выбора элемента
+    spinner.bind(text=update_content)
+
+    # Добавляем выпадающее меню и контейнер с содержимым
+    layout.add_widget(spinner)
+    layout.add_widget(content_area)
+
+    return layout
 
 def show_ratings_popup():
     """Открывает всплывающее окно с рейтингами."""

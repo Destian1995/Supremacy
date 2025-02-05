@@ -1,0 +1,34 @@
+{
+    "Эледрин": [
+        {
+            "coordinates": [
+                130,
+                400
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/celestia/grenader.jpg",
+                    "unit_name": "Гренадеры",
+                    "unit_count": 163,
+                    "units_stats": {
+                        "Урон": 23635,
+                        "Защита": 13040,
+                        "Живучесть": 14670,
+                        "Класс юнита": "1"
+                    }
+                },
+                {
+                    "unit_image": "files/army/celestia/S-19.jpg",
+                    "unit_name": "С-19",
+                    "unit_count": 7,
+                    "units_stats": {
+                        "Урон": 700,
+                        "Защита": 5439,
+                        "Живучесть": 4340,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ]
+}

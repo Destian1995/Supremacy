@@ -1,0 +1,55 @@
+{
+    "Рамшад": [
+        {
+            "coordinates": [
+                1000,
+                480
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/halidon/shadows.jpg",
+                    "unit_name": "Тени",
+                    "unit_count": 2,
+                    "units_stats": {
+                        "Урон": 170,
+                        "Защита": 20,
+                        "Живучесть": 140,
+                        "Класс юнита": "1"
+                    }
+                },
+                {
+                    "unit_image": "files/army/halidon/pikap.jpg",
+                    "unit_name": "Саид 4х4",
+                    "unit_count": 72,
+                    "units_stats": {
+                        "Урон": 9360,
+                        "Защита": 18720,
+                        "Живучесть": 7200,
+                        "Класс юнита": "2"
+                    }
+                }
+            ]
+        }
+    ],
+    "Аль-Шахара": [
+        {
+            "coordinates": [
+                820,
+                160
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/halidon/pikap.jpg",
+                    "unit_name": "Саид 4х4",
+                    "unit_count": 16,
+                    "units_stats": {
+                        "Урон": 2080,
+                        "Защита": 4160,
+                        "Живучесть": 1600,
+                        "Класс юнита": "2"
+                    }
+                }
+            ]
+        }
+    ]
+}

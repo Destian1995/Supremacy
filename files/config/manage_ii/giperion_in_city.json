@@ -1,0 +1,55 @@
+{
+    "Валориан": [
+        {
+            "coordinates": [
+                523,
+                505
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/pretorian.jpg",
+                    "unit_name": "Преторианцы",
+                    "unit_count": 57,
+                    "units_stats": {
+                        "Урон": 10260,
+                        "Защита": 5130,
+                        "Живучесть": 6840,
+                        "Класс юнита": "1"
+                    }
+                },
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 10,
+                    "units_stats": {
+                        "Урон": 800,
+                        "Защита": 16000,
+                        "Живучесть": 2200,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ],
+    "Солисграад": [
+        {
+            "coordinates": [
+                519,
+                370
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 5,
+                    "units_stats": {
+                        "Урон": 400,
+                        "Защита": 8000,
+                        "Живучесть": 1100,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ]
+}
