@@ -108,7 +108,12 @@ def clear_temp_files():
                   'files/config/status/trade_dogovor/resources/celestia.json',
                   'files/config/status/trade_dogovor/resources/eteria.json',
                   'files/config/status/trade_dogovor/resources/giperion.json',
-                  'files/config/status/trade_dogovor/resources/halidon.json'
+                  'files/config/status/trade_dogovor/resources/halidon.json',
+                  'files/config/manage_ii/arkadia_in_city.json',
+                  'files/config/manage_ii/celestia_in_city.json',
+                  'files/config/manage_ii/eteria_in_city.json',
+                  'files/config/manage_ii/giperion_in_city.json',
+                  'files/config/manage_ii/halidon_in_city.json'
                   ]
     for file in temp_files:
         with open(file, 'w', encoding='utf-8') as f:

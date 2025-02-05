@@ -347,14 +347,15 @@ class AIController:
 
         # Получаем координаты города из словаря self.all_cities
         city_coordinates = self.buildings.get(target_city, {}).get("Координаты")
-
         if city_coordinates is None:
             print(f"ИИ {self.faction}: Не найдены координаты для города {target_city}.")
             return False
 
         # Масштабируем характеристики юнита на количество
-        scaled_stats = {stat: value * max_units for stat, value in unit_data["stats"].items() if
-                        isinstance(value, (int, float))}
+        scaled_stats = {
+            stat: value * max_units if isinstance(value, (int, float)) else value
+            for stat, value in unit_data["stats"].items()
+        }
 
         # Формируем запись юнита
         unit_record = {
@@ -378,12 +379,13 @@ class AIController:
                 # Если юнит уже есть, увеличиваем его количество и характеристики
                 existing_count = existing_unit["unit_count"]
                 new_count = existing_count + max_units
-
                 # Обновление характеристик с учетом нового количества
                 for stat, value in scaled_stats.items():
+                    if stat == "Класс юнита":
+                        # Для "Класс юнита" значение не изменяется
+                        continue
                     existing_value = existing_unit["units_stats"].get(stat, 0)
                     existing_unit["units_stats"][stat] = existing_value + value
-
                 # Обновляем общее количество юнитов
                 existing_unit["unit_count"] = new_count
             else:
@@ -400,10 +402,8 @@ class AIController:
 
         # Сохранение обновленных данных гарнизона
         self.save_data(self.garrison_path, garrison_data)
-
         # Сохранение обновленных данных ресурсов
         self.save_data(self.resources_path, self.resources)
-
         print(f"ИИ {self.faction}: нанято {max_units} юнитов '{unit_name}' и отправлено в город {target_city}.")
         return True
 
