@@ -897,8 +897,8 @@ def show_peace_form(player_faction, game_area):
             else:
                 response = "В следующий раз мы будем лучше готовы"
             # Меняем статус на "мир"
-            diplomaties[player_faction]["отношения"][target_faction] = "мир"
-            diplomaties[target_faction]["отношения"][player_faction] = "мир"
+            diplomaties[player_faction]["отношения"][target_faction] = "нейтралитет"
+            diplomaties[target_faction]["отношения"][player_faction] = "нейтралитет"
             with open(diplomaties_file_path, 'w', encoding='utf-8') as file:
                 json.dump(diplomaties, file, ensure_ascii=False, indent=4)
             show_warning(response, color=(0, 1, 0, 1))  # Зеленый цвет

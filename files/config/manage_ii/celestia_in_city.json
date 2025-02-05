@@ -1,30 +1,83 @@
 {
-    "Эледрин": [
+    "Миреллия": [
         {
             "coordinates": [
-                130,
-                400
+                100,
+                250
             ],
             "units": [
                 {
                     "unit_image": "files/army/celestia/grenader.jpg",
                     "unit_name": "Гренадеры",
-                    "unit_count": 163,
+                    "unit_count": 120,
                     "units_stats": {
-                        "Урон": 23635,
-                        "Защита": 13040,
-                        "Живучесть": 14670,
+                        "Урон": 17400,
+                        "Защита": 9600,
+                        "Живучесть": 10800,
                         "Класс юнита": "1"
                     }
                 },
                 {
                     "unit_image": "files/army/celestia/S-19.jpg",
                     "unit_name": "С-19",
-                    "unit_count": 7,
+                    "unit_count": 34,
                     "units_stats": {
-                        "Урон": 700,
-                        "Защита": 5439,
-                        "Живучесть": 4340,
+                        "Урон": 3400,
+                        "Защита": 26418,
+                        "Живучесть": 21080,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ],
+    "Селария": [
+        {
+            "coordinates": [
+                260,
+                140
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/celestia/grenader.jpg",
+                    "unit_name": "Гренадеры",
+                    "unit_count": 43,
+                    "units_stats": {
+                        "Урон": 6235,
+                        "Защита": 3440,
+                        "Живучесть": 3870,
+                        "Класс юнита": "1"
+                    }
+                },
+                {
+                    "unit_image": "files/army/celestia/S-19.jpg",
+                    "unit_name": "С-19",
+                    "unit_count": 44,
+                    "units_stats": {
+                        "Урон": 4400,
+                        "Защита": 34188,
+                        "Живучесть": 27280,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ],
+    "Каландор": [
+        {
+            "coordinates": [
+                190,
+                220
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/celestia/S-19.jpg",
+                    "unit_name": "С-19",
+                    "unit_count": 11,
+                    "units_stats": {
+                        "Урон": 1100,
+                        "Защита": 8547,
+                        "Живучесть": 6820,
                         "Класс юнита": "3"
                     }
                 }

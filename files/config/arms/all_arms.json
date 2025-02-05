@@ -1,70 +1,69 @@
 {
-    "arkadia_in_city": {},
+    "arkadia_in_city": {
+        "Аргенвилль": [],
+        "Бастион Милитель": [
+            {
+                "coordinates": [
+                    80,
+                    460
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/arkadia/pancir.jpg",
+                        "unit_name": "Панцирь - С4М",
+                        "unit_count": 200,
+                        "units_stats": {
+                            "Урон": 88000,
+                            "Защита": 5720000,
+                            "Живучесть": 580000,
+                            "Класс юнита": "3"
+                        }
+                    }
+                ]
+            }
+        ],
+        "Штормград": [
+            {
+                "coordinates": "[410, 320]",
+                "units": [
+                    {
+                        "unit_image": "files/army/arkadia/gvardia.jpg",
+                        "unit_name": "Гвардия",
+                        "unit_count": 0,
+                        "units_stats": {
+                            "Урон": 0,
+                            "Защита": 0,
+                            "Живучесть": 0,
+                            "Класс юнита": "1"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/arkadia/pancir.jpg",
+                        "unit_name": "Панцирь - С4М",
+                        "unit_count": 200,
+                        "units_stats": {
+                            "Урон": 88000,
+                            "Защита": 5720000,
+                            "Живучесть": 580000,
+                            "Класс юнита": "3"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/arkadia/ciclon-s.jpg",
+                        "unit_name": "Циклон",
+                        "unit_count": 250,
+                        "units_stats": {
+                            "Урон": 242500,
+                            "Защита": 27500,
+                            "Живучесть": 30000,
+                            "Класс юнита": "3"
+                        }
+                    }
+                ]
+            }
+        ]
+    },
     "celestia_in_city": {
-        "Селария": [
-            {
-                "coordinates": [
-                    260,
-                    140
-                ],
-                "units": [
-                    {
-                        "unit_image": "files/army/celestia/grenader.jpg",
-                        "unit_name": "Гренадеры",
-                        "unit_count": 86,
-                        "units_stats": {
-                            "Урон": 12470,
-                            "Защита": 6880,
-                            "Живучесть": 7740,
-                            "Класс юнита": "1"
-                        }
-                    },
-                    {
-                        "unit_image": "files/army/celestia/S-19.jpg",
-                        "unit_name": "С-19",
-                        "unit_count": 3,
-                        "units_stats": {
-                            "Урон": 300,
-                            "Защита": 2331,
-                            "Живучесть": 1860,
-                            "Класс юнита": "3"
-                        }
-                    }
-                ]
-            }
-        ],
-        "Эледрин": [
-            {
-                "coordinates": [
-                    130,
-                    400
-                ],
-                "units": [
-                    {
-                        "unit_image": "files/army/celestia/grenader.jpg",
-                        "unit_name": "Гренадеры",
-                        "unit_count": 47,
-                        "units_stats": {
-                            "Урон": 6815,
-                            "Защита": 3760,
-                            "Живучесть": 4230,
-                            "Класс юнита": "1"
-                        }
-                    },
-                    {
-                        "unit_image": "files/army/celestia/S-19.jpg",
-                        "unit_name": "С-19",
-                        "unit_count": 1,
-                        "units_stats": {
-                            "Урон": 100,
-                            "Защита": 777,
-                            "Живучесть": 620,
-                            "Класс юнита": "3"
-                        }
-                    }
-                ]
-            }
-        ],
         "Миреллия": [
             {
                 "coordinates": [
@@ -75,22 +74,75 @@
                     {
                         "unit_image": "files/army/celestia/grenader.jpg",
                         "unit_name": "Гренадеры",
-                        "unit_count": 5,
+                        "unit_count": 120,
                         "units_stats": {
-                            "Урон": 725,
-                            "Защита": 400,
-                            "Живучесть": 450,
+                            "Урон": 17400,
+                            "Защита": 9600,
+                            "Живучесть": 10800,
                             "Класс юнита": "1"
                         }
                     },
                     {
                         "unit_image": "files/army/celestia/S-19.jpg",
                         "unit_name": "С-19",
-                        "unit_count": 1,
+                        "unit_count": 34,
                         "units_stats": {
-                            "Урон": 100,
-                            "Защита": 777,
-                            "Живучесть": 620,
+                            "Урон": 3400,
+                            "Защита": 26418,
+                            "Живучесть": 21080,
+                            "Класс юнита": "3"
+                        }
+                    }
+                ]
+            }
+        ],
+        "Селария": [
+            {
+                "coordinates": [
+                    260,
+                    140
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/celestia/grenader.jpg",
+                        "unit_name": "Гренадеры",
+                        "unit_count": 43,
+                        "units_stats": {
+                            "Урон": 6235,
+                            "Защита": 3440,
+                            "Живучесть": 3870,
+                            "Класс юнита": "1"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/celestia/S-19.jpg",
+                        "unit_name": "С-19",
+                        "unit_count": 44,
+                        "units_stats": {
+                            "Урон": 4400,
+                            "Защита": 34188,
+                            "Живучесть": 27280,
+                            "Класс юнита": "3"
+                        }
+                    }
+                ]
+            }
+        ],
+        "Каландор": [
+            {
+                "coordinates": [
+                    190,
+                    220
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/celestia/S-19.jpg",
+                        "unit_name": "С-19",
+                        "unit_count": 11,
+                        "units_stats": {
+                            "Урон": 1100,
+                            "Защита": 8547,
+                            "Живучесть": 6820,
                             "Класс юнита": "3"
                         }
                     }
@@ -99,6 +151,38 @@
         ]
     },
     "eteria_in_city": {
+        "Тяньчжоу": [
+            {
+                "coordinates": [
+                    1070,
+                    440
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/eteria/legions.jpg",
+                        "unit_name": "Легионеры",
+                        "unit_count": 27,
+                        "units_stats": {
+                            "Урон": 3240,
+                            "Защита": 1350,
+                            "Живучесть": 2160,
+                            "Класс юнита": "1"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/eteria/tiger.jpg",
+                        "unit_name": "Тигр",
+                        "unit_count": 34,
+                        "units_stats": {
+                            "Урон": 10880,
+                            "Защита": 6800,
+                            "Живучесть": 3740,
+                            "Класс юнита": "2"
+                        }
+                    }
+                ]
+            }
+        ],
         "Юншань": [
             {
                 "coordinates": [
@@ -107,57 +191,36 @@
                 ],
                 "units": [
                     {
-                        "unit_image": "files/army/eteria/legions.jpg",
-                        "unit_name": "Легионеры",
-                        "unit_count": 28,
-                        "units_stats": {
-                            "Урон": 3360,
-                            "Защита": 1400,
-                            "Живучесть": 2240,
-                            "Класс юнита": "1"
-                        }
-                    },
-                    {
                         "unit_image": "files/army/eteria/tiger.jpg",
                         "unit_name": "Тигр",
-                        "unit_count": 33,
+                        "unit_count": 29,
                         "units_stats": {
-                            "Урон": 10560,
-                            "Защита": 6600,
-                            "Живучесть": 3630,
-                            "Класс юнита": "2"
-                        }
-                    }
-                ]
-            }
-        ],
-        "Лунчжоу": [
-            {
-                "coordinates": [
-                    960,
-                    370
-                ],
-                "units": [
-                    {
-                        "unit_image": "files/army/eteria/tiger.jpg",
-                        "unit_name": "Тигр",
-                        "unit_count": 7,
-                        "units_stats": {
-                            "Урон": 2240,
-                            "Защита": 1400,
-                            "Живучесть": 770,
+                            "Урон": 9280,
+                            "Защита": 5800,
+                            "Живучесть": 3190,
                             "Класс юнита": "2"
                         }
                     },
                     {
                         "unit_image": "files/army/eteria/legions.jpg",
                         "unit_name": "Легионеры",
-                        "unit_count": 9,
+                        "unit_count": 15,
                         "units_stats": {
-                            "Урон": 1080,
-                            "Защита": 450,
-                            "Живучесть": 720,
+                            "Урон": 1800,
+                            "Защита": 750,
+                            "Живучесть": 1200,
                             "Класс юнита": "1"
+                        }
+                    },
+                    {
+                        "unit_image": "files/army/eteria/d-400.jpg",
+                        "unit_name": "Д-400",
+                        "unit_count": 10,
+                        "units_stats": {
+                            "Урон": 500,
+                            "Защита": 20000,
+                            "Живучесть": 4400,
+                            "Класс юнита": "3"
                         }
                     }
                 ]
@@ -165,21 +228,21 @@
         ]
     },
     "giperion_in_city": {
-        "Терранора": [
+        "Цитадель Последней Надежды": [
             {
                 "coordinates": [
-                    790,
-                    300
+                    940,
+                    660
                 ],
                 "units": [
                     {
                         "unit_image": "files/army/giperion/pretorian.jpg",
                         "unit_name": "Преторианцы",
-                        "unit_count": 44,
+                        "unit_count": 40,
                         "units_stats": {
-                            "Урон": 7920,
-                            "Защита": 3960,
-                            "Живучесть": 5280,
+                            "Урон": 7200,
+                            "Защита": 3600,
+                            "Живучесть": 4800,
                             "Класс юнита": "1"
                         }
                     },
@@ -197,21 +260,21 @@
                 ]
             }
         ],
-        "Феррадан": [
+        "Элдирия": [
             {
                 "coordinates": [
-                    890,
-                    520
+                    510,
+                    200
                 ],
                 "units": [
                     {
                         "unit_image": "files/army/giperion/pretorian.jpg",
                         "unit_name": "Преторианцы",
-                        "unit_count": 13,
+                        "unit_count": 17,
                         "units_stats": {
-                            "Урон": 2340,
-                            "Защита": 1170,
-                            "Живучесть": 1560,
+                            "Урон": 3060,
+                            "Защита": 1530,
+                            "Живучесть": 2040,
                             "Класс юнита": "1"
                         }
                     },
@@ -228,14 +291,35 @@
                     }
                 ]
             }
+        ],
+        "Терранора": [
+            {
+                "coordinates": [
+                    790,
+                    300
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/giperion/CPS-12.jpg",
+                        "unit_name": "HPAAL",
+                        "unit_count": 30,
+                        "units_stats": {
+                            "Урон": 2400,
+                            "Защита": 48000,
+                            "Живучесть": 6600,
+                            "Класс юнита": "3"
+                        }
+                    }
+                ]
+            }
         ]
     },
     "halidon_in_city": {
-        "Тамир": [
+        "Аль-Шахара": [
             {
                 "coordinates": [
-                    940,
-                    280
+                    820,
+                    160
                 ],
                 "units": [
                     {
@@ -252,11 +336,32 @@
                     {
                         "unit_image": "files/army/halidon/pikap.jpg",
                         "unit_name": "Саид 4х4",
-                        "unit_count": 78,
+                        "unit_count": 106,
                         "units_stats": {
-                            "Урон": 10140,
-                            "Защита": 20280,
-                            "Живучесть": 7800,
+                            "Урон": 13780,
+                            "Защита": 27560,
+                            "Живучесть": 10600,
+                            "Класс юнита": "2"
+                        }
+                    }
+                ]
+            }
+        ],
+        "Рамшад": [
+            {
+                "coordinates": [
+                    1000,
+                    480
+                ],
+                "units": [
+                    {
+                        "unit_image": "files/army/halidon/pikap.jpg",
+                        "unit_name": "Саид 4х4",
+                        "unit_count": 65,
+                        "units_stats": {
+                            "Урон": 8450,
+                            "Защита": 16900,
+                            "Живучесть": 6500,
                             "Класс юнита": "2"
                         }
                     }

@@ -1,0 +1,64 @@
+{
+    "Аргенвилль": [],
+    "Бастион Милитель": [
+        {
+            "coordinates": [
+                80,
+                460
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/arkadia/pancir.jpg",
+                    "unit_name": "Панцирь - С4М",
+                    "unit_count": 200,
+                    "units_stats": {
+                        "Урон": 88000,
+                        "Защита": 5720000,
+                        "Живучесть": 580000,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ],
+    "Штормград": [
+        {
+            "coordinates": "[410, 320]",
+            "units": [
+                {
+                    "unit_image": "files/army/arkadia/gvardia.jpg",
+                    "unit_name": "Гвардия",
+                    "unit_count": 0,
+                    "units_stats": {
+                        "Урон": 0,
+                        "Защита": 0,
+                        "Живучесть": 0,
+                        "Класс юнита": "1"
+                    }
+                },
+                {
+                    "unit_image": "files/army/arkadia/pancir.jpg",
+                    "unit_name": "Панцирь - С4М",
+                    "unit_count": 200,
+                    "units_stats": {
+                        "Урон": 88000,
+                        "Защита": 5720000,
+                        "Живучесть": 580000,
+                        "Класс юнита": "3"
+                    }
+                },
+                {
+                    "unit_image": "files/army/arkadia/ciclon-s.jpg",
+                    "unit_name": "Циклон",
+                    "unit_count": 250,
+                    "units_stats": {
+                        "Урон": 242500,
+                        "Защита": 27500,
+                        "Живучесть": 30000,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ]
+}
