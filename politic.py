@@ -1,9 +1,11 @@
 import os
 
 from kivy.animation import Animation
+from kivy.uix.gridlayout import GridLayout
 from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
+from kivy.uix.tabbedpanel import TabbedPanelItem, TabbedPanel
 from kivy.uix.textinput import TextInput
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.boxlayout import BoxLayout
@@ -28,6 +30,22 @@ translation_dict = {
     "Халидон": "halidon",
 }
 
+# Словарь для перевода названий файлов в русскоязычные названия фракций
+faction_names = {
+    "arkadia_in_city": "Аркадия",
+    "celestia_in_city": "Селестия",
+    "eteria_in_city": "Этерия",
+    "giperion_in_city": "Хиперион",
+    "halidon_in_city": "Халидон"
+}
+
+faction_names_build = {
+    "arkadia_buildings_city": "Аркадия",
+    "celestia_buildings_city": "Селестия",
+    "eteria_buildings_city": "Этерия",
+    "giperion_buildings_city": "Хиперион",
+    "halidon_buildings_city": "Халидон"
+}
 
 def transform_filename(file_path):
     path_parts = file_path.split('/')
@@ -415,6 +433,7 @@ def show_trade_agreement_form(faction, game_area):
     )
     popup.open()
 
+
 # Обработчик изменения размера окна
 def on_window_resize(instance, width, height):
     """Обновляет интерфейс при изменении размера окна."""
@@ -591,6 +610,7 @@ def show_cultural_exchange_form(faction, game_area):
 
     popup.open()
 
+
 def send_cultural_exchange_proposal(fraction, target_faction):
     # Преобразуем путь к файлу
     source_faction = transform_filename(target_faction)
@@ -678,7 +698,7 @@ def save_relations(relations_data):
         print("Ошибка доступа к файлу relations.json. Проверьте права доступа.")
 
 
-def calculate_army_points(faction_file):
+def calculate_peace_army_points(faction_file):
     """Вычисляет общие очки армии для указанной фракции."""
     # Коэффициенты для классов юнитов
     class_coefficients = {
@@ -855,8 +875,8 @@ def show_peace_form(player_faction, game_area):
         enemy_file = os.path.join("files", "config", "manage_ii", f"{enemy_english_name}_in_city.json")
 
         # Вычисление очков армии
-        player_points = calculate_army_points(player_file)
-        enemy_points = calculate_army_points(enemy_file)
+        player_points = calculate_peace_army_points(player_file)
+        enemy_points = calculate_peace_army_points(enemy_file)
 
         if player_points == 0 or enemy_points == 0:
             show_warning("Ошибка при вычислении очков армии.", color=(1, 0, 0, 1))  # Красный цвет
@@ -870,7 +890,7 @@ def show_peace_form(player_faction, game_area):
             elif 30 <= superiority_percentage < 70:
                 response = "Нихера себе повоевали...."
             elif 20 <= superiority_percentage < 30:
-                response = "Что там блин случилось...такое"
+                response = "Что там случилось...такое.."
             elif 10 <= superiority_percentage < 20:
                 response = "По-моему мы что-то упустили"
             else:
@@ -887,7 +907,7 @@ def show_peace_form(player_faction, game_area):
                 response = "Почти то что надо, подкинь пару крон и договоримся"
                 show_warning(response, color=(1, 1, 0, 1))  # Желтый цвет
             else:
-                response = "Мы еще закончили Вас бить"
+                response = "Мы еще не закончили Вас бить"
                 show_warning(response, color=(1, 0, 0, 1))  # Красный цвет
         else:
             response = "Сейчас передохнем и в рыло дадим"
@@ -1266,6 +1286,7 @@ def show_declare_war_form(faction, game_area):
     # Открываем Popup
     popup.open()
 
+
 def reset_relations_between_factions(faction, target_faction):
     """
     Обнуляет отношения между двумя фракциями в файле relations.json.
@@ -1320,16 +1341,243 @@ def reset_relations_between_factions(faction, target_faction):
     except Exception as e:
         print(f"Ошибка при сохранении файла: {e}")
 
+#-------------------------------------
+
+def load_faction_files(folder_path):
+    """Загружает данные о фракциях из указанной папки."""
+    faction_files = {}
+    if not os.path.exists(folder_path):
+        print(f"Папка {folder_path} не найдена.")
+        return faction_files
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".json"):
+            faction_name = filename[:-5]  # Убираем расширение .json
+            file_path = os.path.join(folder_path, filename)
+            try:
+                with open(file_path, 'r', encoding='utf-8') as file:
+                    json.load(file)  # Просто проверяем, что файл можно прочитать
+                    faction_files[faction_name] = file_path
+            except Exception as e:
+                print(f"Ошибка чтения файла {file_path}: {e}")
+    return faction_files
+
+def calculate_economy_points(buildings_file):
+    """Вычисляет общие очки экономики для указанной фракции."""
+    total_buildings = 0
+    if not os.path.exists(buildings_file):
+        print(f"Файл {buildings_file} не найден.")
+        return total_buildings
+    try:
+        with open(buildings_file, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+            if not isinstance(data, dict):
+                raise ValueError("Некорректный формат данных: ожидался словарь.")
+            for city_info in data.values():
+                buildings = city_info.get("Здания", {})
+                total_buildings += sum(buildings.values())
+    except Exception as e:
+        print(f"Ошибка обработки файла {buildings_file}: {e}")
+    return total_buildings
+
+def create_economy_rating_table(faction_files):
+    """Создает таблицу рейтинга экономик."""
+    economy_points = {}
+    for faction, file in faction_files.items():
+        points = calculate_economy_points(file)
+        economy_points[faction] = points
+
+    max_points = max(economy_points.values(), default=1)
+    layout = GridLayout(cols=3, size_hint_y=None, spacing=5, padding=10)
+    layout.bind(minimum_height=layout.setter('height'))
+
+    def add_header_with_background(text):
+        header = Label(text=text, bold=True, color=(1, 1, 1, 1), size_hint_y=None, height=40)
+        with header.canvas.before:
+            Color(0.2, 0.6, 1, 1)  # Синий фон
+            header.rect = Rectangle(pos=header.pos, size=header.size)
+        header.bind(
+            pos=lambda _, value: setattr(header.rect, 'pos', value),
+            size=lambda _, value: setattr(header.rect, 'size', value)
+        )
+        return header
+
+    layout.add_widget(add_header_with_background("Фракция"))
+    layout.add_widget(add_header_with_background("Рейтинг (%)"))
+    layout.add_widget(add_header_with_background("Плотность застройки"))
+
+    rank_colors = {
+        0: (1, 1, 1, 1),       # Белый (1-й)
+        1: (0, 0.8, 0.8, 1),   # Бирюзовый (2-й)
+        2: (0, 1, 0, 1),       # Зеленый (3-й)
+        3: (1, 1, 0, 1),       # Желтый (4-й)
+        4: (1, 0, 0, 1)        # Красный (5-й)
+    }
+
+    sorted_factions = sorted(economy_points.items(), key=lambda x: x[1], reverse=True)
+    for rank, (faction, points) in enumerate(sorted_factions):
+        rating = (points / max_points) * 100 if max_points > 0 else 0
+        russian_name = faction_names_build.get(faction, faction)
+        row_color = rank_colors.get(rank, (0.5, 0.5, 0.5, 1))
+
+        layout.add_widget(Label(text=russian_name, color=row_color, size_hint_y=None, height=40))
+        layout.add_widget(Label(text=f"{rating:.2f}%", color=row_color, size_hint_y=None, height=40))
+        layout.add_widget(Label(text=str(points), color=row_color, size_hint_y=None, height=40))
+
+    return layout
+
+
+def create_ratings_tab():
+    """Создает вкладку 'Рейтинги' с подвкладками."""
+    faction_army_files = load_faction_files(os.path.join("files", "config", "manage_ii"))
+    faction_economy_files = load_faction_files(os.path.join("files", "config", "buildings_in_city"))
+
+    ratings_tab = TabbedPanel(
+        do_default_tab=False,
+        background_color=(0.15, 0.15, 0.15, 1),
+        tab_width=Window.width / 2,
+        tab_height=40
+    )
+
+    army_rating_tab = TabbedPanelItem(
+        text="Рейтинг армий",
+        background_color=(0.2, 0.6, 1, 1),
+        color=(1, 1, 1, 1)
+    )
+    army_rating_layout = create_army_rating_table(faction_army_files)
+    scroll_view_army = ScrollView(size_hint=(1, 1))
+    scroll_view_army.add_widget(army_rating_layout)
+    army_rating_tab.add_widget(scroll_view_army)
+
+    economy_rating_tab = TabbedPanelItem(
+        text="Рейтинг экономик",
+        background_color=(0.2, 0.6, 1, 1),
+        color=(1, 1, 1, 1)
+    )
+    economy_rating_layout = create_economy_rating_table(faction_economy_files)
+    scroll_view_economy = ScrollView(size_hint=(1, 1))
+    scroll_view_economy.add_widget(economy_rating_layout)
+    economy_rating_tab.add_widget(scroll_view_economy)
+
+    ratings_tab.add_widget(army_rating_tab)
+    ratings_tab.add_widget(economy_rating_tab)
+
+    return ratings_tab
+
+def show_ratings_popup():
+    """Открывает всплывающее окно с рейтингами."""
+    content = create_ratings_tab()
+    popup = Popup(
+        title="Рейтинги",
+        content=content,
+        size_hint=(0.8, 0.8),
+        auto_dismiss=True
+    )
+    popup.open()
+
+
+def calculate_army_points(faction_file):
+    """Вычисляет общие очки армии и численность армии для указанной фракции."""
+    class_coefficients = {
+        "1": 1.1,  # Класс 1: базовые юниты
+        "2": 1.4,  # Класс 2: улучшенные юниты
+        "3": 1.9,  # Класс 3: элитные юниты
+        "4": 2.8   # Класс 4: легендарные юниты
+    }
+    total_points = 0
+    total_units = 0  # Численность армии
+    if not os.path.exists(faction_file):
+        print(f"Файл {faction_file} не найден.")
+        return total_points, total_units
+    try:
+        with open(faction_file, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+            if not isinstance(data, dict):
+                raise ValueError("Некорректный формат данных: ожидался словарь.")
+            for city_data in data.values():
+                for city_info in city_data:
+                    for unit in city_info.get("units", []):
+                        stats = unit.get("units_stats", {})
+                        unit_class = str(stats.get("Класс юнита", "1"))
+                        damage = stats.get("Урон", 0)
+                        defense = stats.get("Защита", 0)
+                        endurance = stats.get("Живучесть", 0)
+                        coefficient = class_coefficients.get(unit_class, 1.0)
+                        unit_points = defense + endurance + (damage * coefficient)
+                        unit_count = unit.get("unit_count", 1)
+                        total_points += unit_points * unit_count
+                        total_units += unit_count
+    except Exception as e:
+        print(f"Ошибка обработки файла {faction_file}: {e}")
+    return total_points, total_units
+
+def create_army_rating_table(faction_files):
+    """Создает таблицу рейтинга армий."""
+    army_points = {}
+    army_units = {}  # Словарь для хранения численности армий
+    for faction, file in faction_files.items():
+        points, units = calculate_army_points(file)
+        army_points[faction] = points
+        army_units[faction] = units
+
+    max_points = max(army_points.values(), default=1)
+    layout = GridLayout(cols=3, size_hint_y=None, spacing=5, padding=10)
+    layout.bind(minimum_height=layout.setter('height'))
+
+    def add_header_with_background(text):
+        header = Label(
+            text=text,
+            bold=True,
+            color=(1, 1, 1, 1),  # Белый текст
+            size_hint_y=None,
+            height=40
+        )
+        with header.canvas.before:
+            Color(0.2, 0.6, 1, 1)  # Синий фон
+            header.rect = Rectangle(pos=header.pos, size=header.size)
+        header.bind(
+            pos=lambda _, value: setattr(header.rect, 'pos', value),
+            size=lambda _, value: setattr(header.rect, 'size', value)
+        )
+        return header
+
+    layout.add_widget(add_header_with_background("Фракция"))
+    layout.add_widget(add_header_with_background("Рейтинг (%)"))
+    layout.add_widget(add_header_with_background("Численность армии"))
+
+    rank_colors = {
+        0: (1, 1, 1, 1),       # Белый (1-й)
+        1: (0, 0.8, 0.8, 1),   # Бирюзовый (2-й)
+        2: (0, 1, 0, 1),       # Зеленый (3-й)
+        3: (1, 1, 0, 1),       # Желтый (4-й)
+        4: (1, 0, 0, 1)        # Красный (5-й)
+    }
+
+    sorted_factions = sorted(army_points.items(), key=lambda x: x[1], reverse=True)
+    for rank, (faction, points) in enumerate(sorted_factions):
+        rating = (points / max_points) * 100 if max_points > 0 else 0
+        russian_name = faction_names.get(faction, faction)
+        row_color = rank_colors.get(rank, (0.5, 0.5, 0.5, 1))
+        units = army_units[faction]
+
+        layout.add_widget(Label(text=russian_name, color=row_color, size_hint_y=None, height=40))
+        layout.add_widget(Label(text=f"{rating:.2f}%", color=row_color, size_hint_y=None, height=40))
+        layout.add_widget(Label(text=str(units), color=row_color, size_hint_y=None, height=40))
+
+    return layout
+
+
+
+
+#------------------------------------------------------------------
 def start_politic_mode(faction, game_area):
     """Инициализация политического режима для выбранной фракции"""
-
     # Создаем layout для кнопок
     politics_layout = BoxLayout(
         orientation='horizontal',
         size_hint=(1, 0.1),
         pos_hint={'x': 0, 'y': 0},
-        spacing=10,  # Расстояние между кнопками
-        padding=10   # Отступы внутри layout
+        spacing=10,
+        padding=10
     )
 
     # Функция для создания стильных кнопок
@@ -1339,32 +1587,30 @@ def start_politic_mode(faction, game_area):
             size_hint_x=0.33,
             size_hint_y=None,
             height=50,
-            background_color=(0, 0, 0, 0),  # Прозрачный фон
-            color=(1, 1, 1, 1),             # Цвет текста (белый)
-            font_size=16,                   # Размер шрифта
-            bold=True                       # Жирный текст
+            background_color=(0, 0, 0, 0),
+            color=(1, 1, 1, 1),
+            font_size=16,
+            bold=True
         )
-
-        # Добавляем кастомный фон с помощью Canvas
         with button.canvas.before:
-            Color(0.2, 0.6, 1, 1)  # Цвет фона кнопки (синий)
+            Color(0.2, 0.6, 1, 1)
             button.rect = Rectangle(pos=button.pos, size=button.size)
 
-        # Обновляем позицию и размер прямоугольника при изменении размера кнопки
         def update_rect(instance, value):
             instance.rect.pos = instance.pos
             instance.rect.size = instance.size
 
         button.bind(pos=update_rect, size=update_rect)
-
-        # Привязываем функцию к событию нажатия
         button.bind(on_press=on_press_callback)
         return button
 
-    # Создаем кнопки с новым стилем
+    # Создаем кнопки
     negotiate_btn = create_styled_button("Новый договор", lambda x: show_new_agreement_window(faction, game_area))
     form_alliance_btn = create_styled_button("Управление союзниками", lambda x: print("Управление союзниками"))
-    declare_raite_btn = create_styled_button("Рейтинги", lambda x: print("Рейтинги"))
+    declare_raite_btn = create_styled_button(
+        "Рейтинги",
+        lambda x: show_ratings_popup()
+    )
 
     # Добавляем кнопки в layout
     politics_layout.add_widget(negotiate_btn)
