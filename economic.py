@@ -118,9 +118,9 @@ class Faction:
     def __init__(self, name):
         self.faction = name
         self.cities = self.load_cities_from_file()
-        self.money = 2000
-        self.free_peoples = 300
-        self.raw_material = 500
+        self.money = 200000
+        self.free_peoples = 30000
+        self.raw_material = 50000
         self.population = 100
         self.hospitals = 0
         self.factories = 0
@@ -292,23 +292,11 @@ class Faction:
         popup = Popup(title=title, content=Label(text=message), size_hint=(0.6, 0.4))
         popup.open()
 
-    def save_resources(self):
-        """Записывает текущее состояние ресурсов в файл."""
-        resources_data = {
-            'Кроны': self.money,
-            'Рабочие': self.free_peoples,
-            'Сырье': self.raw_material,
-            'Население': self.population
-        }
-
-        try:
-            with open('files/config/resources/cash.json', 'w') as file:
-                json.dump(resources_data, file, ensure_ascii=False, indent=4)  # Запись с индентацией для удобства
-        except Exception as e:
-            print(f"Ошибка при сохранении ресурсов: {e}")
-
     def load_resources(self):
-        """Загружает состояние ресурсов из файла и обновляет параметры."""
+        """
+        Загружает состояние ресурсов из файлов и обновляет параметры.
+        """
+        # Загрузка данных из cash.json
         if os.path.exists('files/config/resources/cash.json'):
             try:
                 with open('files/config/resources/cash.json', 'r') as file:
@@ -319,15 +307,71 @@ class Faction:
                     self.raw_material = resources_data.get('Сырье', 0)
                     self.population = resources_data.get('Население', 0)
             except json.JSONDecodeError:
-                print("Ошибка при загрузке ресурсов: файл пуст или повреждён.")
+                print("Ошибка при загрузке ресурсов из cash.json: файл пуст или повреждён.")
         else:
-            print("Файл ресурсов не найден.")
+            print("Файл cash.json не найден.")
+
+        # Загрузка данных из resources.json
+        resources_json_path = 'files/config/resources/resources.json'
+        if os.path.exists(resources_json_path):
+            try:
+                with open(resources_json_path, 'r', encoding='utf-8') as file:
+                    content = file.read().strip()
+                    if not content:
+                        print(f"Файл {resources_json_path} пуст.")
+                        return
+                    resources_data = json.loads(content)
+
+                # Прибавляем значения из resources.json к текущим ресурсам
+                if "Сырье" in resources_data:
+                    self.raw_material += resources_data["Сырье"]
+                if "Кроны" in resources_data:
+                    self.money += resources_data["Кроны"]
+                if "Население" in resources_data:
+                    self.population += resources_data["Население"]
+                if "Рабочие" in resources_data:
+                    self.free_peoples += resources_data["Рабочие"]
+
+                print("Ресурсы успешно обновлены из resources.json.")
+
+                # После загрузки ресурсов очищаем файл
+                with open(resources_json_path, 'w', encoding='utf-8') as file:
+                    json.dump({}, file, ensure_ascii=False, indent=4)
+
+                # Сохраняем обновленные ресурсы в cash.json
+                self.save_resources()
+
+            except json.JSONDecodeError:
+                print(f"Ошибка: файл {resources_json_path} содержит некорректный JSON.")
+            except Exception as e:
+                print(f"Ошибка при загрузке и добавлении ресурсов из resources.json: {e}")
+        else:
+            print("Файл resources.json не найден.")
+
+
+    def save_resources(self):
+        """Записывает текущее состояние ресурсов в файл."""
+        resources_data = {
+            'Кроны': self.money,
+            'Рабочие': self.free_peoples,
+            'Сырье': self.raw_material,
+            'Население': self.population
+        }
+        try:
+            with open('files/config/resources/cash.json', 'w') as file:
+                json.dump(resources_data, file, ensure_ascii=False, indent=4)  # Запись с индентацией для удобства
+        except Exception as e:
+            print(f"Ошибка при сохранении ресурсов: {e}")
 
     def update_cash(self):
+        """
+        Обновляет ресурсы и сохраняет их в файл.
+        """
         self.load_resources()
         self.resources['Кроны'] = self.money
         self.resources['Рабочие'] = self.free_peoples
         self.resources['Сырье'] = self.raw_material
+        self.resources['Население'] = self.population
         self.save_resources()
         return self.resources
 

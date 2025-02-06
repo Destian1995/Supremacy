@@ -45,7 +45,7 @@ def get_faction_of_city(city_name):
 
 def backup_files():
     # Определяем путь к исходным и резервным файлам
-    backup_dir = 'files/config/backup'
+    backup_dir = 'files/config/backup/save'
     city_file_path = 'files/config/city.json'
     diplomaties_file_path = 'files/config/status/diplomaties.json'
 

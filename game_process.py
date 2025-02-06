@@ -16,6 +16,7 @@ import army
 import politic
 from ii import AIController
 from sov import AdvisorView
+from event_manager import EventManager
 
 # Список всех фракций
 FACTIONS = ["Аркадия", "Селестия", "Хиперион", "Халидон", "Этерия"]
@@ -95,10 +96,12 @@ class GameScreen(Screen):
         self.cities = cities
         self.faction = Faction(selected_faction)
         self.ai_controllers = {}
-
+        # Счетчик ходов
+        self.turn_counter = 0
+        # Инициализация EventManager
+        self.event_manager = EventManager(self.selected_faction, self)
         # Инициализация UI
         self.init_ui()
-
         # Запускаем обновление ресурсов каждую 1 секунду
         Clock.schedule_interval(self.update_cash, 1)
 
@@ -160,7 +163,7 @@ class GameScreen(Screen):
         self.init_ai_controllers()
 
     def update_cash(self, dt):
-        """Обновление текущего капитала фракции через каждые 15 секунд"""
+        """Обновление текущего капитала фракции через каждые 1 секунду"""
         self.faction.update_cash()
         # Обновляем отображение в ResourceBox
         self.resource_box.update_resources()
@@ -198,14 +201,16 @@ class GameScreen(Screen):
 
     def process_turn(self, instance=None):
         """Обработка хода игрока и ИИ"""
+        # Увеличиваем счетчик ходов
+        self.turn_counter += 1
+
         # Обновляем ресурсы игрока
         self.faction.update_resources()
         self.resource_box.update_resources()
 
         # Путь к каталогу с файлами
         attack_in_city_dir = r'files\config\attack_in_city'
-
-        # Проставляем 'True' во всех файлах в каталоге
+        # Проставляем 'True' во всех файлах в каталоге после нападения
         for filename in os.listdir(attack_in_city_dir):
             if filename.endswith('_check.txt'):
                 file_path = os.path.join(attack_in_city_dir, filename)
@@ -217,4 +222,9 @@ class GameScreen(Screen):
             ai_controller.make_turn()
 
         # Логирование или обновление интерфейса после хода
-        print("Ход завершён")
+        print(f"Ход {self.turn_counter} завершён")
+
+        # Проверяем, нужно ли запустить событие
+        if self.turn_counter % 3 == 0:
+            print("Генерация события...")
+            self.event_manager.generate_event()

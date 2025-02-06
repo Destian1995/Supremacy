@@ -56,7 +56,6 @@ def get_faction_of_city(city_name):
 class ArmyCash:
     def __init__(self, faction):
         self.faction = faction
-        self.resources_file = 'files/config/resources/resources.json'
         self.cash_resources = 'files/config/resources/cash.json'
         self.units_file = 'files/config/arms/arms.json'  # Путь к файлу юнитов
         self.resources = self.load_resources()
@@ -758,7 +757,6 @@ def save_army_in_city(city_name, city_coords, unit_image, unit_name, unit_count,
 class WeaponCash:
     def __init__(self, faction):
         self.faction = faction
-        self.resources_file = 'files/config/resources/resources.json'
         self.cash_resources = 'files/config/resources/cash.json'
         self.units_file = 'files/config/arms/weapons.json'  # Путь к файлу юнитов
         self.resources = self.load_resources()
