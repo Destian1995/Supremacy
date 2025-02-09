@@ -183,12 +183,11 @@ class MapWidget(Widget):
         self.touch_start = None  # Стартовая позиция касания
         self.fortress_rectangles = []  # Список для хранения крепостей
         self.current_player_kingdom = player_kingdom  # Текущее королевство игрока
-        self.map_pos = self.map_positions_start() # Позиция карты
+        self.map_pos = self.map_positions_start()  # Позиция карты
         print(self.current_player_kingdom)
         # Отрисовка карты
         with self.canvas:
             self.map_image = Rectangle(source='files/map/map.png', pos=self.map_pos, size=(screen_width, screen_height))
-
         # Отрисовка всех крепостей
         self.draw_fortresses()
 
@@ -204,35 +203,42 @@ class MapWidget(Widget):
         elif self.current_player_kingdom == 'Халидон':
             return [-360, 0]
 
-
     def draw_fortresses(self):
         self.fortress_rectangles.clear()
         self.canvas.clear()
-
         # Загружаем данные о княжествах
         file_path = os.path.join('files', 'config', 'city.json')
         data = load_kingdom_data(file_path)
 
+        # Словарь для соответствия фракций и изображений
+        faction_images = {
+            'Хиперион': 'files/buildings/giperion.png',
+            'Аркадия': 'files/buildings/arkadia.png',
+            'Селестия': 'files/buildings/celestia.png',
+            'Этерия': 'files/buildings/eteria.png',
+            'Халидон': 'files/buildings/halidon.png'
+        }
+
         # Отрисовываем фон карты
         with self.canvas:
             self.map_image = Rectangle(source='files/map/map.png', pos=self.map_pos, size=(screen_width, screen_height))
-
             # Отрисовываем крепости всех княжеств
             for kingdom_name, kingdom_data in data["kingdoms"].items():
-                fortress_color = kingdom_data["color"]
-
                 for fortress in kingdom_data["fortresses"]:
                     fort_x, fort_y = fortress["coordinates"]
-                    fort_x += self.map_pos[0] - 10
-                    fort_y += self.map_pos[1] - 10
+                    # Сдвигаем изображение правее и выше
+                    fort_x += self.map_pos[0] + 4  # Сдвиг вправо
+                    fort_y += self.map_pos[1] + 2  # Сдвиг вверх
+
+                    # Получаем путь к изображению для текущей фракции
+                    image_path = faction_images.get(kingdom_name, 'files/buildings/default.png')
 
                     # Сохраняем прямоугольник и владельца для проверки касания
-                    fort_rect = (fort_x, fort_y, 20, 20)
+                    fort_rect = (fort_x, fort_y, 40, 40)  # Размеры изображения (например, 40x40)
                     self.fortress_rectangles.append((fort_rect, fortress, kingdom_name))
 
-                    # Устанавливаем цвет и рисуем крепость
-                    Color(*fortress_color)
-                    Ellipse(pos=(fort_x + 10, fort_y + 10), size=(20, 20))
+                    # Рисуем изображение крепости
+                    Rectangle(source=image_path, pos=(fort_x, fort_y), size=(40, 40))
 
     def check_fortress_click(self, touch):
         # Проверяем, была ли нажата крепость
@@ -243,7 +249,6 @@ class MapWidget(Widget):
                 fortress_coords = fortress_data["coordinates"]  # Предполагаем, что это ключ "coordinates"
                 popup = FortressInfoPopup(kingdom=owner, city_coords=fortress_coords, player_fraction=self.current_player_kingdom)
                 popup.open()
-
                 print(f"Крепость {fortress_coords} принадлежит {'вашему' if owner == self.current_player_kingdom else 'чужому'} королевству!")
 
     def on_touch_down(self, touch):
@@ -258,7 +263,6 @@ class MapWidget(Widget):
             dx = touch.x - self.touch_start[0]
             dy = touch.y - self.touch_start[1]
             self.touch_start = touch.pos  # Обновляем точку касания
-
             # Обновляем позицию карты
             self.map_pos[0] += dx
             self.map_pos[1] += dy
@@ -267,14 +271,13 @@ class MapWidget(Widget):
     def update_map_position(self):
         # Обновляем позицию изображения карты
         self.map_image.pos = self.map_pos
-
         # Обновляем позиции крепостей
         for index, (fort_rect, fortress_data, owner) in enumerate(self.fortress_rectangles):
             fort_x, fort_y = fortress_data["coordinates"]  # Извлекаем координаты
-            fort_x += self.map_pos[0] - 10  # Смещаем по X
-            fort_y += self.map_pos[1] - 10  # Смещаем по Y
-            self.fortress_rectangles[index] = ((fort_x, fort_y, 20, 20), fortress_data, owner)  # Обновляем прямоугольник
-
+            fort_x += self.map_pos[0] + 4  # Сдвиг вправо
+            fort_y += self.map_pos[1] + 2  # Сдвиг вверх
+            self.fortress_rectangles[index] = (
+                (fort_x, fort_y, 40, 40), fortress_data, owner)  # Обновляем прямоугольник
         # Очищаем canvas и снова рисуем карту и крепости
         self.canvas.clear()
         self.draw_map()  # Вызываем отрисовку карты

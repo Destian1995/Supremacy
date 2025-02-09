@@ -20,43 +20,11 @@
                 {
                     "unit_image": "files/army/celestia/S-19.jpg",
                     "unit_name": "С-19",
-                    "unit_count": 346759,
+                    "unit_count": 119,
                     "units_stats": {
-                        "Урон": 34675900,
-                        "Защита": 269431743,
-                        "Живучесть": 214990580,
-                        "Класс юнита": "3"
-                    }
-                }
-            ]
-        }
-    ],
-    "Селария": [
-        {
-            "coordinates": [
-                260,
-                140
-            ],
-            "units": [
-                {
-                    "unit_image": "files/army/celestia/grenader.jpg",
-                    "unit_name": "Гренадеры",
-                    "unit_count": 92,
-                    "units_stats": {
-                        "Урон": 13340,
-                        "Защита": 7360,
-                        "Живучесть": 8280,
-                        "Класс юнита": "1"
-                    }
-                },
-                {
-                    "unit_image": "files/army/celestia/S-19.jpg",
-                    "unit_name": "С-19",
-                    "unit_count": 27309,
-                    "units_stats": {
-                        "Урон": 2730900,
-                        "Защита": 21219093,
-                        "Живучесть": 16931580,
+                        "Урон": 11900,
+                        "Защита": 92463,
+                        "Живучесть": 73780,
                         "Класс юнита": "3"
                     }
                 }
@@ -71,13 +39,24 @@
             ],
             "units": [
                 {
+                    "unit_image": "files/army/celestia/grenader.jpg",
+                    "unit_name": "Гренадеры",
+                    "unit_count": 79,
+                    "units_stats": {
+                        "Урон": 11455,
+                        "Защита": 6320,
+                        "Живучесть": 7110,
+                        "Класс юнита": "1"
+                    }
+                },
+                {
                     "unit_image": "files/army/celestia/S-19.jpg",
                     "unit_name": "С-19",
-                    "unit_count": 25653,
+                    "unit_count": 1524,
                     "units_stats": {
-                        "Урон": 2565300,
-                        "Защита": 19932381,
-                        "Живучесть": 15904860,
+                        "Урон": 152400,
+                        "Защита": 1184148,
+                        "Живучесть": 944880,
                         "Класс юнита": "3"
                     }
                 }
@@ -92,13 +71,45 @@
             ],
             "units": [
                 {
+                    "unit_image": "files/army/celestia/grenader.jpg",
+                    "unit_name": "Гренадеры",
+                    "unit_count": 13,
+                    "units_stats": {
+                        "Урон": 1885,
+                        "Защита": 1040,
+                        "Живучесть": 1170,
+                        "Класс юнита": "1"
+                    }
+                },
+                {
                     "unit_image": "files/army/celestia/S-19.jpg",
                     "unit_name": "С-19",
-                    "unit_count": 4761,
+                    "unit_count": 699,
                     "units_stats": {
-                        "Урон": 476100,
-                        "Защита": 3699297,
-                        "Живучесть": 2951820,
+                        "Урон": 69900,
+                        "Защита": 543123,
+                        "Живучесть": 433380,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ],
+    "Селария": [
+        {
+            "coordinates": [
+                260,
+                140
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/celestia/S-19.jpg",
+                    "unit_name": "С-19",
+                    "unit_count": 813,
+                    "units_stats": {
+                        "Урон": 81300,
+                        "Защита": 631701,
+                        "Живучесть": 504060,
                         "Класс юнита": "3"
                     }
                 }
