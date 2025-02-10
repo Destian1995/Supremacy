@@ -7,14 +7,14 @@
             ],
             "units": [
                 {
-                    "unit_image": "files/army/arkadia/pancir.jpg",
-                    "unit_name": "Панцирь - С4М",
-                    "unit_count": 600,
+                    "unit_image": "files/army/arkadia/vepr.jpg",
+                    "unit_name": "Вепрь",
+                    "unit_count": 150,
                     "units_stats": {
-                        "Урон": 132000,
-                        "Защита": 8580000,
-                        "Живучесть": 870000,
-                        "Класс юнита": "3"
+                        "Урон": 18000,
+                        "Защита": 73500,
+                        "Живучесть": 49500,
+                        "Класс юнита": "2"
                     }
                 }
             ]
