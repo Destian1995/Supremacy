@@ -1,0 +1,129 @@
+{
+    "Арданис": [
+        {
+            "coordinates": [
+                750,
+                540
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 15,
+                    "units_stats": {
+                        "Урон": 1200,
+                        "Защита": 24000,
+                        "Живучесть": 3300,
+                        "Класс юнита": "3"
+                    }
+                },
+                {
+                    "unit_image": "files/army/giperion/pretorian.jpg",
+                    "unit_name": "Преторианцы",
+                    "unit_count": 37,
+                    "units_stats": {
+                        "Урон": 6660,
+                        "Защита": 3330,
+                        "Живучесть": 4440,
+                        "Класс юнита": "1"
+                    }
+                }
+            ]
+        }
+    ],
+    "Бальтарис": [
+        {
+            "coordinates": [
+                720,
+                150
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/pretorian.jpg",
+                    "unit_name": "Преторианцы",
+                    "unit_count": 20,
+                    "units_stats": {
+                        "Урон": 3600,
+                        "Защита": 1800,
+                        "Живучесть": 2400,
+                        "Класс юнита": "1"
+                    }
+                },
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 2,
+                    "units_stats": {
+                        "Урон": 160,
+                        "Защита": 3200,
+                        "Живучесть": 440,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ],
+    "Солисграад": [
+        {
+            "coordinates": [
+                519,
+                370
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 109,
+                    "units_stats": {
+                        "Урон": 8720,
+                        "Защита": 174400,
+                        "Живучесть": 23980,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ],
+    "Цитадель Последней Надежды": [
+        {
+            "coordinates": [
+                940,
+                660
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 252,
+                    "units_stats": {
+                        "Урон": 20160,
+                        "Защита": 403200,
+                        "Живучесть": 55440,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ],
+    "Феррадан": [
+        {
+            "coordinates": [
+                890,
+                520
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 14,
+                    "units_stats": {
+                        "Урон": 1120,
+                        "Защита": 22400,
+                        "Живучесть": 3080,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ]
+}

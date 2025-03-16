@@ -1,27 +1,5 @@
 {
-    "arkadia_in_city": {
-        "Владонск": [
-            {
-                "coordinates": [
-                    200,
-                    560
-                ],
-                "units": [
-                    {
-                        "unit_image": "files/army/arkadia/vepr.jpg",
-                        "unit_name": "Вепрь",
-                        "unit_count": 150,
-                        "units_stats": {
-                            "Урон": 18000,
-                            "Защита": 73500,
-                            "Живучесть": 49500,
-                            "Класс юнита": "2"
-                        }
-                    }
-                ]
-            }
-        ]
-    },
+    "arkadia_in_city": {},
     "celestia_in_city": {},
     "eteria_in_city": {},
     "giperion_in_city": {},

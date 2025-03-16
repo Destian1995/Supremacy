@@ -2,6 +2,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 
 from kivy.core.window import Window
 from kivy.graphics import Rectangle, Color
@@ -562,21 +563,20 @@ class FortressInfoPopup(Popup):
         """
         Обновляет файл гарнизона, добавляя или изменяя данные о войсках.
         """
-        garrison_file = self.garrison
 
         try:
             # Проверяем, существует ли файл
-            if not os.path.exists(garrison_file) or os.path.getsize(garrison_file) == 0:
-                print(f"Файл {garrison_file} не найден или пустой. Создаем новый файл.")
-                with open(garrison_file, 'w', encoding='utf-8') as file:
+            if not os.path.exists(self.garrison) or os.path.getsize(self.garrison) == 0:
+                print(f"Файл {self.garrison} не найден или пустой. Создаем новый файл.")
+                with open(self.garrison, 'w', encoding='utf-8') as file:
                     json.dump({}, file, ensure_ascii=False, indent=4)
 
             # Загружаем текущие данные гарнизона
-            with open(garrison_file, 'r', encoding='utf-8') as file:
+            with open(self.garrison, 'r', encoding='utf-8') as file:
                 try:
                     garrison_data = json.load(file)
                 except json.JSONDecodeError:
-                    print(f"Файл {garrison_file} пустой или содержит некорректные данные. Используем пустой словарь.")
+                    print(f"Файл {self.garrison} пустой или содержит некорректные данные. Используем пустой словарь.")
                     garrison_data = {}
 
             # Проверяем, есть ли уже войска в городе
@@ -605,7 +605,7 @@ class FortressInfoPopup(Popup):
                 })
 
             # Сохраняем обновленные данные в файл
-            with open(garrison_file, 'w', encoding='utf-8') as file:
+            with open(self.garrison, 'w', encoding='utf-8') as file:
                 json.dump(garrison_data, file, ensure_ascii=False, indent=4)
 
             print(f"Добавлено в гарнизон: {unit['name']} (количество: {count})")

@@ -1,67 +1,21 @@
 from kivy.clock import Clock
 from kivy.uix.behaviors import ButtonBehavior
-from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
-from kivy.uix.label import Label
-from kivy.uix.button import Button
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.popup import Popup
-from kivy.uix.dropdown import DropDown
-from kivy.uix.textinput import TextInput
 from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.dropdown import DropDown
-from kivy.graphics import Color, RoundedRectangle, Line, Rectangle
-
+from kivy.graphics import Color, RoundedRectangle, Rectangle
+from kivy.core.window import Window
 from kivy.uix.image import Image
-import os
-import json
+from kivy.animation import Animation
+
 import random
-import matplotlib.pyplot as plt
-import io
-
-# Список доступных зданий с иконками
-BUILDINGS = {
-    'Больница': 'files/buildings/medic.jpg',
-    'Фабрика': 'files/buildings/fabric.jpg',
-}
-
-translation_dict = {
-    "Аркадия": "arkadia",
-    "Селестия": "celestia",
-    "Этерия": "eteria",
-    "Хиперион": "giperion",
-    "Халидон": "halidon",
-}
-
-
-def transform_filename(file_path):
-    path_parts = file_path.split('/')
-    for i, part in enumerate(path_parts):
-        for ru_name, en_name in translation_dict.items():
-            if ru_name in part:
-                path_parts[i] = part.replace(ru_name, en_name)
-    return '/'.join(path_parts)
-
-
-def get_faction_of_city(city_name):
-    try:
-        with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
-            diplomacies = json.load(file)
-        for faction, data in diplomacies.items():
-            if city_name in data.get("города", []):
-                return faction
-        print(f"Город '{city_name}' не принадлежит ни одной фракции.")
-        return None
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Ошибка при загрузке diplomacies.json: {e}")
-        return None
+import sqlite3
 
 
 def format_number(number):
@@ -86,42 +40,54 @@ def format_number(number):
 
 def save_building_change(faction_name, city, building_type, delta):
     """
-    Обновляет количество зданий для указанного города в JSON-файле.
+    Обновляет количество зданий для указанного города в базе данных.
     delta — изменение (например, +1 или -1).
     """
-    fraction_path = transform_filename(f'files/config/buildings_in_city/{faction_name}_buildings_city.json')
+    conn = sqlite3.connect('game_data.db')
+    cursor = conn.cursor()
 
     try:
-        # Чтение существующих данных
-        with open(fraction_path, 'r', encoding='utf-8') as file:
-            data = json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        data = {}
+        # Проверяем, существует ли запись для данного города и типа здания
+        cursor.execute('''
+            SELECT count 
+            FROM buildings 
+            WHERE city_name = ? AND faction = ? AND building_type = ?
+        ''', (city, faction_name, building_type))
+        row = cursor.fetchone()
 
-    # Убедимся, что структура корректна
-    if city not in data:
-        data[city] = {'Здания': {}}
-    if building_type not in data[city]['Здания']:
-        data[city]['Здания'][building_type] = 0
+        if row:
+            # Обновляем существующую запись
+            new_count = row[0] + delta
+            if new_count < 0:
+                new_count = 0  # Предотвращаем отрицательные значения
+            cursor.execute('''
+                UPDATE buildings 
+                SET count = ? 
+                WHERE city_name = ? AND faction = ? AND building_type = ?
+            ''', (new_count, city, faction_name, building_type))
+        else:
+            # Добавляем новую запись
+            cursor.execute('''
+                INSERT INTO buildings (city_name, faction, building_type, count)
+                VALUES (?, ?, ?, ?)
+            ''', (city, faction_name, building_type, delta))
 
-    # Обновляем количество зданий
-    data[city]['Здания'][building_type] += delta
-    if data[city]['Здания'][building_type] < 0:
-        data[city]['Здания'][building_type] = 0  # Предотвращаем отрицательные значения
-
-    # Сохраняем изменения
-    with open(fraction_path, 'w', encoding='utf-8') as file:
-        json.dump(data, file, ensure_ascii=False, indent=4)
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Ошибка при сохранении изменений в зданиях: {e}")
+    finally:
+        conn.close()
 
 
 class Faction:
     def __init__(self, name):
         self.faction = name
-        self.cities = self.load_cities_from_file()
-        self.money = 200000
-        self.free_peoples = 30000
-        self.raw_material = 50000
-        self.population = 100
+        self.conn = sqlite3.connect('game_data.db')  # Подключение к базе данных
+        self.cursor = self.conn.cursor()
+        self.resources = self.load_resources_from_db()  # Загрузка ресурсов
+        self.buildings = self.load_buildings()  # Загрузка зданий
+        self.trade_agreements = self.load_trade_agreements()  # Загрузка торговых соглашений
+        self.cities = self.load_cities()  # Загрузка городов
         self.hospitals = 0
         self.factories = 0
         self.taxes = 0
@@ -158,71 +124,160 @@ class Faction:
         self.is_first_run = True  # Флаг для первого запуска
         self.generate_raw_material_price()  # Генерация начальной цены на еду
 
-    def load_cities_from_file(self):
+    def load_data(self, table, columns, condition=None, params=None):
+        """
+        Универсальный метод для загрузки данных из таблицы базы данных.
+        :param table: Имя таблицы.
+        :param columns: Список колонок для выборки.
+        :param condition: Условие WHERE (строка).
+        :param params: Параметры для условия.
+        :return: Список кортежей с данными.
+        """
         try:
-            with open('files/config/city.json', 'r', encoding='utf-8') as file:
-                data = json.load(file)
-            # Проверка на существование фракции в данных
-            if self.faction in data['kingdoms']:
-                return data['kingdoms'][self.faction]['fortresses']
-            else:
-                print(f"Фракция {self.faction} не найдена в файле city.json.")
-                return []
-        except FileNotFoundError:
-            print("Файл city.json не найден.")
+            query = f"SELECT {', '.join(columns)} FROM {table}"
+            if condition:
+                query += f" WHERE {condition}"
+            self.cursor.execute(query, params or ())
+            return self.cursor.fetchall()
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке данных из таблицы {table}: {e}")
             return []
-        except json.JSONDecodeError:
-            print("Ошибка при чтении файла city.json.")
-            return []
+
+    def load_resources(self):
+        """Загружает ресурсы из таблицы resources."""
+        rows = self.load_data("resources", ["resource_type", "amount"], "faction = ?", (self.faction,))
+        resources = {"Рабочие": 0, "Кроны": 0, "Сырье": 0, "Население": 0}
+        for resource_type, amount in rows:
+            resources[resource_type] = amount
+        return resources
+
+    def load_buildings(self):
+        """
+        Загружает данные о зданиях для текущей фракции из таблицы buildings.
+        """
+        try:
+            self.cursor.execute('''
+                SELECT city_name, building_type, count 
+                FROM buildings 
+                WHERE faction = ?
+            ''', (self.faction,))
+            rows = self.cursor.fetchall()
+
+            # Сброс текущих данных о зданиях
+            self.cities_buildings = {}
+            total_hospitals = 0
+            total_factories = 0
+
+            for row in rows:
+                city_name, building_type, count = row
+                if city_name not in self.cities_buildings:
+                    self.cities_buildings[city_name] = {"Больница": 0, "Фабрика": 0}
+
+                # Обновление данных для конкретного города
+                if building_type == "Больница":
+                    self.cities_buildings[city_name]["Больница"] += count
+                    total_hospitals += count
+                elif building_type == "Фабрика":
+                    self.cities_buildings[city_name]["Фабрика"] += count
+                    total_factories += count
+
+            # Обновление глобальных показателей
+            self.hospitals = total_hospitals
+            self.factories = total_factories
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке зданий: {e}")
+
+    def load_trade_agreements(self):
+        """Загружает данные о торговых соглашениях для текущей фракции из таблицы trade_agreements."""
+        rows = self.load_data(
+            "trade_agreements",
+            ["initiator_faction", "target_faction", "initiator_type_resource",
+             "initiator_summ_resource", "target_type_resource", "target_summ_resource"],
+            "initiator_faction = ? OR target_faction = ?",
+            (self.faction, self.faction)
+        )
+        trade_agreements = []
+        for row in rows:
+            trade_agreements.append({
+                "initiator_faction": row[0],
+                "target_faction": row[1],
+                "initiator_type_resource": row[2],
+                "initiator_summ_resource": row[3],
+                "target_type_resource": row[4],
+                "target_summ_resource": row[5]
+            })
+        return trade_agreements
+
+    def load_cities(self):
+        """
+        Загружает список городов для текущей фракции из таблицы cities.
+        Инициализирует self.cities_buildings для каждого города.
+        """
+        rows = self.load_data("cities", ["name", "coordinates"], "faction = ?", (self.faction,))
+        cities = []
+        self.cities_buildings = {}  # Сброс данных о зданиях
+
+        for row in rows:
+            name, coordinates = row
+            try:
+                # Убираем квадратные скобки и преобразуем координаты
+                coordinates = coordinates.strip('[]')
+                x, y = map(int, coordinates.split(','))
+            except ValueError:
+                print(f"Ошибка при разборе координат для города {name}: {coordinates}")
+                x, y = 0, 0  # Устанавливаем значения по умолчанию, если координаты некорректны
+
+            cities.append({"name": name, "x": x, "y": y})
+            # Инициализируем данные о зданиях для каждого города
+            self.cities_buildings[name] = {'Больница': 0, 'Фабрика': 0}
+
+        return cities
+
 
     def build_factory(self, city):
         """Увеличить количество фабрик в указанном городе."""
+        if city not in self.cities_buildings:
+            self.cities_buildings[city] = {'Больница': 0, 'Фабрика': 0}
         self.cities_buildings[city]['Фабрика'] += 1  # Обновляем локальные данные
         save_building_change(self.faction, city, "Фабрика", 1)  # Передаем изменение
         self.update_buildings()  # Пересчитываем общие показатели
 
     def build_hospital(self, city):
         """Увеличить количество больниц в указанном городе."""
+        if city not in self.cities_buildings:
+            self.cities_buildings[city] = {'Больница': 0, 'Фабрика': 0}
         self.cities_buildings[city]['Больница'] += 1
         save_building_change(self.faction, city, "Больница", 1)
-        self.update_buildings()
+        self.update_buildings()  # Пересчитываем общие показатели
 
     def update_buildings(self):
         """
-        Обновляет количество зданий для каждого города фракции по данным из JSON-файла.
+        Обновляет данные о зданиях для текущей фракции из базы данных.
         """
-        buildings_file = transform_filename(f'files/config/buildings_in_city/{self.faction}_buildings_city.json')
+        self.load_buildings()  # Перезагружаем данные из базы данных
+        self.recalculate_resources()  # Пересчитываем ресурсы
 
-        # Проверяем существование файла
-        if os.path.exists(buildings_file):
-            try:
-                # Чтение данных из файла
-                with open(buildings_file, 'r', encoding='utf-8') as file:
-                    data = json.load(file)
+    def recalculate_resources(self):
+        """
+        Пересчитывает влияние зданий на ресурсы.
+        """
+        # Влияние больниц (например, потребление денег)
+        self.money_info = -self.hospitals * 500
 
-                # Обновляем данные зданий для каждого города
-                for city, buildings in data.items():
-                    if city not in self.cities_buildings:
-                        self.cities_buildings[city] = {'Больница': 0, 'Фабрика': 0}
+        # Влияние фабрик (например, производство сырья)
+        self.food_info = self.factories * 1000 - self.population * 1.4
+        self.free_peoples = max(0, self.population - self.factories * 1000)
 
-                    # Обновляем данные из файла
-                    self.cities_buildings[city]['Больница'] = buildings.get('Здания', {}).get('Больница', 0)
-                    self.cities_buildings[city]['Фабрика'] = buildings.get('Здания', {}).get('Фабрика', 0)
-
-                # Пересчитываем общие показатели
-                self.hospitals = sum(city['Больница'] for city in self.cities_buildings.values())
-                self.factories = sum(city['Фабрика'] for city in self.cities_buildings.values())
-
-            except (json.JSONDecodeError, FileNotFoundError) as e:
-                print(f"Ошибка при чтении файла {buildings_file}: {e}")
-        else:
-            print(f"Файл {buildings_file} не найден!")
+        # Другие показатели
+        self.clear_up_peoples = self.population - self.free_peoples
+        self.money_up = self.taxes_info + self.money_info
 
     def cash_build(self, money):
         """Списывает деньги, если их хватает, и возвращает True, иначе False."""
         if self.money >= money:
             self.money -= money
-            self.save_resources()
+            self.save_resources_to_db()
             return True
         else:
             return False
@@ -246,10 +301,13 @@ class Faction:
         return self.taxes
 
     def set_taxes(self, new_tax_rate):
-        """Установка нового уровня налогов и обновление ресурсов."""
-        self.custom_tax_rate = self.get_base_tax_rate() * new_tax_rate  # Применяем процент к базовой ставке
+        """
+        Установка нового уровня налогов и обновление ресурсов.
+        """
+        self.custom_tax_rate = self.get_base_tax_rate() * new_tax_rate
         self.tax_set = True
         self.calculate_tax_income()
+        self.update_resources()
 
     def tax_effect(self, tax_rate):
         if 50 > tax_rate > 35:
@@ -292,76 +350,21 @@ class Faction:
         popup = Popup(title=title, content=Label(text=message), size_hint=(0.6, 0.4))
         popup.open()
 
-    def load_resources(self):
+    def load_available_buildings_from_db(self):
         """
-        Загружает состояние ресурсов из файлов и обновляет параметры.
+        Загружает список доступных зданий для текущей фракции из базы данных.
         """
-        # Загрузка данных из cash.json
-        if os.path.exists('files/config/resources/cash.json'):
-            try:
-                with open('files/config/resources/cash.json', 'r') as file:
-                    resources_data = json.load(file)
-                    # Обновляем атрибуты из загруженных данных
-                    self.money = resources_data.get('Кроны', 0)
-                    self.free_peoples = resources_data.get('Рабочие', 0)
-                    self.raw_material = resources_data.get('Сырье', 0)
-                    self.population = resources_data.get('Население', 0)
-            except json.JSONDecodeError:
-                print("Ошибка при загрузке ресурсов из cash.json: файл пуст или повреждён.")
-        else:
-            print("Файл cash.json не найден.")
-
-        # Загрузка данных из resources.json
-        resources_json_path = 'files/config/resources/resources.json'
-        if os.path.exists(resources_json_path):
-            try:
-                with open(resources_json_path, 'r', encoding='utf-8') as file:
-                    content = file.read().strip()
-                    if not content:
-                        print(f"Файл {resources_json_path} пуст.")
-                        return
-                    resources_data = json.loads(content)
-
-                # Прибавляем значения из resources.json к текущим ресурсам
-                if "Сырье" in resources_data:
-                    self.raw_material += resources_data["Сырье"]
-                if "Кроны" in resources_data:
-                    self.money += resources_data["Кроны"]
-                if "Население" in resources_data:
-                    self.population += resources_data["Население"]
-                if "Рабочие" in resources_data:
-                    self.free_peoples += resources_data["Рабочие"]
-
-                print("Ресурсы успешно обновлены из resources.json.")
-
-                # После загрузки ресурсов очищаем файл
-                with open(resources_json_path, 'w', encoding='utf-8') as file:
-                    json.dump({}, file, ensure_ascii=False, indent=4)
-
-                # Сохраняем обновленные ресурсы в cash.json
-                self.save_resources()
-
-            except json.JSONDecodeError:
-                print(f"Ошибка: файл {resources_json_path} содержит некорректный JSON.")
-            except Exception as e:
-                print(f"Ошибка при загрузке и добавлении ресурсов из resources.json: {e}")
-        else:
-            print("Файл resources.json не найден.")
-
-
-    def save_resources(self):
-        """Записывает текущее состояние ресурсов в файл."""
-        resources_data = {
-            'Кроны': self.money,
-            'Рабочие': self.free_peoples,
-            'Сырье': self.raw_material,
-            'Население': self.population
-        }
         try:
-            with open('files/config/resources/cash.json', 'w') as file:
-                json.dump(resources_data, file, ensure_ascii=False, indent=4)  # Запись с индентацией для удобства
-        except Exception as e:
-            print(f"Ошибка при сохранении ресурсов: {e}")
+            self.cursor.execute('''
+                SELECT DISTINCT building_type
+                FROM buildings
+                WHERE faction = ?
+            ''', (self.faction,))
+            rows = self.cursor.fetchall()
+            return [row[0] for row in rows]  # Возвращаем список типов зданий
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке зданий: {e}")
+            return []
 
     def update_cash(self):
         """
@@ -372,235 +375,338 @@ class Faction:
         self.resources['Рабочие'] = self.free_peoples
         self.resources['Сырье'] = self.raw_material
         self.resources['Население'] = self.population
-        self.save_resources()
+        self.save_resources_to_db()
         return self.resources
 
-    def update_trade_resources(self):
-        """Обновляет ресурсы с учетом торговых договоров и очищает файлы после обработки."""
-        trade_folder = "files/config/status/trade_dogovor"
-        trade_file_path = transform_filename(os.path.join(trade_folder, f"{self.faction}.json"))
+    def update_buildings_from_db(self):
+        """
+        Обновляет количество зданий для каждого города фракции из таблицы buildings.
+        """
+        try:
+            self.cursor.execute('''
+                SELECT city_name, hospital_count, factory_count 
+                FROM buildings 
+                WHERE faction = ?
+            ''', (self.faction,))
+            rows = self.cursor.fetchall()
+            for row in rows:
+                city_name, hospital_count, factory_count = row
+                self.cities_buildings[city_name] = {
+                    "Больница": hospital_count,
+                    "Фабрика": factory_count
+                }
+            # Пересчитываем общие показатели
+            self.hospitals = sum(city["Больница"] for city in self.cities_buildings.values())
+            self.factories = sum(city["Фабрика"] for city in self.cities_buildings.values())
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке данных о зданиях: {e}")
 
-        if os.path.exists(trade_file_path):
-            try:
-                with open(trade_file_path, 'r', encoding='utf-8') as file:
-                    content = file.read().strip()
-                    if not content:
-                        print(f"Файл {trade_file_path} пуст.")
-                        return
-                    trade_data = json.loads(content)
 
-                if isinstance(trade_data, dict):
-                    trade_data = [trade_data]  # Превращаем в список, если объект
+    def check_resource_availability(self, resource_type, required_amount):
+        """
+        Проверяет, достаточно ли у фракции ресурсов для выполнения сделки.
 
-                completed_trades = []  # Список завершенных сделок
-
-                for trade in trade_data:
-                    initiator_type_resource = trade["initiator_type_resource"]
-                    initiator_summ_resource = int(trade["initiator_summ_resource"])
-                    target_type_resource = trade["target_type_resource"]
-                    target_summ_resource = int(trade["target_summ_resource"])
-
-                    if trade["initiator"] == self.faction:
-                        # Игрок - инициатор сделки (отдает ресурс и получает ресурс от target)
-                        if initiator_type_resource == "Сырье" and self.raw_material < initiator_summ_resource:
-                            continue
-                        if initiator_type_resource == "Кроны" and self.money < initiator_summ_resource:
-                            continue
-                        if initiator_type_resource == "Население" and self.population < initiator_summ_resource:
-                            continue
-                        if initiator_type_resource == "Рабочие" and self.free_peoples < initiator_summ_resource:
-                            continue
-
-                        # Вычитаем ресурс у инициатора
-                        if initiator_type_resource == "Сырье":
-                            self.raw_material -= initiator_summ_resource
-                        elif initiator_type_resource == "Кроны":
-                            self.money -= initiator_summ_resource
-                        elif initiator_type_resource == "Население":
-                            self.population -= initiator_summ_resource
-                        elif initiator_type_resource == "Рабочие":
-                            self.free_peoples -= initiator_summ_resource
-
-                        # Получаем ресурс от target
-                        opponent_faction = transform_filename(trade["target_faction"])
-                        ally_resource_file = transform_filename(
-                            f"files/config/status/trade_dogovor/resources/{opponent_faction}.json")
-                        ally_data = {}
-
-                        if os.path.exists(ally_resource_file):
-                            with open(ally_resource_file, 'r', encoding='utf-8') as ally_file:
-                                content = ally_file.read().strip()
-                                if content:
-                                    ally_data = json.loads(content)
-
-                        ally_data[initiator_type_resource] = ally_data.get(initiator_type_resource, 0) + initiator_summ_resource
-
-                    elif trade["target_faction"] == self.faction:
-                        # Игрок — получатель сделки (получает ресурс и отдает свой)
-                        if target_type_resource == "Сырье" and self.raw_material < target_summ_resource:
-                            continue
-                        if target_type_resource == "Кроны" and self.money < target_summ_resource:
-                            continue
-                        if target_type_resource == "Население" and self.population < target_summ_resource:
-                            continue
-                        if target_type_resource == "Рабочие" and self.free_peoples < target_summ_resource:
-                            continue
-
-                        # Игрок или ИИ получает ресурс
-                        if initiator_type_resource == "Сырье":
-                            self.raw_material += initiator_summ_resource
-                        elif initiator_type_resource == "Кроны":
-                            self.money += initiator_summ_resource
-                        elif initiator_type_resource == "Население":
-                            self.population += initiator_summ_resource
-                        elif initiator_type_resource == "Рабочие":
-                            self.free_peoples += initiator_summ_resource
-
-                        # Игрок или ИИ отдает свой ресурс (отдает взамен)
-                        if target_type_resource == "Сырье":
-                            self.raw_material -= target_summ_resource
-                        elif target_type_resource == "Кроны":
-                            self.money -= target_summ_resource
-                        elif target_type_resource == "Население":
-                            self.population -= target_summ_resource
-                        elif target_type_resource == "Рабочие":
-                            self.free_peoples -= target_summ_resource
-
-                        # Записываем переданный ресурс в файл инициатора (отправляем свой ресурс обратно)
-                        opponent_faction = transform_filename(trade["initiator"])
-                        ally_resource_file = transform_filename(
-                            f"files/config/status/trade_dogovor/resources/{opponent_faction}.json")
-                        ally_data = {}
-
-                        if os.path.exists(ally_resource_file):
-                            with open(ally_resource_file, 'r', encoding='utf-8') as ally_file:
-                                content = ally_file.read().strip()
-                                if content:
-                                    ally_data = json.loads(content)
-
-                        ally_data[target_type_resource] = ally_data.get(target_type_resource,
-                                                                           0) + target_summ_resource
-
-                    # Записываем обновленный файл ресурсов союзника
-                    with open(ally_resource_file, 'w', encoding='utf-8') as ally_file:
-                        json.dump(ally_data, ally_file, ensure_ascii=False, indent=4)
-
-                    completed_trades.append(trade)  # Сделка завершена
-
-                # Очищаем выполненные сделки из торгового файла
-                with open(trade_file_path, 'w', encoding='utf-8') as file:
-                    json.dump([t for t in trade_data if t not in completed_trades], file, ensure_ascii=False, indent=4)
-
-                self.save_resources()  # Сохраняем обновленные ресурсы игрока или ИИ
-
-            except json.JSONDecodeError:
-                print(f"Ошибка: файл {trade_file_path} содержит некорректный JSON.")
-            except Exception as e:
-                print(f"Ошибка при обработке торговых соглашений: {e}")
+        :param resource_type: Тип ресурса (например, "Сырье", "Кроны", "Рабочие", "Население").
+        :param required_amount: Требуемое количество ресурсов.
+        :return: True, если ресурсов достаточно, иначе False.
+        """
+        if resource_type == "Сырье":
+            return self.raw_material >= required_amount
+        elif resource_type == "Кроны":
+            return self.money >= required_amount
+        elif resource_type == "Население":
+            return self.population >= required_amount
+        elif resource_type == "Рабочие":
+            return self.free_peoples >= required_amount
         else:
-            print(f"Файл торговых соглашений для фракции {self.faction} не найден.")
+            raise ValueError(f"Неизвестный тип ресурса: {resource_type}")
 
-    def update_ally_resources(self):
-        """Загружает ресурсы союзника и прибавляет их к нашим ресурсам."""
-        ally_resource_file = transform_filename(f"files/config/status/trade_dogovor/resources/{self.faction}.json")
+    def update_resource_deals(self, resource_type, amount):
+        """
+        Обновляет количество ресурсов фракции на указанное значение.
 
-        if os.path.exists(ally_resource_file):
-            try:
-                with open(ally_resource_file, 'r', encoding='utf-8') as file:
-                    content = file.read().strip()
-                    if not content:
-                        print(f"Файл {ally_resource_file} пуст.")
-                        return
-                    ally_data = json.loads(content)
-
-                # Прибавляем ресурсы к нашим
-                if "Сырье" in ally_data:
-                    self.raw_material += ally_data["Сырье"]
-                if "Кроны" in ally_data:
-                    self.money += ally_data["Кроны"]
-                if "Население" in ally_data:
-                    self.population += ally_data["Население"]
-                if "Рабочие" in ally_data:
-                    self.free_peoples += ally_data["Рабочие"]
-
-                # После загрузки ресурсов файл очищаем
-                with open(ally_resource_file, 'w', encoding='utf-8') as file:
-                    json.dump({}, file, ensure_ascii=False, indent=4)
-
-                # Сохраняем обновленные ресурсы
-                self.save_resources()
-
-            except json.JSONDecodeError:
-                print(f"Ошибка: файл {ally_resource_file} содержит некорректный JSON.")
-            except Exception as e:
-                print(f"Ошибка при загрузке и добавлении ресурсов союзника: {e}")
+        :param resource_type: Тип ресурса (например, "Сырье", "Кроны", "Рабочие", "Население").
+        :param amount: Изменение количества ресурсов (положительное или отрицательное).
+        """
+        if resource_type == "Сырье":
+            self.raw_material += amount
+        elif resource_type == "Кроны":
+            self.money += amount
+        elif resource_type == "Население":
+            self.population += amount
+        elif resource_type == "Рабочие":
+            self.free_peoples += amount
         else:
-            print(f"Файл с ресурсами для фракции {self.faction} не найден.")
+            raise ValueError(f"Неизвестный тип ресурса: {resource_type}")
+
+    def update_trade_resources_from_db(self):
+        """
+        Обновляет ресурсы с учетом торговых соглашений из таблицы trade_agreements.
+        """
+        try:
+            # Загружаем текущие ресурсы фракции
+            self.load_resources_from_db()
+
+            # Извлекаем торговые соглашения для текущей фракции
+            self.cursor.execute('''
+                SELECT initiator_faction, target_faction, initiator_type_resource, 
+                       initiator_summ_resource, target_type_resource, target_summ_resource
+                FROM trade_agreements 
+                WHERE initiator_faction = ? OR target_faction = ?
+            ''', (self.faction, self.faction))
+            rows = self.cursor.fetchall()
+
+            completed_trades = []  # Список завершенных сделок
+
+            for row in rows:
+                initiator_faction, target_faction, initiator_type_resource, \
+                    initiator_summ_resource, target_type_resource, target_summ_resource = row
+
+                # Проверяем, является ли текущая фракция инициатором сделки
+                if initiator_faction == self.faction:
+                    # Игрок — инициатор сделки (отдает ресурс и получает ресурс от target)
+                    if not self.check_resource_availability(initiator_type_resource, initiator_summ_resource):
+                        continue  # Пропускаем сделку, если недостаточно ресурсов
+
+                    # Вычитаем ресурс у инициатора
+                    self.update_resource_deals(initiator_type_resource, -initiator_summ_resource)
+
+                    # Получаем ресурс от target
+                    self.update_resource_deals(target_type_resource, target_summ_resource)
+
+                # Проверяем, является ли текущая фракция получателем сделки
+                elif target_faction == self.faction:
+                    # Игрок — получатель сделки (получает ресурс и отдает свой)
+                    if not self.check_resource_availability(target_type_resource, target_summ_resource):
+                        continue  # Пропускаем сделку, если недостаточно ресурсов
+
+                    # Получаем ресурс от инициатора
+                    self.update_resource_deals(initiator_type_resource, initiator_summ_resource)
+
+                    # Отдаем ресурс инициатору
+                    self.update_resource_deals(target_type_resource, -target_summ_resource)
+
+                # Добавляем сделку в список завершенных
+                completed_trades.append(row)
+
+            # Удаляем завершенные сделки из таблицы trade_agreements
+            for trade in completed_trades:
+                self.cursor.execute('''
+                    DELETE FROM trade_agreements 
+                    WHERE initiator_faction = ? AND target_faction = ? AND 
+                          initiator_type_resource = ? AND initiator_summ_resource = ? AND 
+                          target_type_resource = ? AND target_summ_resource = ?
+                ''', trade)
+
+            # Сохраняем обновленные ресурсы в таблицу resources
+            self.save_resources_to_db()
+
+            print("Торговые соглашения обработаны и ресурсы обновлены.")
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении ресурсов на основе торговых соглашений: {e}")
+
+    def load_resources_from_db(self):
+        """
+        Загружает текущие ресурсы фракции из таблицы resources.
+        """
+        try:
+            self.cursor.execute('''
+                SELECT resource_type, amount
+                FROM resources
+                WHERE faction = ?
+            ''', (self.faction,))
+            rows = self.cursor.fetchall()
+
+            # Инициализация ресурсов по умолчанию
+            self.money = 0
+            self.free_peoples = 0
+            self.raw_material = 0
+            self.population = 0
+
+            # Обновление ресурсов на основе данных из базы данных
+            for resource_type, amount in rows:
+                if resource_type == "Кроны":
+                    self.money = amount
+                elif resource_type == "Рабочие":
+                    self.free_peoples = amount
+                elif resource_type == "Сырье":
+                    self.raw_material = amount
+                elif resource_type == "Население":
+                    self.population = amount
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке ресурсов: {e}")
+
+    def save_resources_to_db(self):
+        """
+        Сохраняет текущие ресурсы фракции в таблицу resources.
+        """
+        try:
+            for resource_type, amount in self.resources.items():
+                # Сначала проверяем, существует ли запись
+                self.cursor.execute('''
+                    SELECT amount
+                    FROM resources
+                    WHERE faction = ? AND resource_type = ?
+                ''', (self.faction, resource_type))
+                existing_record = self.cursor.fetchone()
+
+                if existing_record:
+                    # Обновляем существующую запись
+                    self.cursor.execute('''
+                        UPDATE resources
+                        SET amount = ?
+                        WHERE faction = ? AND resource_type = ?
+                    ''', (amount, self.faction, resource_type))
+                else:
+                    # Создаем новую запись
+                    self.cursor.execute('''
+                        INSERT INTO resources (faction, resource_type, amount)
+                        VALUES (?, ?, ?)
+                    ''', (self.faction, resource_type, amount))
+
+            # Сохраняем изменения
+            self.conn.commit()
+        except sqlite3.Error as e:
+            print(f"Ошибка при сохранении ресурсов: {e}")
+
+    def update_ally_resources_from_db(self):
+        """
+        Обновляет ресурсы от союзников из таблицы trade_agreements.
+        """
+        try:
+            self.cursor.execute('''
+                SELECT initiator_faction, target_faction, initiator_type_resource, 
+                       initiator_summ_resource, target_type_resource, target_summ_resource
+                FROM trade_agreements 
+                WHERE initiator_faction = ? OR target_faction = ?
+            ''', (self.faction, self.faction))
+            rows = self.cursor.fetchall()
+            for row in rows:
+                initiator_faction, target_faction, initiator_type_resource, initiator_summ_resource, \
+                    target_type_resource, target_summ_resource = row
+
+                if initiator_faction == self.faction:
+                    # Игрок — инициатор сделки
+                    if initiator_type_resource == "Сырье":
+                        self.raw_material -= initiator_summ_resource
+                    elif initiator_type_resource == "Кроны":
+                        self.money -= initiator_summ_resource
+                    elif initiator_type_resource == "Население":
+                        self.population -= initiator_summ_resource
+                    elif initiator_type_resource == "Рабочие":
+                        self.free_peoples -= initiator_summ_resource
+
+                elif target_faction == self.faction:
+                    # Игрок — получатель сделки
+                    if target_type_resource == "Сырье":
+                        self.raw_material -= target_summ_resource
+                    elif target_type_resource == "Кроны":
+                        self.money -= target_summ_resource
+                    elif target_type_resource == "Население":
+                        self.population -= target_summ_resource
+                    elif target_type_resource == "Рабочие":
+                        self.free_peoples -= target_summ_resource
+
+                    # Получаем ресурс от инициатора
+                    if initiator_type_resource == "Сырье":
+                        self.raw_material += initiator_summ_resource
+                    elif initiator_type_resource == "Кроны":
+                        self.money += initiator_summ_resource
+                    elif initiator_type_resource == "Население":
+                        self.population += initiator_summ_resource
+                    elif initiator_type_resource == "Рабочие":
+                        self.free_peoples += initiator_summ_resource
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении ресурсов от союзников: {e}")
 
     def update_resources(self):
-        """Обновление текущих ресурсов, с проверкой на минимальное значение 0 и округлением до целых чисел."""
-        self.update_buildings()
-        self.generate_raw_material_price()
-        self.update_ally_resources()
-        self.update_trade_resources()
-        # Коэффициенты для каждой фракции
-        faction_coefficients = {
-            'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
-                        'food_loss': 1.4},
-            'Селестия': {'free_peoples_gain': 170, 'free_peoples_loss': 20, 'money_loss': 200, 'food_gain': 540,
-                         'food_loss': 1.1},
-            'Хиперион': {'free_peoples_gain': 210, 'free_peoples_loss': 40, 'money_loss': 200, 'food_gain': 530,
-                         'food_loss': 0.9},
-            'Этерия': {'free_peoples_gain': 240, 'free_peoples_loss': 60, 'money_loss': 300, 'food_gain': 500,
-                       'food_loss': 0.5},
-            'Халидон': {'free_peoples_gain': 230, 'free_peoples_loss': 50, 'money_loss': 300, 'food_gain': 500,
-                        'food_loss': 0.4},
-        }
+        """
+        Обновление текущих ресурсов с учетом данных из базы данных.
+        Все расчеты выполняются на основе таблиц в базе данных.
+        """
+        try:
+            # Обновляем данные о зданиях из таблицы buildings
+            self.update_buildings_from_db()
 
-        # Получение коэффициентов для текущей фракции
-        faction = self.faction
-        if faction not in faction_coefficients:
-            raise ValueError(f"Фракция '{faction}' не найдена.")
+            # Генерируем новую цену на сырье
+            self.generate_raw_material_price()
 
-        coeffs = faction_coefficients[faction]
+            # Обновляем ресурсы от союзников из таблицы trade_agreements
+            self.update_ally_resources_from_db()
 
-        # Обновление ресурсов с учетом коэффициентов
-        self.born_peoples = int(self.hospitals * 500)
-        self.work_peoples = int(self.factories * 200)
-        self.clear_up_peoples = self.born_peoples - self.work_peoples + self.tax_effects
-        self.free_peoples += self.clear_up_peoples
-        self.money += int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
-        self.money_info = int(self.hospitals * coeffs['money_loss'])
-        self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
-        self.taxes_info = int(self.calculate_tax_income())
+            # Обновляем ресурсы на основе торговых соглашений из таблицы trade_agreements
+            self.update_trade_resources_from_db()
 
-        # Учитываем, что одна фабрика может прокормить 1000 людей
-        self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
-        self.food_info = int((self.factories * 1000) - (self.population * coeffs['food_loss']))
-        self.food_peoples = int(self.population * coeffs['food_loss'])
+            # Коэффициенты для каждой фракции
+            faction_coefficients = {
+                'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
+                            'food_loss': 1.4},
+                'Селестия': {'free_peoples_gain': 170, 'free_peoples_loss': 20, 'money_loss': 200, 'food_gain': 540,
+                             'food_loss': 1.1},
+                'Хиперион': {'free_peoples_gain': 210, 'free_peoples_loss': 40, 'money_loss': 200, 'food_gain': 530,
+                             'food_loss': 0.9},
+                'Этерия': {'free_peoples_gain': 240, 'free_peoples_loss': 60, 'money_loss': 300, 'food_gain': 500,
+                           'food_loss': 0.5},
+                'Халидон': {'free_peoples_gain': 230, 'free_peoples_loss': 50, 'money_loss': 300, 'food_gain': 500,
+                            'food_loss': 0.4},
+            }
 
-        # Проверяем, будет ли население увеличиваться
-        if self.raw_material > 0:
-            self.population += int(self.clear_up_peoples)  # Увеличиваем население только если есть Сырье
-        else:
-            # Логика убыли населения при недостатке Сырье
-            if self.population > 100:
-                loss = int(self.population * 0.45)  # 45% от населения
-                self.population -= loss
+            # Получение коэффициентов для текущей фракции
+            faction = self.faction
+            if faction not in faction_coefficients:
+                raise ValueError(f"Фракция '{faction}' не найдена.")
+            coeffs = faction_coefficients[faction]
+
+            # Обновление ресурсов с учетом коэффициентов
+            self.born_peoples = int(self.hospitals * 500)
+            self.work_peoples = int(self.factories * 200)
+            self.clear_up_peoples = self.born_peoples - self.work_peoples + self.tax_effects
+
+            # Загружаем текущие значения ресурсов из базы данных
+            self.load_resources_from_db()
+
+            # Выполняем расчеты
+            self.free_peoples += self.clear_up_peoples
+            self.money += int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
+            self.money_info = int(self.hospitals * coeffs['money_loss'])
+            self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
+            self.taxes_info = int(self.calculate_tax_income())
+
+            # Учитываем, что одна фабрика может прокормить 1000 людей
+            self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
+            self.food_info = int((self.factories * 1000) - (self.population * coeffs['food_loss']))
+            self.food_peoples = int(self.population * coeffs['food_loss'])
+
+            # Проверяем, будет ли население увеличиваться
+            if self.raw_material > 0:
+                self.population += int(self.clear_up_peoples)  # Увеличиваем население только если есть Сырье
             else:
-                loss = min(self.population, 50)  # Обнуление по 50, но не ниже 0
-                self.population -= loss
-            self.free_peoples = 0  # Все рабочие обнуляются, так как Сырье нет
+                # Логика убыли населения при недостатке Сырья
+                if self.population > 100:
+                    loss = int(self.population * 0.45)  # 45% от населения
+                    self.population -= loss
+                else:
+                    loss = min(self.population, 50)  # Обнуление по 50, но не ниже 0
+                    self.population -= loss
+                self.free_peoples = 0  # Все рабочие обнуляются, так как Сырья нет
 
-        # Проверка, чтобы ресурсы не опускались ниже 0
-        self.resources.update({
-            "Кроны": max(int(self.money), 0),
-            "Рабочие": max(int(self.free_peoples), 0),
-            "Сырье": max(int(self.raw_material), 0),
-            "Население": max(int(self.population), 0)
-        })
-        self.save_resources()
-        print(f"Ресурсы обновлены: {self.resources}, Больницы: {self.hospitals}, Фабрики: {self.factories}")
+            # Проверка, чтобы ресурсы не опускались ниже 0
+            self.resources.update({
+                "Кроны": max(int(self.money), 0),
+                "Рабочие": max(int(self.free_peoples), 0),
+                "Сырье": max(int(self.raw_material), 0),
+                "Население": max(int(self.population), 0)
+            })
+
+            # Сохраняем обновленные ресурсы в базу данных
+            self.save_resources_to_db()
+
+            print(f"Ресурсы обновлены: {self.resources}, Больницы: {self.hospitals}, Фабрики: {self.factories}")
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении ресурсов: {e}")
 
     def get_resources(self):
         """Получение текущих ресурсов с форматированием чисел."""
@@ -615,7 +721,7 @@ class Faction:
         if self.population == 0:
             return False
 
-    def buildings_info_fration(self):
+    def buildings_info_fraction(self):
         if self.faction == 'Аркадия':
             return 100
         if self.faction == 'Селестия':
@@ -651,22 +757,24 @@ class Faction:
         self.turns += 1
 
     def trade_raw_material(self, action, quantity):
-        """Торговля сырьем"""
+        """
+        Торговля сырьем через таблицу resources.
+        """
         if action == 'buy':  # Покупка сырья
             total_cost = self.current_raw_material_price * quantity
-            if self.money >= total_cost:
-                self.money -= total_cost
-                self.raw_material += quantity * 10000
-                self.save_resources()
+            if self.resources["Кроны"] >= total_cost:
+                self.resources["Кроны"] -= total_cost
+                self.resources["Сырье"] += quantity * 10000
+                self.save_resources_to_db()
                 return True  # Операция успешна
             else:
                 show_message("Недостаточно денег", "У вас недостаточно денег для покупки сырья.")
         elif action == 'sell':  # Продажа сырья
             total_quantity = quantity * 10000
-            if self.raw_material >= total_quantity:  # Проверяем, что у игрока достаточно сырья
-                self.money += self.current_raw_material_price * quantity
-                self.raw_material -= total_quantity
-                self.save_resources()
+            if self.resources["Сырье"] >= total_quantity:
+                self.resources["Кроны"] += self.current_raw_material_price * quantity
+                self.resources["Сырье"] -= total_quantity
+                self.save_resources_to_db()
                 return True  # Операция успешна
             else:
                 show_message("Недостаточно сырья", "У вас недостаточно сырья для продажи.")
@@ -712,7 +820,6 @@ def build_structure(building, city, faction, quantity, on_complete):
 
     # Ищем город в списке городов фракции
     city_found = next((c for c in faction.cities if c.get('name') == city), None)
-
     if city_found is None:
         show_error_message("Выбранный город не найден!")
         return
@@ -727,7 +834,7 @@ def build_structure(building, city, faction, quantity, on_complete):
 
     # Проверяем, хватает ли денег на постройку всех зданий
     if not faction.cash_build(total_cost):
-        show_error_message(f"Недостаточно денег для постройки {quantity} зданий! \nСтоимость: {total_cost} крон")
+        show_error_message(f"Недостаточно денег для постройки {quantity} зданий!\nСтоимость: {total_cost} крон")
         return
 
     # Строим здания
@@ -747,7 +854,12 @@ def open_build_popup(faction):
         build_popup.dismiss()
         open_build_popup(faction)
 
-    faction.cities = faction.load_cities_from_file()
+    # Проверка наличия городов
+    faction.cities = faction.load_cities()
+    if not faction.cities:
+        show_error_message("Список городов пуст.")
+        return
+
     build_popup = Popup(
         title="Состояние государства",
         size_hint=(0.8, 0.8),
@@ -755,56 +867,92 @@ def open_build_popup(faction):
         title_color=(1, 1, 1, 1),  # Белый цвет заголовка
     )
 
-    main_layout = FloatLayout()
+    main_layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
 
-    # Информационный блок
-    stats_box = BoxLayout(
-        orientation='vertical',
-        size_hint=(1, 0.65),
-        pos_hint={'x': 0, 'y': 0.3},
+    # Таблица статистики с прокруткой
+    scroll_view = ScrollView(size_hint=(1, 0.6), do_scroll_x=False, do_scroll_y=True)
+    stats_table = GridLayout(
+        cols=2,
+        size_hint_y=None,
+        spacing=5,  # Расстояние между ячейками
         padding=[20, 20, 20, 20],
-        spacing=10,
     )
+    stats_table.bind(minimum_height=stats_table.setter('height'))  # Автоматический ресайз высоты
 
-    stats_info = (
-        f"[b]1 больница (за ход):[/b] +500 рабочих / -{faction.buildings_info_fration()} крон\n"
-        f"[b]1 фабрика (за ход):[/b] +1000 сырья / -200 рабочих\n"
-        f"[size=20][b]Статистика:[/b][/size]\n"
-        f"Количество больниц: {faction.hospitals}\n"
-        f"Количество фабрик: {faction.factories}\n"
-        f"Количество рабочих на фабриках: {faction.work_peoples}\n"
-        f"Чистый численности рабочих: {faction.clear_up_peoples}\n"
-        f"Потребление денег больницами: {faction.money_info}\n"
-        f"Чистое производство сырья: {faction.food_info}\n"
-        f"Чистый прирост денег: {faction.money_up}\n"
-        f"Доход от налогов: {faction.taxes_info}\n"
-        f"Эффект от налогов (Изменение рабочих): {faction.apply_tax_effect(int(faction.current_tax_rate[:-1])) if faction.tax_set else 'Налог не установлен'}\n"
-    )
+    # Заполнение таблицы данными
+    stats_data = [
+        ("1 больница (за ход):",
+         f"+500 рабочих / -{faction.buildings_info_fraction()} крон"),
+        ("1 фабрика (за ход):", "+1000 сырья / -200 рабочих"),
+        ("Количество больниц:", faction.hospitals),
+        ("Количество фабрик:", faction.factories),
+        ("Количество рабочих на фабриках:", faction.work_peoples),
+        ("Чистый численности рабочих:", faction.clear_up_peoples),
+        ("Потребление денег больницами:", faction.money_info),
+        ("Чистое производство сырья:", faction.food_info),
+        ("Чистый прирост денег:", faction.money_up),
+        ("Доход от налогов:", faction.taxes_info),
+        ("Эффект от налогов (Изменение рабочих):",
+         faction.apply_tax_effect(int(faction.current_tax_rate[:-1])) if faction.tax_set else "Налог не установлен"),
+    ]
 
-    stats_label = Label(
-        text=stats_info,
-        markup=True,  # Используем разметку Kivy для форматирования текста
-        color=(1, 1, 1, 1),  # Белый текст
-        halign="left",
-        valign="top",
-        size_hint=(1, None),
-        height=300,
-    )
-    stats_box.add_widget(stats_label)
+    # Функция для расчета размера шрифта
+    def calculate_font_size():
+        screen_width, _ = Window.size
+        base_font_size = max(7, min(16, screen_width / 360 * 10))
+        return int(base_font_size)
 
-    with stats_box.canvas.before:
+    font_size = calculate_font_size()
+
+    for label_text, value in stats_data:
+        # Добавляем описание параметра
+        stats_table.add_widget(Label(
+            text=label_text,
+            color=(1, 1, 1, 1),  # Белый цвет текста
+            font_size=f'{font_size}sp',
+            bold=True,
+            size_hint_y=None,
+            height=40,
+        ))
+
+        # Добавляем значение параметра с подсветкой
+        if isinstance(value, (int, float)):
+            value_color = (1, 0, 0, 1) if value < 0 else (0, 1, 0, 1)
+        else:
+            value_color = (1, 1, 1, 1)
+
+        stats_table.add_widget(Label(
+            text=str(value),
+            color=value_color,
+            font_size=f'{font_size}sp',
+            bold=True,
+            size_hint_y=None,
+            height=40,
+        ))
+
+    # Привязываем фон к размеру таблицы
+    with stats_table.canvas.before:
         Color(0.2, 0.2, 0.2, 1)  # Серый фон
-        RoundedRectangle(size=stats_box.size, pos=stats_box.pos, radius=[10])
+        stats_table.background_rect = RoundedRectangle(
+            size=stats_table.size,
+            pos=stats_table.pos,
+            radius=[10]
+        )
 
-    main_layout.add_widget(stats_box)
+    def update_background_rect(instance, value):
+        Clock.schedule_once(lambda dt: setattr(instance.background_rect, 'size', instance.size), 0)
+        Clock.schedule_once(lambda dt: setattr(instance.background_rect, 'pos', instance.pos), 0)
+
+    stats_table.bind(size=update_background_rect, pos=update_background_rect)
+
+    scroll_view.add_widget(stats_table)
+    main_layout.add_widget(scroll_view)
+
+    # Нижний блок с кнопками
+    bottom_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.2), spacing=10)
 
     # Блок выбора зданий
-    building_box = BoxLayout(
-        orientation='vertical',
-        size_hint=(0.3, 0.2),
-        pos_hint={'x': 0.02, 'y': 0.05},
-        spacing=10,
-    )
+    building_box = BoxLayout(orientation='vertical', spacing=10)
     building_main_button = Button(
         text="Выберите здание",
         size_hint=(1, None),
@@ -813,7 +961,10 @@ def open_build_popup(faction):
     )
     building_dropdown = DropDown(auto_dismiss=False)
 
-    for building, icon in BUILDINGS.items():
+    # Статические элементы для выбора зданий
+    available_buildings = ["Больница", "Фабрика"]
+
+    for building in available_buildings:
         btn = Button(
             text=building,
             size_hint_y=None,
@@ -828,15 +979,10 @@ def open_build_popup(faction):
 
     building_box.add_widget(Label(text="Здания:", size_hint=(1, None), height=30, color=(1, 1, 1, 1)))
     building_box.add_widget(building_main_button)
-    main_layout.add_widget(building_box)
+    bottom_layout.add_widget(building_box)
 
     # Блок выбора города
-    city_box = BoxLayout(
-        orientation='vertical',
-        size_hint=(0.3, 0.2),
-        pos_hint={'x': 0.32, 'y': 0.05},
-        spacing=10,
-    )
+    city_box = BoxLayout(orientation='vertical', spacing=10)
     city_main_button = Button(
         text="Выберите город",
         size_hint=(1, None),
@@ -861,128 +1007,209 @@ def open_build_popup(faction):
 
     city_box.add_widget(Label(text="Города:", size_hint=(1, None), height=30, color=(1, 1, 1, 1)))
     city_box.add_widget(city_main_button)
-    main_layout.add_widget(city_box)
+    bottom_layout.add_widget(city_box)
 
     # Поле для ввода количества зданий
     quantity_input = TextInput(
-        text="1",  # По умолчанию 1 здание
-        size_hint=(0.07, None),
+        text="1",
+        size_hint=(None, None),
+        width=50,
         height=44,
-        input_filter="int",  # Разрешаем ввод только целых чисел
+        input_filter="int",
         multiline=False,
-        pos_hint={'x': 0.62, 'y': 0.05},  # Разместим рядом с кнопкой "Построить"
     )
-    main_layout.add_widget(quantity_input)
+    bottom_layout.add_widget(quantity_input)
 
-    # Обновленная кнопка "Построить"
-    button_box = BoxLayout(
-        orientation='vertical',
-        size_hint=(0.3, 0.2),
-        pos_hint={'x': 0.69, 'y': 0.05},
-        spacing=10,
-    )
+    # Кнопка "Построить"
     build_button = Button(
         text="Построить",
-        size_hint=(1, None),
-        height=44,
+        size_hint=(None, None),
+        size=(100, 44),
         background_color=(1, 0.4, 0.4, 1),
     )
-    build_button.bind(on_release=lambda x: build_structure(
-        building_main_button.text,
-        city_main_button.text,
-        faction,
-        int(quantity_input.text),  # Получаем количество зданий из поля
-        rebuild_popup
-    ))
-    button_box.add_widget(build_button)
-    main_layout.add_widget(button_box)
+
+    def on_build_button_press(instance):
+        try:
+            quantity = int(quantity_input.text)
+            if quantity <= 0:
+                raise ValueError("Количество зданий должно быть больше 0.")
+        except ValueError as e:
+            show_error_message(str(e))
+            return
+
+        build_structure(
+            building_main_button.text,
+            city_main_button.text,
+            faction,
+            quantity,
+            rebuild_popup
+        )
+
+    build_button.bind(on_release=on_build_button_press)
+    bottom_layout.add_widget(build_button)
+
+    main_layout.add_widget(bottom_layout)
 
     build_popup.content = main_layout
     build_popup.open()
 
-
 #---------------------------------------------------------------
+
+
 def open_trade_popup(game_instance):
     """Открытие окна торговли с историей цен"""
 
-    trade_layout = BoxLayout(orientation='vertical', padding=10, spacing=20)
+    # Обновляем данные из базы данных
+    game_instance.load_resources_from_db()
+    game_instance.generate_raw_material_price()  # Генерируем новую цену
 
-    # Генерация табличного представления истории цен
-    price_history = game_instance.get_raw_material_price_history()
+    trade_layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
 
-    # Левый контейнер для текущей цены
-    left_layout = BoxLayout(orientation='vertical', size_hint=(0.5, 1), padding=10)
+    # Блок бегущей строки (история цен)
+    price_history_text = ""
+    previous_price = None
+
+    for i, price in enumerate(game_instance.raw_material_price_history):
+        # Определяем цвет цены
+        if previous_price is not None:
+            color_tag = "[color=00FF00]" if price > previous_price else "[color=FF0000]"
+        else:
+            color_tag = "[color=FFFFFF]"
+
+        # Формируем текст с отступами
+        price_history_text += f"{color_tag}Ход {i + 1}: {price}[/color]    "
+        previous_price = price
+
+    # Создаем Label для бегущей строки
+    history_label = Label(
+        text=price_history_text,
+        markup=True,
+        font_size=16,
+        color=(1, 1, 1, 1),
+        size_hint=(None, None),
+        size=(len(price_history_text) * 10, 40)
+    )
+
+    # Добавляем Label в ScrollView
+    scroll_view = ScrollView(size_hint=(1, None), height=40, do_scroll_x=True, do_scroll_y=False)
+    scroll_view.add_widget(history_label)
+
+    # Анимация бегущей строки
+    def animate_history():
+        animation = Animation(x=-history_label.width, duration=15) + Animation(x=0, duration=0)
+        animation.repeat = True
+        animation.start(history_label)
+
+    Clock.schedule_once(lambda dt: animate_history(), 0)
+
+    # Размещаем бегущую строку сверху окна
+    trade_layout.add_widget(scroll_view)
+
+    # Блок текущей цены (по центру)
+    current_price_layout = BoxLayout(orientation='vertical', size_hint=(1, 0.3), padding=10)
 
     # Логика для определения цвета цены
     if len(game_instance.raw_material_price_history) > 1:
         previous_price = game_instance.raw_material_price_history[-2]
         current_price = game_instance.current_raw_material_price
-
-        if current_price > previous_price:
-            arrow_color = (0, 1, 0, 1)  # Зеленый
-        elif current_price < previous_price:
-            arrow_color = (1, 0, 0, 1)  # Красный
-        else:
-            arrow_color = (0.5, 0.5, 0.5, 1)  # Серый
+        arrow_color = (0, 1, 0, 1) if current_price > previous_price else (1, 0, 0, 1)
     else:
-        arrow_color = (0.5, 0.5, 0.5, 1)  # Серый
+        arrow_color = (0.5, 0.5, 0.5, 1)
 
     # Отображение текущей цены
     current_price_label = Label(
         text=f"Текущая цена: {game_instance.current_raw_material_price}",
-        font_size=30,
+        font_size=40,
         bold=True,
-        color=(1, 1, 1, 1)
+        color=arrow_color,
+        halign="center",
+        valign="middle"
     )
-    # Устанавливаем цвет
-    current_price_label.color = arrow_color
+    current_price_label.bind(size=current_price_label.setter('text_size'))  # Для выравнивания текста
+    current_price_layout.add_widget(current_price_label)
 
-    left_layout.add_widget(current_price_label)
+    trade_layout.add_widget(current_price_layout)
 
-    # Правый контейнер для истории цен в виде таблицы
-    right_layout = BoxLayout(orientation='vertical', size_hint=(0.5, 1), padding=10)
+    # Блок кнопок "Купить" и "Продать"
+    button_container = BoxLayout(orientation='vertical', size_hint=(1, 0.4), spacing=10)
 
-    # Создаем ScrollView для прокрутки истории цен
-    scroll_view = ScrollView(size_hint=(1, None), height=200, do_scroll_y=True)
+    # Надпись "Цена за 1 лот = 10,000 единиц"
+    lot_info_label = Label(
+        text="Цена за 1 лот = 10,000 единиц",
+        font_size=18,
+        color=(1, 1, 1, 1),
+        size_hint=(1, 0.3),
+        halign="center",
+        valign="middle"
+    )
+    lot_info_label.bind(size=lot_info_label.setter('text_size'))
+    button_container.add_widget(lot_info_label)
 
-    # Создаем таблицу для отображения истории цен
-    price_table = GridLayout(cols=2, size_hint_y=None, height=len(price_history) * 30)  # 2 столбца: дата и цена
-    price_table.bind(minimum_height=price_table.setter('height'))  # Адаптация высоты таблицы
+    # Кнопки "Купить" и "Продать"
+    button_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.7), spacing=20)
 
-    # Заполнение таблицы данными из истории цен
-    for date, price in price_history:
-        date_label = Label(text=date, font_size=16)
-        price_label = Label(text=str(price), font_size=16)
-        price_table.add_widget(date_label)
-        price_table.add_widget(price_label)
+    buy_btn = Button(
+        text="Купить",
+        background_color=(0, 1, 0, 1),
+        size_hint=(0.5, 1),
+        background_normal='',
+        background_down=''
+    )
+    sell_btn = Button(
+        text="Продать",
+        background_color=(1, 0, 0, 1),
+        size_hint=(0.5, 1),
+        background_normal='',
+        background_down=''
+    )
 
-    # Добавляем таблицу в ScrollView
-    scroll_view.add_widget(price_table)
-    right_layout.add_widget(scroll_view)
+    # Стилизация кнопок
+    with buy_btn.canvas.before:
+        Color(0, 1, 0, 1)
+        buy_btn.rect = RoundedRectangle(size=buy_btn.size, pos=buy_btn.pos, radius=[10])
+    with sell_btn.canvas.before:
+        Color(1, 0, 0, 1)
+        sell_btn.rect = RoundedRectangle(size=sell_btn.size, pos=sell_btn.pos, radius=[10])
 
-    # Разделим левую и правую части экрана
-    main_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=400)
-    main_layout.add_widget(left_layout)
-    main_layout.add_widget(right_layout)
+    def update_rect(instance, value):
+        instance.rect.pos = instance.pos
+        instance.rect.size = instance.size
 
-    # Поле ввода для количества сырья
-    quantity_label = Label(text="Введите количество лотов для торговли сырьем:", font_size=14)
-    quantity_input = TextInput(hint_text="1 лот = 10 000 единиц", multiline=False, font_size=14, input_filter='int',
-                               size_hint_y=None, height=40)
-
-    # Кнопки для покупки и продажи
-    button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=20)
-    buy_btn = Button(text="Купить", size_hint_x=0.5, background_color=(0, 1, 0, 1))
-    sell_btn = Button(text="Продать", size_hint_x=0.5, background_color=(1, 0, 0, 1))
+    buy_btn.bind(pos=update_rect, size=update_rect)
+    sell_btn.bind(pos=update_rect, size=update_rect)
 
     button_layout.add_widget(buy_btn)
     button_layout.add_widget(sell_btn)
+    button_container.add_widget(button_layout)
 
-    trade_layout.add_widget(main_layout)  # Добавляем контейнер с ценой и историей
-    trade_layout.add_widget(quantity_label)  # Добавляем описание поля ввода
-    trade_layout.add_widget(quantity_input)  # Добавляем поле ввода
-    trade_layout.add_widget(button_layout)  # Добавляем кнопки в основной контейнер
+    trade_layout.add_widget(button_container)
 
+    # Поле ввода количества лотов
+    quantity_layout = BoxLayout(orientation='vertical', size_hint=(1, 0.2), spacing=10)
+
+    quantity_label = Label(
+        text="Введите количество лотов для торговли сырьем:",
+        font_size=16,
+        color=(1, 1, 1, 1),
+        size_hint=(1, 0.4),
+        halign="center",
+        valign="middle"
+    )
+    quantity_label.bind(size=quantity_label.setter('text_size'))
+
+    quantity_input = TextInput(
+        hint_text="1 лот = 10,000 единиц",
+        multiline=False,
+        font_size=16,
+        input_filter='int',
+        size_hint=(1, 0.6)
+    )
+
+    quantity_layout.add_widget(quantity_label)
+    quantity_layout.add_widget(quantity_input)
+    trade_layout.add_widget(quantity_layout)
+
+    # Создаем попап
     trade_popup = Popup(title="Торговля сырьем", content=trade_layout, size_hint=(0.8, 0.8))
 
     # Обработка покупки сырья
@@ -1003,7 +1230,7 @@ def handle_trade(game_instance, action, quantity, trade_popup):
         quantity = int(quantity)
 
         # Проверяем, что количество сырья для продажи не превышает доступное
-        if action == 'sell' and quantity * 10000 > game_instance.raw_material:
+        if action == 'sell' and quantity * 10000 > game_instance.resources["Сырье"]:
             raise ValueError("Недостаточно сырья для продажи.")
 
         result = game_instance.trade_raw_material(action, quantity)
@@ -1015,7 +1242,6 @@ def handle_trade(game_instance, action, quantity, trade_popup):
     except ValueError as e:
         show_message("Ошибка", str(e))
     trade_popup.dismiss()  # Закрываем попап после операции
-
 
 #-----------------------------------
 def open_tax_popup(faction):
@@ -1158,4 +1384,3 @@ def start_economy_mode(faction, game_area):
 
     # Добавляем layout с кнопками в нижнюю часть экрана
     game_area.add_widget(economy_layout)
-

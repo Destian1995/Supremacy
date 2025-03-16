@@ -1,0 +1,77 @@
+{
+    "Фэйху": [
+        {
+            "coordinates": [
+                1120,
+                310
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/eteria/tiger.jpg",
+                    "unit_name": "Тигр",
+                    "unit_count": 56,
+                    "units_stats": {
+                        "Урон": 17920,
+                        "Защита": 11200,
+                        "Живучесть": 6160,
+                        "Класс юнита": "2"
+                    }
+                },
+                {
+                    "unit_image": "files/army/eteria/legions.jpg",
+                    "unit_name": "Терминатор-Т1",
+                    "unit_count": 5,
+                    "units_stats": {
+                        "Урон": 2750,
+                        "Защита": 2450,
+                        "Живучесть": 2400,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ],
+    "Лунчжоу": [
+        {
+            "coordinates": [
+                960,
+                370
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/eteria/tiger.jpg",
+                    "unit_name": "Тигр",
+                    "unit_count": 9,
+                    "units_stats": {
+                        "Урон": 2880,
+                        "Защита": 1800,
+                        "Живучесть": 990,
+                        "Класс юнита": "2"
+                    }
+                },
+                {
+                    "unit_image": "files/army/eteria/legions.jpg",
+                    "unit_name": "Терминатор-Т1",
+                    "unit_count": 2,
+                    "units_stats": {
+                        "Урон": 1100,
+                        "Защита": 980,
+                        "Живучесть": 960,
+                        "Класс юнита": "3"
+                    }
+                },
+                {
+                    "unit_image": "files/army/eteria/d-400.jpg",
+                    "unit_name": "Д-400",
+                    "unit_count": 175,
+                    "units_stats": {
+                        "Урон": 8750,
+                        "Защита": 385000,
+                        "Живучесть": 77000,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ]
+}

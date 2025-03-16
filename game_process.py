@@ -17,6 +17,7 @@ import politic
 from ii import AIController
 from sov import AdvisorView
 from event_manager import EventManager
+import sqlite3
 
 # Список всех фракций
 FACTIONS = ["Аркадия", "Селестия", "Хиперион", "Халидон", "Этерия"]
@@ -99,6 +100,20 @@ class GameScreen(Screen):
         # Счетчик ходов
         self.turn_counter = 0
         # Инициализация EventManager
+        # Подключение к базе данных
+        self.db_path = "game_data.db"
+        self.conn = sqlite3.connect(self.db_path)
+        self.cursor = self.conn.cursor()
+
+        # Загружаем текущее значение счетчика ходов из БД
+        self.turn_counter = self.load_turn(self.selected_faction)
+
+        # Инициализация EventManager
+        self.event_manager = EventManager(self.selected_faction, self)
+        # Инициализация UI
+        self.init_ui()
+        # Запускаем обновление ресурсов каждую 1 секунду
+        Clock.schedule_interval(self.update_cash, 1)
         self.event_manager = EventManager(self.selected_faction, self)
         # Инициализация UI
         self.init_ui()
@@ -199,10 +214,38 @@ class GameScreen(Screen):
             if faction != self.selected_faction:
                 self.ai_controllers[faction] = AIController(faction)
 
+    def load_turn(self, faction):
+        """Загрузка текущего значения хода для фракции."""
+        self.cursor.execute('SELECT turn_count FROM turn WHERE faction = ?', (faction,))
+        result = self.cursor.fetchone()
+        return result[0] if result else 0
+
+    def save_turn(self, faction, turn_count):
+        """Сохранение текущего значения хода для фракции."""
+        self.cursor.execute('''
+            INSERT OR REPLACE INTO turn (faction, turn_count)
+            VALUES (?, ?)
+        ''', (faction, turn_count))
+        self.conn.commit()
+
+    def save_turn_history(self, faction, turn_count):
+        """Сохранение истории ходов в таблицу turn_save."""
+        self.cursor.execute('''
+            INSERT INTO turn_save (faction, turn_count)
+            VALUES (?, ?)
+        ''', (faction, turn_count))
+        self.conn.commit()
+
     def process_turn(self, instance=None):
         """Обработка хода игрока и ИИ"""
         # Увеличиваем счетчик ходов
         self.turn_counter += 1
+
+        # Сохраняем текущее значение хода в таблицу turn
+        self.save_turn(self.selected_faction, self.turn_counter)
+
+        # Сохраняем историю ходов в таблицу turn_save
+        self.save_turn_history(self.selected_faction, self.turn_counter)
 
         # Обновляем ресурсы игрока
         self.faction.update_resources()
@@ -228,3 +271,13 @@ class GameScreen(Screen):
         if self.turn_counter % 3 == 0:
             print("Генерация события...")
             self.event_manager.generate_event()
+
+    def reset_game(self):
+        """Сброс игры (например, при новой игре)."""
+        self.save_turn(self.selected_faction, 0)  # Сбрасываем счетчик ходов до 0
+        self.turn_counter = 0
+        print("Счетчик ходов сброшен.")
+
+    def on_stop(self):
+        """Закрытие соединения с базой данных при завершении игры."""
+        self.conn.close()

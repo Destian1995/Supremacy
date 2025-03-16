@@ -1,0 +1,55 @@
+{
+    "Эледрин": [
+        {
+            "coordinates": [
+                130,
+                400
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/celestia/S-19.jpg",
+                    "unit_name": "F-25C",
+                    "unit_count": 246,
+                    "units_stats": {
+                        "Урон": 24600,
+                        "Защита": 292248,
+                        "Живучесть": 152520,
+                        "Класс юнита": "3"
+                    }
+                },
+                {
+                    "unit_image": "files/army/celestia/grenader.jpg",
+                    "unit_name": "Гренадеры",
+                    "unit_count": 107,
+                    "units_stats": {
+                        "Урон": 15515,
+                        "Защита": 8560,
+                        "Живучесть": 9630,
+                        "Класс юнита": "1"
+                    }
+                }
+            ]
+        }
+    ],
+    "Каландор": [
+        {
+            "coordinates": [
+                190,
+                220
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/celestia/S-19.jpg",
+                    "unit_name": "F-25C",
+                    "unit_count": 54,
+                    "units_stats": {
+                        "Урон": 5400,
+                        "Защита": 64152,
+                        "Живучесть": 33480,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ]
+}

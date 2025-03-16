@@ -15,6 +15,7 @@ from ui import *
 import os
 import json
 import logging
+import sqlite3
 
 # Размеры окна
 screen_width, screen_height = 1200, 800
@@ -27,97 +28,106 @@ def load_kingdom_data(file_path):
 
 
 def restore_from_backup():
-    """Загрузка файлов из бэкапа, сам бэкап выполняется в модуле ui.py функция backup_files"""
+    """
+    Загрузка данных из стандартных таблиц (default) в рабочие таблицы.
+    Используется при запуске новой игры для восстановления начального состояния.
+    """
     # Настройка логирования
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    # Определяем путь к исходным и резервным файлам
-    backup_dir = 'files/config/backup'
-    backup_dir_resources = 'files/config/backup/default_resources'
-    resources_dir = r'files\config\manage_ii\resources'  # Директория для восстановления ресурсов
+    # Подключение к базе данных
+    conn = None
+    try:
+        conn = sqlite3.connect('game_data.db')
+        cursor = conn.cursor()
 
-    # Пути к резервным копиям
-    city_backup_path = os.path.join(backup_dir, 'city_backup.json')
-    diplomaties_backup_path = os.path.join(backup_dir, 'diplomaties_backup.json')
-    resources_backup_path_ark = os.path.join(backup_dir_resources, 'arkadia_resources.json')
-    resources_backup_path_cel = os.path.join(backup_dir_resources, 'celestia_resources.json')
-    resources_backup_path_gip = os.path.join(backup_dir_resources, 'giperion_resources.json')
-    resources_backup_path_hal = os.path.join(backup_dir_resources, 'halidon_resources.json')
-    resources_backup_path_eter = os.path.join(backup_dir_resources, 'eteria_resources.json')
-    dip_relations_backup_file_path = os.path.join(backup_dir, 'relations.json')
+        # Список таблиц для восстановления
+        tables_to_restore = [
+            ("city_default", "city"),
+            ("diplomacies_default", "diplomacies"),
+            ("relations_default", "relations"),
+            ("resources_default", "resources")
+        ]
 
-    # Пути к исходным файлам
-    city_file_path = os.path.join('files', 'config', 'city.json')
-    diplomaties_file_path = os.path.join('files', 'config', 'status', 'diplomaties.json')
-    resources_file_path_ark = os.path.join(resources_dir, 'arkadia_resources.json')
-    resources_file_path_cel = os.path.join(resources_dir, 'celestia_resources.json')
-    resources_file_path_gip = os.path.join(resources_dir, 'giperion_resources.json')
-    resources_file_path_hal = os.path.join(resources_dir, 'halidon_resources.json')
-    resources_file_path_eter = os.path.join(resources_dir, 'eteria_resources.json')
-    dip_relations_file_path = os.path.join('files', 'config', 'status', 'dipforce', 'relations.json')
+        # Проверяем существование всех стандартных таблиц
+        all_tables_exist = True
+        for default_table, _ in tables_to_restore:
+            cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name=?", (default_table,))
+            if not cursor.fetchone():
+                logging.error(f"Таблица {default_table} не найдена в базе данных.")
+                all_tables_exist = False
 
-    # Список пар (резервный путь, исходный путь)
-    backup_files = [
-        (city_backup_path, city_file_path),
-        (diplomaties_backup_path, diplomaties_file_path),
-        (resources_backup_path_ark, resources_file_path_ark),
-        (resources_backup_path_cel, resources_file_path_cel),
-        (resources_backup_path_gip, resources_file_path_gip),
-        (resources_backup_path_hal, resources_file_path_hal),
-        (resources_backup_path_eter, resources_file_path_eter),
-        (dip_relations_backup_file_path, dip_relations_file_path)
+        if not all_tables_exist:
+            logging.error("Не все стандартные таблицы найдены. Восстановление невозможно.")
+            return
+
+        # Начало транзакции
+        cursor.execute("BEGIN TRANSACTION")
+
+        # Восстанавливаем данные из стандартных таблиц в рабочие
+        for default_table, working_table in tables_to_restore:
+            try:
+                # Проверяем, есть ли данные в стандартной таблице
+                cursor.execute(f"SELECT COUNT(*) FROM {default_table}")
+                if cursor.fetchone()[0] == 0:
+                    logging.warning(f"Стандартная таблица {default_table} пуста. Пропускаем восстановление.")
+                    continue
+
+                # Очищаем рабочую таблицу
+                cursor.execute(f"DELETE FROM {working_table}")
+
+                # Копируем данные из стандартной таблицы в рабочую
+                cursor.execute(f'''
+                    INSERT INTO {working_table}
+                    SELECT * FROM {default_table}
+                ''')
+                logging.info(f"Данные успешно восстановлены из таблицы {default_table} в таблицу {working_table}.")
+            except Exception as e:
+                logging.error(f"Ошибка при восстановлении таблицы {working_table}: {e}")
+                conn.rollback()  # Откатываем транзакцию в случае ошибки
+                return
+
+        # Фиксируем изменения
+        conn.commit()
+        logging.info("Все данные успешно восстановлены из стандартных таблиц.")
+
+    except sqlite3.Error as e:
+        logging.error(f"Ошибка при работе с базой данных: {e}")
+        if conn:
+            conn.rollback()  # Откатываем транзакцию в случае ошибки
+    finally:
+        if conn:
+            conn.close()
+
+def clear_tables(conn):
+    """
+    Очищает данные из указанных таблиц базы данных.
+    :param conn: Подключение к базе данных SQLite.
+    """
+    tables_to_clear = [
+        "buildings",
+        "city",
+        "diplomacies",
+        "garrisons",
+        "hiring",
+        "resources",
+        "trade_agreements",
+        "weapons"
     ]
 
-    # Проверяем существование всех резервных копий
-    all_backups_exist = all(os.path.exists(src) for src, _ in backup_files)
+    cursor = conn.cursor()
 
-    if not all_backups_exist:
-        logging.error("Не все резервные копии найдены. Восстановление невозможно.")
-        return
+    try:
+        for table in tables_to_clear:
+            # Используем TRUNCATE или DELETE для очистки таблицы
+            cursor.execute(f"DELETE FROM {table};")
+            print(f"Таблица '{table}' успешно очищена.")
 
-    # Восстанавливаем все файлы
-    for src, dest in backup_files:
-        try:
-            # Создаём директорию для целевого файла, если она не существует
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
-            # Копируем файл с заменой
-            shutil.copy(src, dest)
-            logging.info(f"Файл {dest} успешно восстановлен из бэкапа.")
-        except Exception as e:
-            logging.error(f"Ошибка при восстановлении файла {dest}: {e}")
-
-    logging.info("Все файлы восстановлены из бэкапа.")
-
-
-def clear_temp_files():
-    temp_files = ['files/config/arms/arms.json',
-                  'files/config/resources/cash.json',
-                  'files/config/arms/weapons.json',
-                  'files/config/arms/coordinates_weapons.json',
-                  'files/config/buildings_in_city/arkadia_buildings_city.json',
-                  'files/config/buildings_in_city/celestia_buildings_city.json',
-                  'files/config/buildings_in_city/eteria_buildings_city.json',
-                  'files/config/buildings_in_city/giperion_buildings_city.json',
-                  'files/config/buildings_in_city/halidon_buildings_city.json',
-                  'files/config/status/trade_dogovor/arkadia.json',
-                  'files/config/status/trade_dogovor/celestia.json',
-                  'files/config/status/trade_dogovor/eteria.json',
-                  'files/config/status/trade_dogovor/giperion.json',
-                  'files/config/status/trade_dogovor/halidon.json',
-                  'files/config/status/trade_dogovor/resources/arkadia.json',
-                  'files/config/status/trade_dogovor/resources/celestia.json',
-                  'files/config/status/trade_dogovor/resources/eteria.json',
-                  'files/config/status/trade_dogovor/resources/giperion.json',
-                  'files/config/status/trade_dogovor/resources/halidon.json',
-                  'files/config/manage_ii/arkadia_in_city.json',
-                  'files/config/manage_ii/celestia_in_city.json',
-                  'files/config/manage_ii/eteria_in_city.json',
-                  'files/config/manage_ii/giperion_in_city.json',
-                  'files/config/manage_ii/halidon_in_city.json'
-                  ]
-    for file in temp_files:
-        with open(file, 'w', encoding='utf-8') as f:
-            f.write('')  # Записываем пустую строку, чтобы очистить файл
+        # Фиксируем изменения
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Ошибка при очистке таблиц: {e}")
+        conn.rollback()  # Откат изменений в случае ошибки
 
 def delete_dipforce_files():
     """Удаляет указанные файлы в поддиректориях files/config/status/dipforce."""
@@ -532,8 +542,12 @@ class KingdomSelectionWidget(FloatLayout):
 
         # Получаем города и крепости для выбранного княжества
         cities = data['kingdoms'][selected_kingdom]['fortresses']
-        # Очистка временных файлов
-        clear_temp_files()
+        # Очистка временных таблиц
+        # Подключение к базе данных
+        conn = sqlite3.connect('game_data.db')
+        clear_tables(conn)
+        # Закрытие соединения
+        conn.close()
         # Удаление дипломатических файлов
         delete_dipforce_files()
         # Загрузка дампа дефолтных файлов.
