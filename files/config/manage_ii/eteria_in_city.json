@@ -63,6 +63,27 @@
                 {
                     "unit_image": "files/army/eteria/d-400.jpg",
                     "unit_name": "Д-400",
+                    "unit_count": 281,
+                    "units_stats": {
+                        "Урон": 14050,
+                        "Защита": 618200,
+                        "Живучесть": 123640,
+                        "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ],
+    "Тяньчжоу": [
+        {
+            "coordinates": [
+                1070,
+                440
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/eteria/d-400.jpg",
+                    "unit_name": "Д-400",
                     "unit_count": 175,
                     "units_stats": {
                         "Урон": 8750,

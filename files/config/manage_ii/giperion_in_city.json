@@ -9,22 +9,22 @@
                 {
                     "unit_image": "files/army/giperion/CPS-12.jpg",
                     "unit_name": "HPAAL",
-                    "unit_count": 15,
+                    "unit_count": 79,
                     "units_stats": {
-                        "Урон": 1200,
-                        "Защита": 24000,
-                        "Живучесть": 3300,
+                        "Урон": 6320,
+                        "Защита": 126400,
+                        "Живучесть": 17380,
                         "Класс юнита": "3"
                     }
                 },
                 {
                     "unit_image": "files/army/giperion/pretorian.jpg",
                     "unit_name": "Преторианцы",
-                    "unit_count": 37,
+                    "unit_count": 46,
                     "units_stats": {
-                        "Урон": 6660,
-                        "Защита": 3330,
-                        "Живучесть": 4440,
+                        "Урон": 8280,
+                        "Защита": 4140,
+                        "Живучесть": 5520,
                         "Класс юнита": "1"
                     }
                 }
@@ -115,12 +115,44 @@
                 {
                     "unit_image": "files/army/giperion/CPS-12.jpg",
                     "unit_name": "HPAAL",
-                    "unit_count": 14,
+                    "unit_count": 16,
                     "units_stats": {
-                        "Урон": 1120,
-                        "Защита": 22400,
-                        "Живучесть": 3080,
+                        "Урон": 1280,
+                        "Защита": 25600,
+                        "Живучесть": 3520,
                         "Класс юнита": "3"
+                    }
+                }
+            ]
+        }
+    ],
+    "Форт Бастария": [
+        {
+            "coordinates": [
+                310,
+                170
+            ],
+            "units": [
+                {
+                    "unit_image": "files/army/giperion/CPS-12.jpg",
+                    "unit_name": "HPAAL",
+                    "unit_count": 77,
+                    "units_stats": {
+                        "Урон": 6160,
+                        "Защита": 123200,
+                        "Живучесть": 16940,
+                        "Класс юнита": "3"
+                    }
+                },
+                {
+                    "unit_image": "files/army/giperion/pretorian.jpg",
+                    "unit_name": "Преторианцы",
+                    "unit_count": 13,
+                    "units_stats": {
+                        "Урон": 2340,
+                        "Защита": 1170,
+                        "Живучесть": 1560,
+                        "Класс юнита": "1"
                     }
                 }
             ]

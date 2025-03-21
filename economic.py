@@ -1,22 +1,34 @@
 from kivy.clock import Clock
-from kivy.uix.behaviors import ButtonBehavior
+from kivy.lang import Builder
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.scrollview import ScrollView
-from kivy.uix.spinner import Spinner
+from kivy.uix.slider import Slider
 from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.dropdown import DropDown
-from kivy.graphics import Color, RoundedRectangle, Rectangle
+from kivy.graphics import Color, RoundedRectangle, Rectangle, Line
 from kivy.core.window import Window
-from kivy.uix.image import Image
 from kivy.animation import Animation
+from kivy.uix.floatlayout import FloatLayout
 
 import random
 import sqlite3
 
+from kivymd.uix.widget import MDWidget
+from kivy.graphics import RenderContext
+
+class BlurEffect(MDWidget):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.canvas = RenderContext()
+        self.canvas.shader.fs = '''
+        void main() {
+            gl_FragColor = vec4(0.5, 0.5, 1.0, 0.5);
+        }
+        '''
 
 def format_number(number):
     """Форматирует число с добавлением приставок (тыс., млн., млрд., трлн., квинт., и т.д.)"""
@@ -100,6 +112,7 @@ class Faction:
         self.food_peoples = 0
         self.tax_effects = 0
         self.clear_up_peoples = 0
+        self.last_turn_loaded = -1  # Последний загруженный номер хода
         self.raw_material_price_history = []  # История цен на еду
         self.current_tax_rate = 0  # Начальная ставка налога — по умолчанию 0%
         self.turns = 0  # Счетчик ходов
@@ -307,28 +320,57 @@ class Faction:
         self.custom_tax_rate = self.get_base_tax_rate() * new_tax_rate
         self.tax_set = True
         self.calculate_tax_income()
-        self.update_resources()
 
     def tax_effect(self, tax_rate):
-        if 50 > tax_rate > 35:
-            return -250
-        elif 75 > tax_rate >= 50:
-            return -8000
-        elif 90 > tax_rate >= 75:
-            return -22500
-        elif tax_rate >= 90:
-            return -70000
-        elif 15 > tax_rate:
-            return 450
-        elif 20 > tax_rate:
-            return 90
+        """
+        Рассчитывает процентное изменение населения на основе ставки налога.
+        :param tax_rate: Текущая ставка налога (в процентах).
+        :return: Процент изменения населения (положительное или отрицательное значение).
+        """
+        if tax_rate >= 90:
+            return -65  # Критическая убыль населения (-45%)
+        elif 75 <= tax_rate < 90:
+            return -45  # Значительная убыль населения (-30%)
+        elif 50 <= tax_rate < 75:
+            return -21  # Умеренная убыль населения (-15%)
+        elif 35 <= tax_rate < 50:
+            return -8  # Небольшая убыль населения (-5%)
+        elif 25 <= tax_rate < 35:
+            return 0  # Нейтральный эффект (0%)
+        elif 15 <= tax_rate < 25:
+            return 5  # Нейтральный эффект (0%)
+        elif 10 <= tax_rate < 15:
+            return 11  # Небольшой рост населения (+11%)
         else:
-            return 0
+            return 18  # Существенный рост населения (+18%)
 
     def apply_tax_effect(self, tax_rate):
-        # Рассчитать и применить эффект налогов на население
-        effect = self.tax_effect(tax_rate)
-        self.tax_effects = effect
+        """
+        Применяет эффект налогов на население в виде процентного изменения.
+        :param tax_rate: Текущая ставка налога (в процентах).
+        :return: Абсолютное изменение населения.
+        """
+        # Получаем процентное изменение населения
+        percentage_change = self.tax_effect(tax_rate)
+
+        # Загружаем текущее население из базы данных
+        try:
+            self.cursor.execute('''
+                SELECT amount
+                FROM resources
+                WHERE faction = ? AND resource_type = "Население"
+            ''', (self.faction,))
+            row = self.cursor.fetchone()
+            current_population = row[0] if row else 0
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке данных о населении: {e}")
+            current_population = 0
+
+        # Рассчитываем абсолютное изменение населения
+        population_change = int(current_population * (percentage_change / 100))
+
+        # Применяем эффект налогов
+        self.tax_effects = population_change
         return self.tax_effects
 
     def calculate_base_tax_rate(self, tax_rate):
@@ -739,45 +781,86 @@ class Faction:
             self.generate_raw_material_price()
 
     def generate_raw_material_price(self):
-        """Генерация случайной цены на сырье"""
-        if self.turns == 0:  # Если это первый ход
-            self.current_raw_material_price = random.randint(3000, 47000)
+        """
+        Генерация случайной цены на сырье.
+        Цена генерируется только при изменении номера хода.
+        """
+        # Загрузка номера хода из таблицы turn
+        try:
+            self.cursor.execute('''
+                SELECT turn_count 
+                FROM turn
+                ORDER BY turn_count DESC
+                LIMIT 1
+            ''')
+            row = self.cursor.fetchone()
+            if row:
+                current_turn = row[0]  # Текущий номер хода
+            else:
+                current_turn = 0  # Если записей нет, начинаем с нуля
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке номера хода: {e}")
+            current_turn = 0  # В случае ошибки устанавливаем значение по умолчанию
+
+        # Проверка, был ли уже загружен текущий ход
+        if current_turn == self.last_turn_loaded:
+            return  # Цена уже сгенерирована для этого хода
+
+        # Генерация новой цены
+        if current_turn == 0:  # Если это первый ход
+            self.current_raw_material_price = random.randint(800, 87000)
             self.raw_material_price_history.append(self.current_raw_material_price)
         else:
             # Генерация новой цены на основе текущей
-            self.current_raw_material_price = self.raw_material_price_history[-1] + random.randint(-2000, 2000)
-            self.current_raw_material_price = max(3000,
-                                                  min(47000, self.current_raw_material_price))  # Ограничиваем диапазон
+            self.current_raw_material_price = self.raw_material_price_history[-1] + random.randint(-3700, 3500)
+            self.current_raw_material_price = max(
+                800, min(87000, self.current_raw_material_price)  # Ограничиваем диапазон
+            )
             self.raw_material_price_history.append(self.current_raw_material_price)
 
         # Ограничение длины истории цен до 25 элементов
         if len(self.raw_material_price_history) > 25:
             self.raw_material_price_history.pop(0)
 
-        self.turns += 1
+        # Обновляем значение последнего загруженного хода
+        self.last_turn_loaded = current_turn
 
     def trade_raw_material(self, action, quantity):
         """
         Торговля сырьем через таблицу resources.
+        :param action: Действие ('buy' для покупки, 'sell' для продажи).
+        :param quantity: Количество лотов (1 лот = 10,000 единиц сырья).
         """
+        # Преобразуем количество лотов в единицы сырья
+        total_quantity = quantity * 10000
+        total_cost = self.current_raw_material_price * quantity
+
         if action == 'buy':  # Покупка сырья
-            total_cost = self.current_raw_material_price * quantity
-            if self.resources["Кроны"] >= total_cost:
-                self.resources["Кроны"] -= total_cost
-                self.resources["Сырье"] += quantity * 10000
+            # Проверяем, достаточно ли денег для покупки
+            if self.money >= total_cost:
+                # Обновляем ресурсы
+                self.money -= total_cost
+                self.raw_material += total_quantity
+                # Сохраняем изменения в базе данных
                 self.save_resources_to_db()
                 return True  # Операция успешна
             else:
                 show_message("Недостаточно денег", "У вас недостаточно денег для покупки сырья.")
+                return False
+
         elif action == 'sell':  # Продажа сырья
-            total_quantity = quantity * 10000
-            if self.resources["Сырье"] >= total_quantity:
-                self.resources["Кроны"] += self.current_raw_material_price * quantity
-                self.resources["Сырье"] -= total_quantity
+            # Проверяем, достаточно ли сырья для продажи
+            if self.raw_material >= total_quantity:
+                # Обновляем ресурсы
+                self.money += total_cost
+                self.raw_material -= total_quantity
+                # Сохраняем изменения в базе данных
                 self.save_resources_to_db()
                 return True  # Операция успешна
             else:
                 show_message("Недостаточно сырья", "У вас недостаточно сырья для продажи.")
+                return False
+
         return False  # Операция не удалась
 
     def get_raw_material_price_history(self):
@@ -1058,10 +1141,11 @@ def open_build_popup(faction):
 
 def open_trade_popup(game_instance):
     """Открытие окна торговли с историей цен"""
-
     # Обновляем данные из базы данных
     game_instance.load_resources_from_db()
-    game_instance.generate_raw_material_price()  # Генерируем новую цену
+
+    # Генерируем новую цену, если это необходимо
+    game_instance.generate_raw_material_price()
 
     trade_layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
 
@@ -1245,88 +1329,104 @@ def handle_trade(game_instance, action, quantity, trade_popup):
 
 #-----------------------------------
 def open_tax_popup(faction):
-    """Открытие попапа для выбора ставки налога через выпадающий список"""
-
-    tax_popup = Popup(title="Управление налогами", size_hint=(0.8, 0.4), background_color=(0.1, 0.1, 0.1, 1))
-
-    main_layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
-
-    # Устанавливаем начальное значение для налоговой ставки
-    current_tax_rate = '0%' if not faction.tax_set else f"{faction.current_tax_rate}"  # Значение по умолчанию, если налог не установлен
-
-    # Создание кастомного выпадающего списка для выбора налоговой ставки
-    tax_spinner = Spinner(
-        text=current_tax_rate,  # Устанавливаем текущее значение
-        values=('0%', '5%', '15%', '25%', '35%', '50%', '65%', '75%', '85%', '95%', '100%'),  # Добавляем '0%'
-        size_hint=(0.8, None),
-        height=44,
-        background_normal='',  # Убираем стандартный фон
-        background_color=(0.3, 0.5, 0.7, 1),
-        color=(1, 1, 1, 1),
-        font_size=20,
-        border=(5, 5, 5, 5),
-        padding=(10, 10)
+    # Создаем попап с анимированной тенью и градиентным фоном
+    tax_popup = Popup(
+        title="Управление налогами",
+        size_hint=(0.8, 0.6),
+        background_color=(0.05, 0.05, 0.05, 0.95),
+        title_color=(0.8, 0.8, 0.8, 1),
+        separator_color=(0.3, 0.3, 0.3, 1),
+        title_size=24,
+        title_align='center'
     )
 
-    # Кастомизация стрелки
-    class CustomArrow(ButtonBehavior, Image):
-        def __init__(self, **kwargs):
-            super().__init__(**kwargs)
-            self.source = 'path_to_custom_arrow_image.png'  # Замените на путь к вашему изображению стрелки
-            self.size_hint = (None, None)
-            self.size = (40, 40)
+    main_layout = FloatLayout()
 
-    # Элемент для стрелки
-    custom_arrow = CustomArrow()
-    tax_spinner.add_widget(custom_arrow)  # Добавление кастомной стрелки в Spinner
 
-    # Метка для текущей ставки налога
+    # Получаем начальное значение налога из объекта faction
+    current_tax_rate = (
+        int(faction.current_tax_rate.strip('%'))  # Если это строка с '%'
+        if isinstance(faction.current_tax_rate, str) else
+        int(faction.current_tax_rate)  # Если это число
+    ) if hasattr(faction, 'current_tax_rate') else 0
+
+    # Анимированная метка с динамической цветовой индикацией
     tax_label = Label(
-        text=f"Текущая ставка налога: {tax_spinner.text}",
-        color=(1, 1, 1, 1),
-        font_size=18,
-        size_hint=(1, None),
-        height=40,
+        text=f"Налог: {current_tax_rate}%",
+        color=(0.7, 0.9, 0.7, 1),
+        font_size=28,
+        bold=True,
+        pos_hint={'center_x': 0.5, 'top': 0.9},
+        size_hint=(0.8, None),
+        halign="center"
     )
 
-    def update_tax_rate(spinner, text):
-        """Функция для обновления ставки налога при выборе из списка"""
-        tax_label.text = f"Текущая ставка налога: {text}"  # Обновляем текст метки при выборе
-        tax_rate = int(text[:-1])  # Убираем '%' и приводим к числу
-        faction.set_taxes(tax_rate)  # Устанавливаем ставку налога
-        faction.apply_tax_effect(tax_rate)  # Считаем отрицательный эффект
+    # Кастомный ползунок с градиентной дорожкой
+    tax_slider = Slider(
+        min=0,
+        max=100,
+        value=current_tax_rate,  # Устанавливаем значение из faction
+        step=1,
+        orientation='horizontal',
+        pos_hint={'center_x': 0.5, 'center_y': 0.6},
+        size_hint=(0.9, 0.15),
+        background_width=8,  # Ширина фона ползунка
+        cursor_size=(30, 30),  # Размер курсора
+        value_track=False,  # Отключаем дорожку под ползунком
+    )
 
-    tax_spinner.bind(text=update_tax_rate)
-
-    # Кнопка для подтверждения нового налога
+    # Кнопка с эффектом "матового стекла" и анимацией
     set_tax_button = Button(
-        text="Установить уровень налогов",
-        size_hint_y=None,
-        height=50,
-        background_color=(0.4, 0.6, 0.2, 1),
-        color=(1, 1, 1, 1),
-        font_size=18,
-        border=(10, 10, 10, 10),
-        background_normal='',
+        text="Применить",
+        pos_hint={'center_x': 0.5, 'y': 0.1},
+        size_hint=(0.6, 0.15),
+        background_color=(0, 0, 0, 0),  # Прозрачный фон
+        color=(0.8, 0.8, 0.8, 1),
+        font_size=20
     )
 
+    with set_tax_button.canvas.before:
+        Color(0.3, 0.3, 0.3, 0.5)  # Цвет фона
+        set_tax_button.rect = RoundedRectangle(
+            size=set_tax_button.size,
+            pos=set_tax_button.pos,
+            radius=[15]  # Скругленные углы
+        )
+
+    def update_rect(instance, value):
+        instance.rect.pos = instance.pos
+        instance.rect.size = instance.size
+
+    set_tax_button.bind(pos=update_rect, size=update_rect)
+
+    # Обновляем метку с анимацией цвета
+    def update_tax_label(instance, value):
+        tax_label.text = f"Налог: {int(value)}%"
+        r = value / 100
+        g = 1 - r
+        tax_label.color = (r, g, 0, 1)
+        Animation(font_size=32, duration=0.1).start(tax_label)
+        Animation(font_size=28, duration=0.2).start(tax_label)
+
+    tax_slider.bind(value=update_tax_label)
+
+    # Функция для установки налога
     def set_tax(instance):
         """Установить новый уровень налогов и закрыть попап"""
-        faction.current_tax_rate = tax_spinner.text  # Обновляем текущее значение налога в faction
-        tax_popup.dismiss()
+        tax_rate = int(tax_slider.value)  # Получаем текущее значение ползунка
+        faction.current_tax_rate = f"{tax_rate}%"  # Сохраняем значение в faction
+        faction.set_taxes(tax_rate)  # Обновляем налоги в объекте faction
+        faction.apply_tax_effect(tax_rate)  # Применяем эффекты от налогов
+        tax_popup.dismiss()  # Закрываем попап
 
     set_tax_button.bind(on_press=set_tax)
 
     # Добавляем элементы в layout
     main_layout.add_widget(tax_label)
-    main_layout.add_widget(tax_spinner)
+    main_layout.add_widget(tax_slider)
     main_layout.add_widget(set_tax_button)
 
-    # Добавление стилизации фона и округленных углов
-    with main_layout.canvas.before:
-        Color(0.2, 0.2, 0.2, 1)  # Цвет фона
-        RoundedRectangle(size=main_layout.size, pos=main_layout.pos, radius=[15])
-
+    # Устанавливаем содержимое попапа
     tax_popup.content = main_layout
     tax_popup.open()
 
