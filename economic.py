@@ -314,21 +314,25 @@ class Faction:
         :return: Процент изменения населения (положительное или отрицательное значение).
         """
         if tax_rate >= 90:
-            return -65  # Критическая убыль населения (-45%)
-        elif 75 <= tax_rate < 90:
-            return -45  # Значительная убыль населения (-30%)
-        elif 50 <= tax_rate < 75:
-            return -21  # Умеренная убыль населения (-15%)
-        elif 35 <= tax_rate < 50:
-            return -8  # Небольшая убыль населения (-5%)
+            return -69  # Критическая убыль населения (-69%)
+        elif 80 <= tax_rate < 90:
+            return -51  # Значительная убыль населения (-51%)
+        elif 65 <= tax_rate < 80:
+            return -37  # Умеренная убыль населения (-37%)
+        elif 45 <= tax_rate < 65:
+            return -21  # Умеренная убыль населения (-21%)
+        elif 35 <= tax_rate < 45:
+            return -8  # Небольшая убыль населения (-8%)
         elif 25 <= tax_rate < 35:
             return 0  # Нейтральный эффект (0%)
-        elif 15 <= tax_rate < 25:
-            return 5  # Нейтральный эффект (0%)
-        elif 10 <= tax_rate < 15:
+        elif 16 <= tax_rate < 25:
+            return 5  # Небольшой рост (5%)
+        elif 10 <= tax_rate < 16:
             return 11  # Небольшой рост населения (+11%)
+        elif 1 <= tax_rate < 10:
+            return 18  # Небольшой рост населения (+18%)
         else:
-            return 18  # Существенный рост населения (+18%)
+            return 34  # Существенный рост населения (+34%)
 
     def apply_tax_effect(self, tax_rate):
         """
@@ -735,6 +739,25 @@ class Faction:
 
         except sqlite3.Error as e:
             print(f"Ошибка при обновлении ресурсов: {e}")
+
+    def get_resource_now(self, resource_type):
+        """
+        Возвращает текущее значение указанного ресурса.
+        :param resource_type: Тип ресурса (например, "Кроны").
+        :return: Значение ресурса.
+        """
+        return self.resources.get(resource_type, 0)
+
+    def update_resource_now(self, resource_type, new_amount):
+        print("Ресурсы которые прилетели:", resource_type, new_amount)
+        if resource_type == 'Кроны':
+            self.money = new_amount
+        elif resource_type == 'Рабочие':
+            self.free_peoples = new_amount
+        elif resource_type == 'Сырье':
+            self.raw_material = new_amount
+        elif resource_type == 'Население':
+            self.population = new_amount
 
     def get_resources(self):
         """Получение текущих ресурсов с форматированием чисел."""

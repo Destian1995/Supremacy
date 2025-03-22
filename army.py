@@ -21,69 +21,105 @@ import sqlite3
 
 
 class ArmyCash:
-    def __init__(self, faction):
+    def __init__(self, faction, class_faction):
+        """
+        Инициализация класса ArmyCash.
+        :param faction: Название фракции.
+        :param class_faction: Экземпляр класса Faction (экономический модуль).
+        """
         self.faction = faction
+        self.class_faction = class_faction  # Экономический модуль
         self.db_path = "game_data.db"
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
-        self.resources = self.load_resources()
+        self.resources = self.load_resources()  # Загрузка начальных ресурсов
 
     def load_resources(self):
         """
-        Загружает состояние ресурсов из базы данных.
+        Загружает текущие ресурсы фракции из базы данных.
         """
         try:
-            # Запрос всех ресурсов для текущей фракции
-            self.cursor.execute('''
-                SELECT resource_type, amount
-                FROM resources
-                WHERE faction = ?
-            ''', (self.faction,))
-            rows = self.cursor.fetchall()
-
-            # Инициализация ресурсов по умолчанию
+            rows = self.load_data("resources", ["resource_type", "amount"], "faction = ?", (self.faction,))
             resources = {"Кроны": 0, "Рабочие": 0}
-
-            # Обновление ресурсов на основе данных из базы данных
             for resource_type, amount in rows:
                 if resource_type in resources:
                     resources[resource_type] = amount
 
-            # Если записи для фракции отсутствуют, создаем их с начальными значениями
-            if not rows:
-                resources = {"Кроны": 1000, "Рабочие": 50}
-                for resource_type, amount in resources.items():
-                    self.cursor.execute('''
-                        INSERT INTO resources (faction, resource_type, amount)
-                        VALUES (?, ?, ?)
-                    ''', (self.faction, resource_type, amount))
-                self.conn.commit()
-
+            # Отладочный вывод: загруженные ресурсы
+            print(f"[DEBUG] Загружены ресурсы для фракции '{self.faction}': {resources}")
             return resources
-
         except sqlite3.Error as e:
             print(f"Ошибка при загрузке ресурсов: {e}")
-            return {"Кроны": 0, "Рабочие": 0}  # Возвращаем пустые ресурсы в случае ошибки
+            return {"Кроны": 0, "Рабочие": 0}
 
-    def hire_unit(self, unit_name, unit_cost, quantity, unit_stats):
+    def load_data(self, table, columns, condition=None, params=None):
         """
-        Нанимает юнита, если ресурсов достаточно.
+        Универсальный метод для загрузки данных из таблицы базы данных.
+        """
+        try:
+            query = f"SELECT {', '.join(columns)} FROM {table}"
+            if condition:
+                query += f" WHERE {condition}"
+            self.cursor.execute(query, params or ())
+            result = self.cursor.fetchall()
 
-        :param unit_name: Название юнита (например, "Гвардия", "Вепрь")
-        :param unit_cost: Стоимость юнита в виде кортежа (кроны, рабочие)
-        :param quantity: Количество нанимаемых юнитов
-        :param unit_stats: Характеристики юнита (Урон, Защита, Живучесть, Класс юнита)
-        :return: True, если найм успешен; False, если недостаточно ресурсов
+            # Отладочный вывод: SQL-запрос и результат
+            print(f"[DEBUG] SQL-запрос: {query}, параметры: {params}")
+            print(f"[DEBUG] Результат запроса: {result}")
+
+            return result
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке данных из таблицы {table}: {e}")
+            return []
+
+    def deduct_resources(self, crowns, workers):
         """
-        # Распаковываем стоимость юнита
+        Списывает ресурсы через экономический модуль.
+
+        :param crowns: Количество крон для списания.
+        :param workers: Количество рабочих для списания.
+        :return: True, если ресурсы успешно списаны; False, если недостаточно ресурсов.
+        """
+        try:
+            # Проверяем доступность ресурсов через экономический модуль
+            current_crowns = self.class_faction.get_resource_now("Кроны")
+            current_workers = self.class_faction.get_resource_now("Рабочие")
+
+            print(f"[DEBUG] Текущие ресурсы: Кроны={current_crowns}, Рабочие={current_workers}")
+
+            if current_crowns < crowns or current_workers < workers:
+                print("[DEBUG] Недостаточно ресурсов для списания.")
+                return False
+
+            # Списываем ресурсы через экономический модуль
+            self.class_faction.update_resource_now("Кроны", current_crowns - crowns)
+            self.class_faction.update_resource_now("Рабочие", current_workers - workers)
+
+            return True
+
+        except Exception as e:
+            print(f"Ошибка при списании ресурсов: {e}")
+            return False
+
+    def hire_unit(self, unit_name, unit_cost, quantity, unit_stats, koef=0):
+        """
+        Нанимает юнит (оружие), если ресурсов достаточно.
+        :param unit_name: Название юнита.
+        :param unit_cost: Стоимость юнита в виде кортежа (кроны, рабочие).
+        :param quantity: Количество нанимаемых юнитов.
+        :param unit_stats: Характеристики юнита (должен быть словарем).
+        :return: True, если найм успешен; False, если недостаточно ресурсов.
+        """
         crowns, workers = unit_cost
-
-        # Вычисляем общую стоимость
         required_crowns = int(crowns) * int(quantity)
         required_workers = int(workers) * int(quantity)
 
-        # Проверяем наличие ресурсов
-        if self.resources['Кроны'] < required_crowns or self.resources['Рабочие'] < required_workers:
+        # Отладочный вывод: стоимость найма
+        print(f"[DEBUG] Попытка нанять {quantity} юнитов '{unit_name}'. "
+              f"Требуемые ресурсы: Кроны={required_crowns}, Рабочие={required_workers}")
+
+        # Проверка наличия ресурсов
+        if not self.deduct_resources(required_crowns, required_workers):
             self.show_message(
                 title="Ошибка найма",
                 message=f"Нанять юнитов невозможно: недостаточно ресурсов.\n"
@@ -91,24 +127,26 @@ class ArmyCash:
             )
             return False
 
-        # Обновляем ресурсы
-        self.resources['Кроны'] -= required_crowns
-        self.resources['Рабочие'] -= required_workers
+        # Проверка типа unit_stats
+        if not isinstance(unit_stats, dict):
+            print("[ERROR] unit_stats должен быть словарем!")
+            return False
 
-        # Сохраняем обновленные ресурсы в базу данных
-        self.cursor.execute("""
-            UPDATE resources
-            SET amount = ?
-            WHERE faction = ? AND resource_type = ?
-        """, (self.resources['Кроны'], self.faction, "Кроны"))
-        self.cursor.execute("""
-            UPDATE resources
-            SET amount = ?
-            WHERE faction = ? AND resource_type = ?
-        """, (self.resources['Рабочие'], self.faction, "Рабочие"))
-        self.conn.commit()
+        # Добавление юнитов в базу данных
+        self.add_or_update_army_unit(unit_name, quantity, unit_stats)
 
-        # Обновляем или добавляем юнит в таблицу armies
+        # Отображение сообщения об успехе
+        self.show_message(
+            title="Успех",
+            message=f"Юнит {unit_name} нанят! "
+                    f"Потрачено: {required_crowns} крон и {required_workers} рабочих."
+        )
+        return True
+
+    def add_or_update_army_unit(self, unit_name, quantity, unit_stats):
+        """
+        Добавляет или обновляет данные о юните в базе данных.
+        """
         self.cursor.execute("""
             SELECT quantity, total_attack, total_defense, total_durability
             FROM armies
@@ -118,27 +156,25 @@ class ArmyCash:
 
         if result:
             # Если юнит уже существует, обновляем его данные
-            current_quantity, current_attack, current_defense, current_durability = result
-
+            current_quantity, total_attack, total_defense, total_durability = result
             new_quantity = current_quantity + quantity
-            new_attack = current_attack + unit_stats["Урон"] * quantity
-            new_defense = current_defense + unit_stats["Защита"] * quantity
-            new_durability = current_durability + unit_stats["Живучесть"] * quantity
-
             self.cursor.execute("""
                 UPDATE armies
                 SET quantity = ?, total_attack = ?, total_defense = ?, total_durability = ?
                 WHERE faction = ? AND unit_type = ?
             """, (
-                new_quantity, new_attack, new_defense, new_durability,
-                self.faction, unit_name
+                new_quantity,
+                total_attack + unit_stats["Урон"] * quantity,
+                total_defense + unit_stats["Защита"] * quantity,
+                total_durability + unit_stats["Живучесть"] * quantity,
+                self.faction,
+                unit_name
             ))
         else:
-            # Если юнита нет, добавляем новую запись
+            # Если юнит новый, добавляем его в базу
             self.cursor.execute("""
-                INSERT INTO armies (
-                    faction, unit_type, quantity, total_attack, total_defense, total_durability, unit_class
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO armies (faction, unit_type, quantity, total_attack, total_defense, total_durability, unit_class)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
                 self.faction,
                 unit_name,
@@ -151,15 +187,80 @@ class ArmyCash:
 
         self.conn.commit()
 
-        # Отображаем сообщение об успехе
+    def hire_weapons(self, weapon_name, unit_cost, quantity):
+        """
+        Обновляет или создает запись в таблице weapons.
+        :param unit_cost : кортеж, содержащий стоимость оружия в кронах и рабочих.
+        """
+        crowns, workers = unit_cost
+        required_crowns = int(crowns) * int(quantity)
+        required_workers = int(workers) * int(quantity)
+
+        # Отладочный вывод: стоимость найма
+        print(f"[DEBUG] Попытка нанять {quantity} юнитов '{weapon_name}'. "
+              f"Требуемые ресурсы: Кроны={required_crowns}, Рабочие={required_workers}")
+
+        # Проверка наличия ресурсов
+        if not self.deduct_resources(required_crowns, required_workers):
+            self.show_message(
+                title="Ошибка найма",
+                message=f"Нанять юнитов невозможно: недостаточно ресурсов.\n"
+                        f"Необходимые: {required_crowns} крон и {required_workers} рабочих."
+            )
+            return False
+
+        # Отображение сообщения об успехе
         self.show_message(
             title="Успех",
-            message=f"Юнит {unit_name} нанят!\n"
+            message=f"Юнит {weapon_name} нанят! "
                     f"Потрачено: {required_crowns} крон и {required_workers} рабочих."
         )
         return True
 
+    def update_weapon_in_db(self, faction, weapon_name, quantity, damage, koef):
+        """
+        Обновляет или создает запись в таблице weapons.
+        :param faction: Название фракции.
+        :param weapon_name: Название оружия.
+        :param quantity: Количество единиц оружия.
+        :param damage: Урон оружия.
+        :param koef: Коэффициент преодоления ПВО.
+        """
+        try:
+            # Проверяем, существует ли запись для данного оружия
+            self.cursor.execute('''
+                SELECT quantity
+                FROM weapons
+                WHERE faction = ? AND weapon_name = ?
+            ''', (faction, weapon_name))
+            result = self.cursor.fetchone()
+
+            if result:
+                # Если запись существует, обновляем количество
+                current_quantity = result[0]
+                new_quantity = current_quantity + quantity
+                self.cursor.execute('''
+                    UPDATE weapons
+                    SET quantity = ?, damage = ?, koef = ?
+                    WHERE faction = ? AND weapon_name = ?
+                ''', (new_quantity, damage, koef, faction, weapon_name))
+            else:
+                # Если запись отсутствует, создаем новую
+                self.cursor.execute('''
+                    INSERT INTO weapons (faction, weapon_name, quantity, damage, koef)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (faction, weapon_name, quantity, damage, koef))
+
+            self.conn.commit()
+            print(f"[DEBUG] Данные оружия '{weapon_name}' успешно обновлены в таблице weapons.")
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении таблицы weapons: {e}")
+
     def show_message(self, title, message):
+        """
+        Показывает всплывающее окно с сообщением.
+        """
         layout = BoxLayout(orientation='vertical', padding=10)
         label = Label(text=message, halign='center')
         button = Button(text="OK", size_hint=(1, 0.3))
@@ -200,7 +301,7 @@ def load_unit_data(faction):
     return unit_data
 
 
-def show_unit_selection(faction, army_hire):
+def show_unit_selection(faction, army_hire, class_faction):
     """Показать окно выбора юнитов для найма."""
     unit_data = load_unit_data(faction)
 
@@ -237,8 +338,8 @@ def show_unit_selection(faction, army_hire):
         hire_btn = Button(text="Нанять", size_hint_x=0.5, background_color=(0.4, 0.8, 0.4, 1),
                           font_size=16, color=(1, 1, 1, 1))
         hire_btn.bind(on_release=lambda instance, name=unit_name, cost=unit_info['cost'],
-                                        input_box=quantity_input, stats=unit_info['stats']:
-        army_hire.hire_unit(name, cost, int(input_box.text), stats))
+                                        input_box=quantity_input, stats=unit_info['stats'], image=unit_info["image"]:
+        army_hire.hire_unit(name, cost, int(input_box.text), image, stats))
 
         button_layout.add_widget(hire_btn)
         button_layout.add_widget(quantity_input)
@@ -298,119 +399,9 @@ def display_unit_stats_info(unit_name, stats, stats_box):
     stats_box.text = stats_text  # Устанавливаем текст характеристик юнита
 
 
-def switch_to_economy(faction, game_area):
-    import economic  # Импортируем здесь, чтобы избежать циклического импорта
-    game_area.clear_widgets()
-    economic.start_economy_mode(faction, game_area)
-
-
-def switch_to_army(faction, game_area):
-    import army  # Импортируем здесь, чтобы избежать циклического импорта
-    game_area.clear_widgets()
-    army.start_army_mode(faction, game_area)
-
-
-def switch_to_politics(faction, game_area):
-    import politic  # Импортируем здесь, чтобы избежать циклического импорта
-    game_area.clear_widgets()
-    politic.start_politic_mode(faction, game_area)
 
 
 #--------------------------------
-
-
-class WeaponCash:
-    def __init__(self, faction):
-        self.faction = faction
-        self.db_path = "game_data.db"
-        self.conn = sqlite3.connect(self.db_path)
-        self.cursor = self.conn.cursor()
-        self.resources = self.load_resources()
-
-    def load_resources(self):
-        """Загружает состояние ресурсов из таблицы resources."""
-        self.cursor.execute('''
-            SELECT resource_type, amount
-            FROM resources
-            WHERE faction = ?
-        ''', (self.faction,))
-        rows = self.cursor.fetchall()
-
-        resources = {"Кроны": 0, "Рабочие": 0}
-        for resource_type, amount in rows:
-            resources[resource_type] = amount
-
-        return resources
-
-    def hire_unit(self, unit_name, unit_cost, quantity, weapon_name, koef=0):
-        """Нанимает юнит (оружие), если ресурсов достаточно."""
-        crowns, workers = unit_cost
-        required_crowns = int(crowns) * int(quantity)
-        required_workers = int(workers) * int(quantity)
-
-        # Проверяем, хватает ли ресурсов
-        if self.resources['Кроны'] < required_crowns or self.resources['Рабочие'] < required_workers:
-            print("Недостаточно ресурсов для найма.")
-            return False
-
-        # Обновляем ресурсы
-        self.resources['Кроны'] -= required_crowns
-        self.resources['Рабочие'] -= required_workers
-        self.cursor.execute('''
-            UPDATE resources
-            SET amount = ?
-            WHERE faction = ? AND resource_type = ?
-        ''', (self.resources['Кроны'], self.faction, "Кроны"))
-        self.cursor.execute('''
-            UPDATE resources
-            SET amount = ?
-            WHERE faction = ? AND resource_type = ?
-        ''', (self.resources['Рабочие'], self.faction, "Рабочие"))
-        self.conn.commit()
-
-        # Загружаем базовые данные об оружии из таблицы weapons_stats
-        self.cursor.execute('''
-            SELECT damage
-            FROM weapons_stats
-            WHERE faction = ? AND weapon_name = ?
-        ''', (self.faction, weapon_name))
-        result = self.cursor.fetchone()
-
-        if not result:
-            print(f"Оружие {weapon_name} не найдено в базе данных.")
-            return False
-
-        base_damage = result[0]
-
-        # Вычисляем общий урон
-        total_damage = base_damage * quantity
-
-        # Обновляем или добавляем запись в таблицу weapons
-        self.cursor.execute('''
-            SELECT quantity
-            FROM weapons
-            WHERE faction = ? AND weapon_name = ?
-        ''', (self.faction, weapon_name))
-        result = self.cursor.fetchone()
-
-        if result:
-            current_quantity = result[0]
-            new_quantity = current_quantity + quantity
-            self.cursor.execute('''
-                UPDATE weapons
-                SET quantity = ?, damage = ?, koef = ?
-                WHERE faction = ? AND weapon_name = ?
-            ''', (new_quantity, base_damage, koef, self.faction, weapon_name))
-        else:
-            self.cursor.execute('''
-                INSERT INTO weapons (faction, weapon_name, quantity, damage, koef)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (self.faction, weapon_name, quantity, base_damage, koef))
-
-        self.conn.commit()
-        print(f"Нанято {quantity} единиц оружия {weapon_name}.")
-        return True
-
 
 # Функция для загрузки данных юнитов (оружия) из БД
 def load_weapon_data(faction):
@@ -437,12 +428,6 @@ def load_weapon_data(faction):
             }
         }
     return weapon_data
-
-
-# Функция для сохранения данных юнитов
-def save_weapon_data(weapon_data):
-    with open("files/config/arms/weapons.json", "w", encoding="utf-8") as f:
-        json.dump(weapon_data, f, ensure_ascii=False, indent=4)
 
 
 # Функция для загрузки и очистки данных из файла
@@ -950,35 +935,6 @@ def load_faction_image(faction):
 
     return result[0]
 
-
-class StyledButton(Button):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        with self.canvas.before:
-            Color(0.2, 0.6, 0.8, 1)  # Основной цвет кнопки
-            self.rect = RoundedRectangle(radius=[20], size=self.size, pos=self.pos)
-        self.bind(pos=self.update_rect, size=self.update_rect)
-
-    def update_rect(self, *args):
-        self.rect.pos = self.pos
-        self.rect.size = self.size
-        # Фиксируем радиус закругления
-        self.rect.radius = [20]
-
-    def on_touch_down(self, touch):
-        if self.collide_point(*touch.pos):
-            # Сохраняем радиус при анимации
-            self.rect.size = (self.size[0] - 5, self.size[1] - 5)
-            self.rect.radius = [20]  # Форсируем обновление радиуса
-        return super().on_touch_down(touch)
-
-    def on_touch_up(self, touch):
-        if self.collide_point(*touch.pos):
-            self.rect.size = self.size
-            self.rect.radius = [20]  # Форсируем обновление радиуса
-        return super().on_touch_up(touch)
-
-
 def select_weapon(weapon_name, weapons, faction, army_cash):
     weapon_info = weapons[weapon_name]
     stats_info = '\n'.join([f"{key}: {value}" for key, value in weapon_info.get('stats', {}).items()])
@@ -1058,10 +1014,26 @@ def build_weapon(faction, weapon_name, quantity_str, cost, weapon_details_popup,
         quantity = int(quantity_str)
         total_cost = [cost[0] * quantity, cost[1] * quantity]
 
-        # Передаем параметры koef и class_weapon в hire_unit
-        if army_cash.hire_unit(weapon_name, cost, quantity, weapon_name, koef):
-            print(
-                f"Построено {quantity} юнитов {weapon_name}. Общая стоимость: {total_cost[0]} Крон, {total_cost[1]} Рабочих.")
+        # Получаем характеристики оружия из weapon_info
+        weapon_info = load_weapon_data(faction).get(weapon_name, {})
+        print(f"[DEBUG] Данные оружия '{weapon_name}': {weapon_info}")
+
+        # Проверка наличия характеристик
+        if not weapon_info or "stats" not in weapon_info:
+            print(f"[ERROR] Некорректные данные для оружия '{weapon_name}'.")
+            return
+
+        # Формируем характеристики оружия
+        damage = weapon_info.get("stats", {}).get("Вероятный Урон", 0)
+        koef_value = weapon_info.get("stats", {}).get("Коэффициент преодоления ПВО", 0)
+
+        # Передаем параметры в hire_unit
+        if army_cash.hire_weapons(weapon_name, cost, quantity):
+            print(f"Построено {quantity} юнитов {weapon_name}. "
+                  f"Общая стоимость: {total_cost[0]} Крон, {total_cost[1]} Рабочих.")
+
+            # Обновляем таблицу weapons
+            army_cash.update_weapon_in_db(faction, weapon_name, quantity, damage, koef_value)
 
             # Закрываем окно деталей оружия
             if weapon_details_popup:
@@ -1071,13 +1043,14 @@ def build_weapon(faction, weapon_name, quantity_str, cost, weapon_details_popup,
             open_weapon_db_management(faction, army_cash)
         else:
             print(f"Недостаточно ресурсов для найма {quantity} юнитов {weapon_name}.")
-
     except ValueError:
         print("Пожалуйста, введите корректное количество юнитов.")
-        error_popup = Popup(title="Ошибка", content=Label(text="Пожалуйста, введите корректное количество юнитов."),
-                            size_hint=(0.5, 0.5))
+        error_popup = Popup(
+            title="Ошибка",
+            content=Label(text="Пожалуйста, введите корректное количество юнитов."),
+            size_hint=(0.5, 0.5)
+        )
         error_popup.open()
-
 
 def get_weapons(faction):
     """Получает данные об оружии для указанной фракции."""
@@ -1146,17 +1119,23 @@ def start_mission(faction, city_name, coordinates, selected_weapon_name, selecte
         "damage": damage,
         "koef": koef
     }
-    strike.strike_to_city(city_name, weapon_characteristics)
+    path_to_army = ''
+    strike.strike_to_city(city_name, weapon_characteristics, path_to_army)
     print(f"Миссия запущена: {city_name}, {coordinates}")
 
 
 #------Базовая функция------------
 
-def start_army_mode(faction, game_area):
-    """Инициализация армейского режима для выбранной фракции."""
+def start_army_mode(faction, game_area, class_faction):
+    """
+    Инициализация армейского режима для выбранной фракции.
 
-    # Загружаем города из файла
-    cities = load_cities_from_file(faction)
+    :param class_faction:
+    :param faction: Объект фракции (экземпляр класса Faction).
+    :param game_area: Центральная область игры, куда будут добавлены виджеты.
+    """
+    # Создаем объект ArmyCash для найма юнитов
+    army_hire = ArmyCash(faction, class_faction)
 
     # Создаем layout для кнопок
     army_layout = BoxLayout(
@@ -1197,9 +1176,8 @@ def start_army_mode(faction, game_area):
         return button
 
     # Создаем кнопки с новым стилем
-    train_btn = create_styled_button("Тренировка войск", lambda x: show_unit_selection(faction, ArmyCash(faction)))
-    defend_btn = create_styled_button("Управление дб. оружием",
-                                      lambda x: open_weapon_db_management(faction, WeaponCash(faction)))
+    train_btn = create_styled_button("Тренировка войск", lambda x: show_unit_selection(faction, army_hire, class_faction))
+    defend_btn = create_styled_button("Управление дб. оружием", lambda x: open_weapon_db_management(faction, army_hire))
 
     # Добавляем кнопки в layout
     army_layout.add_widget(train_btn)
@@ -1209,19 +1187,30 @@ def start_army_mode(faction, game_area):
     game_area.add_widget(army_layout)
 
 
-def load_cities_from_file(faction):
-    try:
-        with open('files/config/city.json', 'r', encoding='utf-8') as file:
-            data = json.load(file)
-        # Проверка на существование фракции в данных
-        if faction in data['kingdoms']:
-            return data['kingdoms'][faction]['fortresses']
-        else:
-            print(f"Фракция {faction} не найдена в файле city.json.")
-            return []
-    except FileNotFoundError:
-        print("Файл city.json не найден.")
-        return []
-    except json.JSONDecodeError:
-        print("Ошибка при чтении файла city.json.")
-        return []
+#---------------------------------------------------------------
+class StyledButton(Button):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        with self.canvas.before:
+            Color(0.2, 0.6, 0.8, 1)  # Основной цвет кнопки
+            self.rect = RoundedRectangle(radius=[20], size=self.size, pos=self.pos)
+        self.bind(pos=self.update_rect, size=self.update_rect)
+
+    def update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+        # Фиксируем радиус закругления
+        self.rect.radius = [20]
+
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            # Сохраняем радиус при анимации
+            self.rect.size = (self.size[0] - 5, self.size[1] - 5)
+            self.rect.radius = [20]  # Форсируем обновление радиуса
+        return super().on_touch_down(touch)
+
+    def on_touch_up(self, touch):
+        if self.collide_point(*touch.pos):
+            self.rect.size = self.size
+            self.rect.radius = [20]  # Форсируем обновление радиуса
+        return super().on_touch_up(touch)

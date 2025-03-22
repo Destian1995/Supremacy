@@ -40,6 +40,52 @@ def transform_filename(file_path):
     return '/'.join(path_parts)
 
 
+class GameStateManager:
+    def __init__(self):
+        self.faction = None  # Объект фракции
+        self.resource_box = None  # Объект ResourceBox
+        self.game_area = None  # Центральная область игры
+        self.conn = None  # Соединение с базой данных
+        self.cursor = None  # Курсор для работы с БД
+        self.turn_counter = 0  # Счетчик ходов
+
+    def initialize(self, selected_faction, db_path="game_data.db"):
+        """Инициализация объектов игры."""
+        self.faction = Faction(selected_faction)  # Создаем объект фракции
+        self.conn = sqlite3.connect(db_path)  # Подключаемся к базе данных
+        self.cursor = self.conn.cursor()
+        self.turn_counter = self.load_turn(selected_faction)  # Загружаем счетчик ходов
+
+    def load_turn(self, faction):
+        """Загружает текущее значение счетчика ходов из базы данных."""
+        try:
+            self.cursor.execute('''
+                SELECT turn_count
+                FROM turn
+                WHERE faction = ?
+            ''', (faction,))
+            row = self.cursor.fetchone()
+            return row[0] if row else 0
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке счетчика ходов: {e}")
+            return 0
+
+    def save_turn(self, faction, turn_count):
+        """Сохраняет текущее значение счетчика ходов в базу данных."""
+        try:
+            self.cursor.execute('''
+                INSERT OR REPLACE INTO turn (faction, turn_count)
+                VALUES (?, ?)
+            ''', (faction, turn_count))
+            self.conn.commit()
+        except sqlite3.Error as e:
+            print(f"Ошибка при сохранении счетчика ходов: {e}")
+
+    def close_connection(self):
+        """Закрывает соединение с базой данных."""
+        if self.conn:
+            self.conn.close()
+
 class ResourceBox(BoxLayout):
     def __init__(self, resource_manager, **kwargs):
         super(ResourceBox, self).__init__(**kwargs)
@@ -95,33 +141,31 @@ class GameScreen(Screen):
         super(GameScreen, self).__init__(**kwargs)
         self.selected_faction = selected_faction
         self.cities = cities
-        self.faction = Faction(selected_faction)
+
+        # Инициализация GameStateManager
+        self.game_state_manager = GameStateManager()
+        self.game_state_manager.initialize(selected_faction)
+
+        # Доступ к объектам через менеджер состояния
+        self.faction = self.game_state_manager.faction
+        self.conn = self.game_state_manager.conn
+        self.cursor = self.game_state_manager.cursor
+        self.turn_counter = self.game_state_manager.turn_counter
+
+        # Инициализация AI-контроллеров
         self.ai_controllers = {}
-        # Счетчик ходов
-        self.turn_counter = 0
-        # Инициализация EventManager
-        # Подключение к базе данных
-        self.db_path = "game_data.db"
-        self.conn = sqlite3.connect(self.db_path)
-        self.cursor = self.conn.cursor()
-
-        # Загружаем текущее значение счетчика ходов из БД
-        self.turn_counter = self.load_turn(self.selected_faction)
 
         # Инициализация EventManager
         self.event_manager = EventManager(self.selected_faction, self)
+
         # Инициализация UI
         self.init_ui()
-        # Запускаем обновление ресурсов каждую 1 секунду
-        Clock.schedule_interval(self.update_cash, 1)
-        self.event_manager = EventManager(self.selected_faction, self)
-        # Инициализация UI
-        self.init_ui()
+
         # Запускаем обновление ресурсов каждую 1 секунду
         Clock.schedule_interval(self.update_cash, 1)
 
     def init_ui(self):
-        # панель с выбранной фракцией
+        # Панель с выбранной фракцией
         self.faction_label = Label(
             text=f"{self.selected_faction}",
             font_size='30sp',
@@ -134,7 +178,7 @@ class GameScreen(Screen):
         # Боковая панель с кнопками режимов
         self.mode_panel = BoxLayout(orientation='vertical', size_hint=(0.2, 1), pos_hint={'x': -0.06, 'y': 0})
 
-        # Уменьшенные иконки
+        # Кнопки режимов
         btn_economy = ImageButton(source='files/status/economy.jpg', size_hint_y=None, height=50, width=50,
                                   on_press=self.switch_to_economy)
         btn_army = ImageButton(source='files/status/army.jpg', size_hint_y=None, height=65, width=30,
@@ -142,25 +186,24 @@ class GameScreen(Screen):
         btn_politics = ImageButton(source='files/status/politic.jpg', size_hint_y=None, height=65, width=40,
                                    on_press=self.switch_to_politics)
         btn_advisor = ImageButton(
-            source=transform_filename(f'files/sov/sov_{self.selected_faction}.jpg'),  # Иконка для кнопки
+            source=transform_filename(f'files/sov/sov_{self.selected_faction}.jpg'),
             size_hint_y=None,
             height=65,
             width=40,
             on_press=self.show_advisor
         )
-        self.mode_panel.add_widget(btn_advisor)
 
+        self.mode_panel.add_widget(btn_advisor)
         self.mode_panel.add_widget(btn_economy)
         self.mode_panel.add_widget(btn_army)
         self.mode_panel.add_widget(btn_politics)
-
         self.add_widget(self.mode_panel)
 
         # Центральная часть для отображения карты и игрового процесса
         self.game_area = FloatLayout(size_hint=(0.8, 1), pos_hint={'x': 0.2, 'y': 0})
         self.add_widget(self.game_area)
 
-        # Добавляем кнопку "Завершить ход" в правый верхний угол
+        # Добавляем кнопку "Завершить ход"
         end_turn_button = Button(
             text="Завершить ход",
             size_hint=(None, None),
@@ -170,7 +213,7 @@ class GameScreen(Screen):
         )
         self.add_widget(end_turn_button)
 
-        # Добавление ResourceBox в верхний правый угол, передаем resource_manager
+        # Добавление ResourceBox в верхний правый угол
         self.resource_box = ResourceBox(resource_manager=self.faction)
         self.add_widget(self.resource_box)
 
@@ -178,35 +221,38 @@ class GameScreen(Screen):
         self.init_ai_controllers()
 
     def update_cash(self, dt):
-        """Обновление текущего капитала фракции через каждые 1 секунду"""
+        """Обновление текущего капитала фракции через каждые 1 секунду."""
         self.faction.update_cash()
-        # Обновляем отображение в ResourceBox
         self.resource_box.update_resources()
+
+    def switch_to_economy(self, instance):
+        """Переключение на экономическую вкладку."""
+        self.clear_game_area()
+        economic.start_economy_mode(self.game_state_manager.faction, self.game_area)
+
+    def switch_to_army(self, instance):
+        """Переключение на армейскую вкладку."""
+        self.clear_game_area()
+        army.start_army_mode(self.selected_faction, self.game_area, self.game_state_manager.faction)
+
+    def switch_to_politics(self, instance):
+        """Переключение на политическую вкладку."""
+        self.clear_game_area()
+        politic.start_politic_mode(self.selected_faction, self.game_area, self.game_state_manager.faction)
+
+    def clear_game_area(self):
+        """Очистка центральной области."""
+        self.game_area.clear_widgets()
+
+    def on_stop(self):
+        """Закрытие соединения с базой данных при завершении игры."""
+        self.game_state_manager.close_connection()
 
     def show_advisor(self, instance):
         """Показать экран советника"""
         self.clear_game_area()
         advisor_view = AdvisorView(self.selected_faction)
         self.game_area.add_widget(advisor_view)
-
-    def switch_to_economy(self, instance):
-        """Переключение на экономическую вкладку"""
-        self.clear_game_area()
-        economic.start_economy_mode(self.faction, self.game_area)
-
-    def switch_to_army(self, instance):
-        """Переключение на армейскую вкладку"""
-        self.clear_game_area()
-        army.start_army_mode(self.selected_faction, self.game_area)
-
-    def switch_to_politics(self, instance):
-        """Переключение на политическическую вкладку"""
-        self.clear_game_area()
-        politic.start_politic_mode(self.selected_faction, self.game_area)
-
-    def clear_game_area(self):
-        """Очистка центральной области"""
-        self.game_area.clear_widgets()
 
     def init_ai_controllers(self):
         """Создание контроллеров ИИ для каждой фракции кроме выбранной"""
@@ -277,7 +323,3 @@ class GameScreen(Screen):
         self.save_turn(self.selected_faction, 0)  # Сбрасываем счетчик ходов до 0
         self.turn_counter = 0
         print("Счетчик ходов сброшен.")
-
-    def on_stop(self):
-        """Закрытие соединения с базой данных при завершении игры."""
-        self.conn.close()
