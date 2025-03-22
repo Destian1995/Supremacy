@@ -1,5 +1,4 @@
 from kivy.clock import Clock
-from kivy.lang import Builder
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.slider import Slider
@@ -9,7 +8,7 @@ from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.dropdown import DropDown
-from kivy.graphics import Color, RoundedRectangle, Rectangle, Line
+from kivy.graphics import Color, RoundedRectangle, Rectangle
 from kivy.core.window import Window
 from kivy.animation import Animation
 from kivy.uix.floatlayout import FloatLayout
@@ -17,18 +16,6 @@ from kivy.uix.floatlayout import FloatLayout
 import random
 import sqlite3
 
-from kivymd.uix.widget import MDWidget
-from kivy.graphics import RenderContext
-
-class BlurEffect(MDWidget):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.canvas = RenderContext()
-        self.canvas.shader.fs = '''
-        void main() {
-            gl_FragColor = vec4(0.5, 0.5, 1.0, 0.5);
-        }
-        '''
 
 def format_number(number):
     """Форматирует число с добавлением приставок (тыс., млн., млрд., трлн., квинт., и т.д.)"""
@@ -247,21 +234,20 @@ class Faction:
 
         return cities
 
-
-    def build_factory(self, city):
-        """Увеличить количество фабрик в указанном городе."""
+    def build_factory(self, city, quantity=1):
+        """Увеличить количество фабрик в указанном городе на заданное количество."""
         if city not in self.cities_buildings:
             self.cities_buildings[city] = {'Больница': 0, 'Фабрика': 0}
-        self.cities_buildings[city]['Фабрика'] += 1  # Обновляем локальные данные
-        save_building_change(self.faction, city, "Фабрика", 1)  # Передаем изменение
+        self.cities_buildings[city]['Фабрика'] += quantity  # Обновляем локальные данные
+        save_building_change(self.faction, city, "Фабрика", quantity)  # Передаем изменение
         self.update_buildings()  # Пересчитываем общие показатели
 
-    def build_hospital(self, city):
-        """Увеличить количество больниц в указанном городе."""
+    def build_hospital(self, city, quantity=1):
+        """Увеличить количество больниц в указанном городе на заданное количество."""
         if city not in self.cities_buildings:
             self.cities_buildings[city] = {'Больница': 0, 'Фабрика': 0}
-        self.cities_buildings[city]['Больница'] += 1
-        save_building_change(self.faction, city, "Больница", 1)
+        self.cities_buildings[city]['Больница'] += quantity
+        save_building_change(self.faction, city, "Больница", quantity)
         self.update_buildings()  # Пересчитываем общие показатели
 
     def update_buildings(self):
@@ -907,7 +893,7 @@ def build_structure(building, city, faction, quantity, on_complete):
         show_error_message("Выбранный город не найден!")
         return
 
-    # Определяем стоимость постройки
+    # Определяем стоимость постройки одного здания
     building_cost = 200 if building == "Фабрика" else 300 if building == "Больница" else None
     if building_cost is None:
         show_error_message("Неизвестный тип здания!")
@@ -920,17 +906,15 @@ def build_structure(building, city, faction, quantity, on_complete):
         show_error_message(f"Недостаточно денег для постройки {quantity} зданий!\nСтоимость: {total_cost} крон")
         return
 
-    # Строим здания
-    for _ in range(quantity):
-        if building == "Фабрика":
-            faction.build_factory(city_found['name'])  # Передаем имя города
-        elif building == "Больница":
-            faction.build_hospital(city_found['name'])  # Передаем имя города
+    # Строим здания за один вызов
+    if building == "Фабрика":
+        faction.build_factory(city_found['name'], quantity)  # Передаем количество
+    elif building == "Больница":
+        faction.build_hospital(city_found['name'], quantity)  # Передаем количество
 
     # Выполняем функцию завершения постройки
     if on_complete:
         Clock.schedule_once(on_complete, 0.5)  # Задержка 0.5 секунды для отображения сообщений
-
 
 def open_build_popup(faction):
     def rebuild_popup(*args):
@@ -970,12 +954,12 @@ def open_build_popup(faction):
         ("Количество больниц:", faction.hospitals),
         ("Количество фабрик:", faction.factories),
         ("Количество рабочих на фабриках:", faction.work_peoples),
-        ("Чистый численности рабочих:", faction.clear_up_peoples),
+        ("Чистый прирост рабочих:", faction.clear_up_peoples),
         ("Потребление денег больницами:", faction.money_info),
         ("Чистое производство сырья:", faction.food_info),
         ("Чистый прирост денег:", faction.money_up),
         ("Доход от налогов:", faction.taxes_info),
-        ("Эффект от налогов (Изменение рабочих):",
+        ("Эффект от налогов (Рост населения):",
          faction.apply_tax_effect(int(faction.current_tax_rate[:-1])) if faction.tax_set else "Налог не установлен"),
     ]
 
@@ -1217,9 +1201,9 @@ def open_trade_popup(game_instance):
     # Блок кнопок "Купить" и "Продать"
     button_container = BoxLayout(orientation='vertical', size_hint=(1, 0.4), spacing=10)
 
-    # Надпись "Цена за 1 лот = 10,000 единиц"
+    # Надпись "Цена за 1 лот = 10,000 единиц сырья"
     lot_info_label = Label(
-        text="Цена за 1 лот = 10,000 единиц",
+        text="Цена за 1 лот = 10,000 единиц сырья",
         font_size=18,
         color=(1, 1, 1, 1),
         size_hint=(1, 0.3),

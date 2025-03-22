@@ -1,30 +1,54 @@
 import sqlite3
+import os
 
-# Подключение к базе данных (или создание новой, если файл не существует)
+# Путь к базе данных
 db_path = "game_data.db"
-conn = sqlite3.connect(db_path)
-cursor = conn.cursor()
 
-# Создание таблицы turn
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS turn (
-        faction TEXT PRIMARY KEY,
-        turn_count INTEGER
-    )
-''')
+# Функция для добавления записи в таблицу station_images
+def add_station_image(conn, faction, image_path):
+    """Добавляет путь к изображению станции для указанной фракции."""
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO station_images (faction, image_path)
+        VALUES (?, ?)
+    ''', (faction, image_path))
+    conn.commit()
 
-# Создание таблицы turn_save
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS turn_save (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        faction TEXT,
-        turn_count INTEGER,
-        saved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-''')
+# Функция для поиска изображений станций
+def populate_station_images():
+    # Подключение к базе данных
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
 
-# Сохранение изменений и закрытие соединения
-conn.commit()
-conn.close()
+    # Создание таблицы station_images, если она еще не существует
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS station_images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            faction TEXT NOT NULL,
+            image_path TEXT NOT NULL
+        )
+    ''')
+    conn.commit()
 
-print("Таблицы успешно созданы.")
+    # Базовый путь к папке с изображениями
+    base_path = "files/army"
+
+    # Список фракций (можно расширить при необходимости)
+    factions = ["arkadia", "celestia", "eteria", "giperion", "halidon"]
+
+    for faction in factions:
+        # Формируем путь к изображению станции
+        image_path = os.path.join(base_path, faction, "stations_weapons.jpg")
+
+        # Проверяем, существует ли файл
+        if os.path.exists(image_path):
+            print(f"Найдено изображение для фракции {faction}: {image_path}")
+            add_station_image(conn, faction.capitalize(), image_path)  # Добавляем запись в БД
+        else:
+            print(f"Изображение для фракции {faction} не найдено: {image_path}")
+
+    # Закрываем соединение с базой данных
+    conn.close()
+
+# Вызов функции для наполнения таблицы
+populate_station_images()

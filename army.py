@@ -1,10 +1,8 @@
 # army.py
 from kivy.animation import Animation
-from kivy.graphics import Line, Rectangle
+from kivy.graphics import Rectangle
 from kivy.clock import Clock
-from kivy.uix.dropdown import DropDown
 from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
 from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
@@ -14,131 +12,158 @@ from kivy.uix.image import Image
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.graphics import Color, RoundedRectangle
-from kivy.uix.behaviors import ButtonBehavior
-from kivy.uix.widget import Widget
+
 import threading
 import strike
 import json
-import os
 import time
-
-translation_dict = {
-    "Аркадия": "arkadia",
-    "Селестия": "celestia",
-    "Этерия": "eteria",
-    "Хиперион": "giperion",
-    "Халидон": "halidon",
-}
-
-
-def transform_filename(file_path):
-    path_parts = file_path.split('/')
-    for i, part in enumerate(path_parts):
-        for ru_name, en_name in translation_dict.items():
-            if ru_name in part:
-                path_parts[i] = part.replace(ru_name, en_name)
-    return '/'.join(path_parts)
-
-def get_faction_of_city(city_name):
-    try:
-        with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
-            diplomacies = json.load(file)
-        for faction, data in diplomacies.items():
-            if city_name in data.get("города", []):
-                return faction
-        print(f"Город '{city_name}' не принадлежит ни одной фракции.")
-        return None
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Ошибка при загрузке diplomacies.json: {e}")
-        return None
+import sqlite3
 
 
 class ArmyCash:
     def __init__(self, faction):
         self.faction = faction
-        self.cash_resources = 'files/config/resources/cash.json'
-        self.units_file = 'files/config/arms/arms.json'  # Путь к файлу юнитов
+        self.db_path = "game_data.db"
+        self.conn = sqlite3.connect(self.db_path)
+        self.cursor = self.conn.cursor()
         self.resources = self.load_resources()
 
     def load_resources(self):
-        """Загружает состояние ресурсов из файла."""
-        if os.path.exists(self.cash_resources):
-            with open(self.cash_resources, 'r') as file:
-                try:
-                    resources = json.load(file)  # Читаем данные один раз
-                    print(resources)  # Печатаем загруженные ресурсы
-                    return resources  # Возвращаем загруженные данные
-                except json.JSONDecodeError:
-                    print("Ошибка при загрузке ресурсов: файл пуст или повреждён.")
+        """
+        Загружает состояние ресурсов из базы данных.
+        """
+        try:
+            # Запрос всех ресурсов для текущей фракции
+            self.cursor.execute('''
+                SELECT resource_type, amount
+                FROM resources
+                WHERE faction = ?
+            ''', (self.faction,))
+            rows = self.cursor.fetchall()
 
-    def hire_unit(self, unit_name, unit_cost, quantity, image_unit, unit_stats):
-        """Нанимает юнита, если ресурсов достаточно."""
-        crowns, workers = unit_cost  # Извлекаем стоимость юнита
-        required_crowns = int(crowns) * int(quantity)  # Рассчитываем общее количество необходимых крон
-        required_workers = int(workers) * int(quantity)  # Рассчитываем общее количество необходимых рабочих
+            # Инициализация ресурсов по умолчанию
+            resources = {"Кроны": 0, "Рабочие": 0}
 
-        # Умножаем характеристики на количество юнитов, исключая "Индекс эффективности"
-        scaled_stats = {}
-        for stat_name, value in unit_stats.items():
-            if stat_name == "Класс юнита":
-                scaled_stats[stat_name] = value  # Сохраняем исходное значение
-            else:
-                scaled_stats[stat_name] = value * quantity
+            # Обновление ресурсов на основе данных из базы данных
+            for resource_type, amount in rows:
+                if resource_type in resources:
+                    resources[resource_type] = amount
 
-        # Проверяем, хватает ли ресурсов
+            # Если записи для фракции отсутствуют, создаем их с начальными значениями
+            if not rows:
+                resources = {"Кроны": 1000, "Рабочие": 50}
+                for resource_type, amount in resources.items():
+                    self.cursor.execute('''
+                        INSERT INTO resources (faction, resource_type, amount)
+                        VALUES (?, ?, ?)
+                    ''', (self.faction, resource_type, amount))
+                self.conn.commit()
+
+            return resources
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке ресурсов: {e}")
+            return {"Кроны": 0, "Рабочие": 0}  # Возвращаем пустые ресурсы в случае ошибки
+
+    def hire_unit(self, unit_name, unit_cost, quantity, unit_stats):
+        """
+        Нанимает юнита, если ресурсов достаточно.
+
+        :param unit_name: Название юнита (например, "Гвардия", "Вепрь")
+        :param unit_cost: Стоимость юнита в виде кортежа (кроны, рабочие)
+        :param quantity: Количество нанимаемых юнитов
+        :param unit_stats: Характеристики юнита (Урон, Защита, Живучесть, Класс юнита)
+        :return: True, если найм успешен; False, если недостаточно ресурсов
+        """
+        # Распаковываем стоимость юнита
+        crowns, workers = unit_cost
+
+        # Вычисляем общую стоимость
+        required_crowns = int(crowns) * int(quantity)
+        required_workers = int(workers) * int(quantity)
+
+        # Проверяем наличие ресурсов
         if self.resources['Кроны'] < required_crowns or self.resources['Рабочие'] < required_workers:
-            self.show_message("Ошибка найма",
-                              f"Нанять юнитов невозможно: недостаточно ресурсов.\nНеобходимые: {required_crowns} крон и {required_workers} рабочих.")
-            return False  # Не хватает ресурсов для найма
+            self.show_message(
+                title="Ошибка найма",
+                message=f"Нанять юнитов невозможно: недостаточно ресурсов.\n"
+                        f"Необходимые: {required_crowns} крон и {required_workers} рабочих."
+            )
+            return False
 
-        # Если ресурсов достаточно, обновляем их
+        # Обновляем ресурсы
         self.resources['Кроны'] -= required_crowns
         self.resources['Рабочие'] -= required_workers
-        with open(self.cash_resources, 'w') as file:
-            json.dump(self.resources, file, ensure_ascii=False, indent=4)
 
-        # Чтение существующих юнитов из файла
-        units_data = {}
-        if os.path.exists(self.units_file):
-            with open(self.units_file, 'r', encoding='UTF-8') as file:
-                try:
-                    units_data = json.load(file)
-                except json.JSONDecodeError:
-                    units_data = {}
+        # Сохраняем обновленные ресурсы в базу данных
+        self.cursor.execute("""
+            UPDATE resources
+            SET amount = ?
+            WHERE faction = ? AND resource_type = ?
+        """, (self.resources['Кроны'], self.faction, "Кроны"))
+        self.cursor.execute("""
+            UPDATE resources
+            SET amount = ?
+            WHERE faction = ? AND resource_type = ?
+        """, (self.resources['Рабочие'], self.faction, "Рабочие"))
+        self.conn.commit()
 
-        # Обновление или добавление юнита
-        if image_unit in units_data:
-            units_data[image_unit]['count'] += quantity  # Увеличиваем количество юнитов
-            # Обновляем характеристики, суммируя все кроме "Индекса эффективности"
-            for stat_name, value in scaled_stats.items():
-                if stat_name == "Класс юнита":
-                    continue  # Пропускаем обновление для "Индекса эффективности"
-                if stat_name in units_data[image_unit]['stats']:
-                    units_data[image_unit]['stats'][stat_name] += value
-                else:
-                    units_data[image_unit]['stats'][stat_name] = value
+        # Обновляем или добавляем юнит в таблицу armies
+        self.cursor.execute("""
+            SELECT quantity, total_attack, total_defense, total_durability
+            FROM armies
+            WHERE faction = ? AND unit_type = ?
+        """, (self.faction, unit_name))
+        result = self.cursor.fetchone()
+
+        if result:
+            # Если юнит уже существует, обновляем его данные
+            current_quantity, current_attack, current_defense, current_durability = result
+
+            new_quantity = current_quantity + quantity
+            new_attack = current_attack + unit_stats["Урон"] * quantity
+            new_defense = current_defense + unit_stats["Защита"] * quantity
+            new_durability = current_durability + unit_stats["Живучесть"] * quantity
+
+            self.cursor.execute("""
+                UPDATE armies
+                SET quantity = ?, total_attack = ?, total_defense = ?, total_durability = ?
+                WHERE faction = ? AND unit_type = ?
+            """, (
+                new_quantity, new_attack, new_defense, new_durability,
+                self.faction, unit_name
+            ))
         else:
-            units_data[image_unit] = {
-                'name': unit_name,
-                'count': quantity,
-                'image': image_unit,
-                'stats': scaled_stats
-            }
+            # Если юнита нет, добавляем новую запись
+            self.cursor.execute("""
+                INSERT INTO armies (
+                    faction, unit_type, quantity, total_attack, total_defense, total_durability, unit_class
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                self.faction,
+                unit_name,
+                quantity,
+                unit_stats["Урон"] * quantity,
+                unit_stats["Защита"] * quantity,
+                unit_stats["Живучесть"] * quantity,
+                unit_stats["Класс юнита"]
+            ))
 
-        # Запись обновлённых данных о юнитах в файл
-        with open(self.units_file, 'w', encoding='UTF-8') as file:
-            json.dump(units_data, file)
+        self.conn.commit()
 
-        self.show_message("Успех",
-                          f"Юнит {unit_name} нанят!\nПотрачено: {required_crowns} крон и {required_workers} рабочих.")
-        return True  # Возвращаем успех
+        # Отображаем сообщение об успехе
+        self.show_message(
+            title="Успех",
+            message=f"Юнит {unit_name} нанят!\n"
+                    f"Потрачено: {required_crowns} крон и {required_workers} рабочих."
+        )
+        return True
 
     def show_message(self, title, message):
         layout = BoxLayout(orientation='vertical', padding=10)
         label = Label(text=message, halign='center')
         button = Button(text="OK", size_hint=(1, 0.3))
 
-        # Закрываем окно при нажатии на кнопку
         popup = Popup(title=title, content=layout, size_hint=(0.75, 0.5), auto_dismiss=False)
         button.bind(on_press=popup.dismiss)
 
@@ -148,22 +173,36 @@ class ArmyCash:
         popup.open()
 
 
-def load_unit_data(english_faction):
-    """Загружает данные о юнитах для выбранной фракции из JSON-файла"""
-    file_path = f"files/config/units/{english_faction}.json"
+def load_unit_data(faction):
+    """Загружает данные о юнитах для выбранной фракции из базы данных."""
+    conn = sqlite3.connect("game_data.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT unit_name, cost_money, cost_time, image_path, attack, defense, durability, unit_class
+        FROM units WHERE faction = ?
+    """, (faction,))
+    rows = cursor.fetchall()
+    conn.close()
 
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            return json.load(file)
-    except FileNotFoundError:
-        print(f"Файл с юнитами для фракции {english_faction} не найден.")
-        return {}
+    unit_data = {}
+    for row in rows:
+        unit_name, cost_money, cost_time, image_path, attack, defense, durability, unit_class = row
+        unit_data[unit_name] = {
+            "cost": [cost_money, cost_time],
+            "image": image_path,
+            "stats": {
+                "Урон": attack,
+                "Защита": defense,
+                "Живучесть": durability,
+                "Класс юнита": unit_class
+            }
+        }
+    return unit_data
 
 
 def show_unit_selection(faction, army_hire):
-    """Показать окно выбора юнитов для найма"""
-    english_faction = translation_dict.get(faction, faction)
-    unit_data = load_unit_data(english_faction)
+    """Показать окно выбора юнитов для найма."""
+    unit_data = load_unit_data(faction)
 
     unit_popup = Popup(title="Выбор юнитов", size_hint=(0.9, 0.9), background_color=(0.1, 0.1, 0.1, 1))
 
@@ -172,7 +211,6 @@ def show_unit_selection(faction, army_hire):
     unit_layout = GridLayout(cols=2, padding=15, spacing=15, size_hint_y=None)
     unit_layout.bind(minimum_height=unit_layout.setter('height'))
 
-    # Используем foreground_color вместо color
     stats_box = TextInput(readonly=True, size_hint=(0.3, 1), padding=(20, 10, 20, 10),
                           background_color=(0.2, 0.2, 0.2, 1), foreground_color=(1, 1, 1, 1), font_size=16)
 
@@ -199,8 +237,8 @@ def show_unit_selection(faction, army_hire):
         hire_btn = Button(text="Нанять", size_hint_x=0.5, background_color=(0.4, 0.8, 0.4, 1),
                           font_size=16, color=(1, 1, 1, 1))
         hire_btn.bind(on_release=lambda instance, name=unit_name, cost=unit_info['cost'],
-                                        input_box=quantity_input, img=unit_info['image'], stats=unit_info['stats']:
-        broadcast_units(name, cost, input_box, army_hire, img, stats))
+                                        input_box=quantity_input, stats=unit_info['stats']:
+        army_hire.hire_unit(name, cost, int(input_box.text), stats))
 
         button_layout.add_widget(hire_btn)
         button_layout.add_widget(quantity_input)
@@ -224,8 +262,6 @@ def show_unit_selection(faction, army_hire):
 
     unit_popup.content = popup_content
     unit_popup.open()
-
-
 
 
 def broadcast_units(unit_name, unit_cost, quantity_input, army_hire, image, unit_stats):
@@ -280,567 +316,127 @@ def switch_to_politics(faction, game_area):
     politic.start_politic_mode(faction, game_area)
 
 
-#--------------------
-
-
-class GeneralStaff:
-    def __init__(self, faction, cities):
-        self.garrison_file = None
-        self.faction = faction
-        self.cities = cities
-        self.units = self.load_garrison_data()
-
-    def load_garrison_data(self):
-        """Загружает данные о гарнизонах из файла."""
-        self.garrison_file = transform_filename(f'files/config/manage_ii/{self.faction}_in_city.json')
-        if os.path.exists(self.garrison_file):
-            try:
-                with open(self.garrison_file, 'r', encoding='utf-8') as file:
-                    return json.load(file)
-            except json.JSONDecodeError:
-                print(f"Ошибка загрузки данных из {self.garrison_file}. Файл пуст или содержит некорректные данные.")
-                return {}
-        else:
-            print(f"Файл {self.garrison_file} не найден. Используем пустой набор данных.")
-            return {}
-
-    def save_garrison_data(self):
-        """Сохраняет текущие данные о гарнизонах в файл."""
-        with open(self.garrison_file, 'w', encoding='utf-8') as file:
-            json.dump(self.units, file, ensure_ascii=False, indent=4)
-
-
-# Функция для загрузки информации о юнитах
-def load_units_data():
-    """Загружает данные юнитов из файла arms.json."""
-    units_data = {}
-    units_file_path = 'files/config/arms/arms.json'  # Путь к файлу юнитов
-
-    if os.path.exists(units_file_path):
-        try:
-            with open(units_file_path, 'r', encoding='utf-8') as file:
-                units_data = json.load(file)
-                print('Данные о загруженных юнитах:', units_data)
-        except json.JSONDecodeError:
-            print(f"Ошибка загрузки данных из {units_file_path}. Файл пуст или содержит некорректные данные.")
-            units_data = {}
-    else:
-        print(f"Файл {units_file_path} не найден. Используем пустой набор данных.")
-
-    return units_data
-
-
-class Separator(Widget):
-    def __init__(self, **kwargs):
-        super(Separator, self).__init__(**kwargs)
-        with self.canvas:
-            Color(0, 0, 0, 0.5)  # Черная линия с прозрачностью 50%
-            self.line = Line(points=[self.x, self.center_y, self.width, self.center_y], width=1.5)
-        # Привязываем метод для обновления при изменении размера виджета
-        self.bind(size=self.update_line, pos=self.update_line)
-
-    def update_line(self, *args):
-        # Обновляем точки линии в соответствии с текущими размерами Separator
-        self.line.points = [self.x, self.center_y, self.right, self.center_y]
-
-
-# Основная функция для отображения интерфейса генштаба
-def show_army_headquarters(faction, cities):
-    units_data = load_units_data()
-    load_units_fraction_city = transform_filename(f'files/config/manage_ii/{faction}_in_city.json')
-    unit_popup = Popup(title=f"Генштаб - {faction}", size_hint=(0.9, 0.9))
-    unit_popup.background_color = (0, 0, 0, 0.8)  # Сделаем фон прозрачным
-
-    tab_panel = TabbedPanel(do_default_tab=False, size_hint=(1, 1))
-
-    # Вкладка не расквартированных юнитов
-    unassigned_tab = TabbedPanelItem(text="Штаб", size_hint=(1, 1))
-    unassigned_layout = BoxLayout(orientation='vertical', size_hint=(1, 1))
-    unassigned_layout.padding = [10, 10, 10, 10]
-
-    # Создаем ScrollView для отображения юнитов
-    scroll_view = ScrollView(size_hint=(1, 1))
-    unassigned_content = GridLayout(cols=1, padding=(10, 10, 10, 10), size_hint_y=None)
-    unassigned_content.bind(minimum_height=unassigned_content.setter('height'))
-    scroll_view.add_widget(unassigned_content)
-
-    # Цикл по юнитам для отображения их изображений и численности
-    for image, unit_info in units_data.items():
-        unit_count = unit_info.get('count', 0)
-
-        # Создаем горизонтальный контейнер для изображения и подписи
-        unit_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=120, spacing=10)
-
-        # Добавляем изображение юнита
-        if image and os.path.exists(image):
-            unit_image = Image(source=image, size_hint=(None, None), width=100, height=100)
-            unit_box.add_widget(unit_image)
-        else:
-            unit_box.add_widget(Label(text="Изображение не найдено", color=(1, 0, 0, 1)))  # Красный цвет для ошибок
-
-        # Подпись с количеством юнитов
-        unit_label = Label(text=f"       {unit_info['name']}: {unit_count} юнитов", font_size=16, color=(1, 1, 1, 1), size_hint=(None, None), width=150)
-        unit_box.add_widget(unit_label)
-
-        # Добавляем блок юнита в содержимое ScrollView
-        unassigned_content.add_widget(unit_box)
-
-    unassigned_layout.add_widget(scroll_view)
-
-    # Кнопки для управления расквартированием
-    button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50)
-
-    # Стильные кнопки
-    select_unit_button = Button(text='Выбрать юнит', size_hint=(1, None), height=50)
-    select_unit_button.background_color = (0.2, 0.6, 0.8, 1)  # Голубой фон
-    select_unit_button.font_size = 18
-    select_unit_button.bind(on_release=lambda instance: open_unit_dropdown(select_unit_button))
-    button_layout.add_widget(select_unit_button)
-
-    select_city_button = Button(text='Выбрать город', size_hint=(1, None), height=50)
-    select_city_button.background_color = (0.8, 0.8, 0.2, 1)  # Желтый фон
-    select_city_button.font_size = 18
-    select_city_button.bind(on_release=lambda instance: open_city_dropdown(select_city_button, cities))
-    button_layout.add_widget(select_city_button)
-
-    unit_count_input = TextInput(hint_text='Количество юнитов', size_hint=(0.5, None), height=50, multiline=False)
-    unit_count_input.background_color = (0.1, 0.1, 0.1, 0.7)  # Темный фон для поля ввода
-    unit_count_input.foreground_color = (1, 1, 1, 1)  # Белый текст
-    button_layout.add_widget(unit_count_input)
-
-    # Кнопка "Разместить"
-    garrison_button = Button(text='Разместить', size_hint=(1, None), height=50)
-    garrison_button.background_color = (0.1, 0.8, 0.1, 1)  # Зеленый фон
-    garrison_button.font_size = 18
-    garrison_button.bind(on_release=lambda instance: garrison_units(
-        select_city_button.text, unit_count_input.text, select_unit_button.text, unassigned_layout, assigned_layout,
-        cities, load_units_fraction_city))
-    button_layout.add_widget(garrison_button)
-
-    unassigned_layout.add_widget(button_layout)
-    unassigned_tab.add_widget(unassigned_layout)
-    tab_panel.add_widget(unassigned_tab)
-
-    # Вкладка расквартированных юнитов
-    assigned_tab = TabbedPanelItem(text="Города", size_hint=(1, 1))
-    assigned_layout = BoxLayout(orientation='vertical', size_hint=(1, 1))
-    assigned_tab.add_widget(assigned_layout)
-
-    # Загружаем данные для таблицы гарнизонов
-    update_assigned_units_tab(assigned_layout, load_units_fraction_city)
-
-    tab_panel.add_widget(assigned_tab)
-    unit_popup.content = tab_panel
-    unit_popup.open()
-
-
-
-
-def garrison_units(city_name, unit_count_str, unit_name, unassigned_layout, assigned_layout, cities, load_units_fraction_city):
-    """Обработка расквартирования юнитов и обновление данных о наличии."""
-    try:
-        units_data = load_units_data()
-        print("Данные в units_data:", units_data)
-
-        unit_name = unit_name
-        print(f"Проверяем юнит по имени: '{unit_name}'")
-
-        # Поиск данных о юните через значения словаря
-        unit_data = next((data for key, data in units_data.items() if data.get("name") == unit_name), None)
-
-        if not unit_data:
-            print(f"Юнит с именем {unit_name} не найден.")
-            return
-
-        unit_count = int(unit_count_str.strip())
-        available_count = unit_data.get("count", 0)
-        unit_name = unit_data.get("name", "Неизвестный юнит")
-
-        if unit_count > available_count:
-            print(f"Недостаточно юнитов. Доступно только {available_count} единиц.")
-            return
-
-        # Обновление данных юнитов
-        remaining_count = available_count - unit_count
-        if remaining_count > 0:
-            unit_data["count"] = remaining_count
-        else:
-            # Удаление юнита
-            unit_key = next((key for key, data in units_data.items() if data.get("name") == unit_name), None)
-            if unit_key:
-                del units_data[unit_key]
-            else:
-                print(f"Ошибка: Юнит с именем {unit_name} не найден в данных для удаления.")
-
-        save_units_data(units_data)
-
-        # Загрузка данных о городах
-        with open('files/config/cities.json', 'r', encoding='UTF-8') as f:
-            cities_data = json.load(f)
-
-        city_coords = next((city['coordinates'] for city in cities_data['cities']
-                            if city['name'].strip() == city_name.strip()), None)
-
-        if city_coords is None:
-            print(f"Город '{city_name}' не найден в данных.")
-            return
-
-        unit_image = unit_data.get("image")
-        unit_stats = unit_data.get("stats")
-        print(f"Запись в город {city_name}: {unit_image}, {unit_name}, {unit_count}, {unit_stats}")
-        save_army_in_city(city_name, city_coords, unit_image, unit_name, unit_count, unit_stats)
-        update_assigned_units_tab(assigned_layout, load_units_fraction_city)
-
-        # Пересоздание интерфейса нерасквартированных юнитов
-        unassigned_layout.clear_widgets()
-
-        # Создаем ScrollView
-        scroll_view = ScrollView(size_hint=(1, 1))
-        unassigned_content = GridLayout(cols=1, padding=(10, 10, 10, 10),
-                                        size_hint_y=None)  # Задаем 1 колонку как в show_army_headquarters
-        unassigned_content.bind(minimum_height=unassigned_content.setter('height'))
-        scroll_view.add_widget(unassigned_content)
-
-        # Создаем интерфейс для юнитов
-        for image, unit_info in units_data.items():
-            unit_count = unit_info.get('count', 0)
-            unit_name = unit_info.get('name', "Безымянный юнит")
-
-            # Создаем контейнер для изображения и подписи
-            unit_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=120,
-                                 spacing=10)  # Высота и отступы как в show_army_headquarters
-
-            # Изображение юнита
-            if image and os.path.exists(image):
-                unit_image = Image(source=image, size_hint=(None, None), width=100,
-                                   height=100)  # Размер изображения одинаковый
-                unit_box.add_widget(unit_image)
-            else:
-                unit_box.add_widget(Label(
-                    text="Изображение не найдено",
-                    color=(1, 0, 0, 1),
-                    font_size=14,
-                    halign="center"
-                ))
-
-            # Подпись с количеством юнитов
-            unit_label = Label(
-                text=f"  {unit_name}: {unit_count} юнитов",
-                font_size=16,
-                color=(1, 1, 1, 1),
-                size_hint_y=None,
-                height=50,
-                halign="left",
-                valign="middle"
-            )
-            unit_label.bind(size=lambda widget, _: setattr(widget, 'text_size', widget.size))
-            unit_box.add_widget(unit_label)
-
-            # Добавляем блок юнита в содержимое
-            unassigned_content.add_widget(unit_box)
-
-        # Добавляем ScrollView с юнитами в layout
-        unassigned_layout.add_widget(scroll_view)
-
-        # Кнопки для управления расквартированием
-        button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50)
-
-        # Стильные кнопки
-        select_unit_button = Button(text='Выбрать юнит', size_hint=(1, None), height=50)
-        select_unit_button.background_color = (0.2, 0.6, 0.8, 1)  # Голубой фон
-        select_unit_button.font_size = 18
-        select_unit_button.bind(on_release=lambda instance: open_unit_dropdown(select_unit_button))
-        button_layout.add_widget(select_unit_button)
-
-        select_city_button = Button(text='Выбрать город', size_hint=(1, None), height=50)
-        select_city_button.background_color = (0.8, 0.8, 0.2, 1)  # Желтый фон
-        select_city_button.font_size = 18
-        select_city_button.bind(on_release=lambda instance: open_city_dropdown(select_city_button, cities))
-        button_layout.add_widget(select_city_button)
-
-        unit_count_input = TextInput(hint_text='Количество юнитов', size_hint=(0.5, None), height=50, multiline=False)
-        unit_count_input.background_color = (0.1, 0.1, 0.1, 0.7)  # Темный фон для поля ввода
-        unit_count_input.foreground_color = (1, 1, 1, 1)  # Белый текст
-        button_layout.add_widget(unit_count_input)
-
-        # Кнопка "Разместить"
-        garrison_button = Button(text='Разместить', size_hint=(1, None), height=50)
-        garrison_button.background_color = (0.1, 0.8, 0.1, 1)  # Зеленый фон
-        garrison_button.font_size = 18
-        garrison_button.bind(on_release=lambda instance: garrison_units(
-            select_city_button.text, unit_count_input.text, select_unit_button.text, unassigned_layout, assigned_layout,
-            cities, load_units_fraction_city))
-        button_layout.add_widget(garrison_button)
-
-        unassigned_layout.add_widget(button_layout)
-
-        # Вкладка расквартированных юнитов
-        assigned_tab = TabbedPanelItem(text="Города", size_hint=(1, 1))
-        assigned_layout = BoxLayout(orientation='vertical', size_hint=(1, 1))
-        assigned_tab.add_widget(assigned_layout)
-
-        # Загружаем данные для таблицы гарнизонов
-        update_assigned_units_tab(assigned_layout, load_units_fraction_city)
-
-        print(f"Расквартировано {unit_count} юнитов {unit_name} в городе: {city_name}")
-
-    except Exception as e:
-        print(f"Произошла ошибка: {e}")
-
-
-
-
-def update_assigned_units_tab(assigned_layout, load_units_fraction_city):
-    assigned_layout.clear_widgets()  # Очищаем виджет
-
-    # Создаем ScrollView для таблицы
-    table_scroll_view = ScrollView(size_hint=(1, None), height=420)
-    table_layout = GridLayout(cols=2, size_hint_y=None)
-    table_layout.bind(minimum_height=table_layout.setter('height'))
-
-    # Добавление заголовков
-    table_layout.add_widget(Label(text="Город", bold=True, size_hint_y=None, height=40))
-    table_layout.add_widget(Label(text="Состав гарнизона", bold=True, size_hint_y=None, height=40))
-
-    army_data = load_assigned_units_data(load_units_fraction_city)
-    # Заполнение таблицы данными
-    for city_name, garrisons in army_data.items():
-        for garrison in garrisons:
-            city_label = Label(text=city_name, size_hint_y=None, height=30)
-            table_layout.add_widget(city_label)
-
-            unit_layout = BoxLayout(orientation='vertical', size_hint_y=None)
-            unit_layout.bind(minimum_height=unit_layout.setter('height'))
-
-            for unit in garrison['units']:
-                unit_image = unit['unit_image']
-                unit_name = unit['unit_name']
-                unit_count = unit['unit_count']
-
-                unit_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=50)
-                if os.path.exists(unit_image):
-                    unit_img = Image(source=unit_image, size_hint=(None, None), size=(50, 50))
-                    unit_box.add_widget(unit_img)
-                else:
-                    unit_box.add_widget(Label(text="Изображение не найдено", size_hint=(None, None), size=(50, 50)))
-
-                # Установите size_hint_x для правильного выравнивания
-                unit_name_label = Label(text=f"{unit_name}: {unit_count}", size_hint_x=1)
-                unit_box.add_widget(unit_name_label)
-                unit_layout.add_widget(unit_box)
-
-            table_layout.add_widget(unit_layout)
-
-        # Добавляем отступ между городами
-        table_layout.add_widget(Label(size_hint_y=None, height=5))
-        table_layout.add_widget(Label(size_hint_y=None, height=5))
-
-    table_scroll_view.add_widget(table_layout)
-    assigned_layout.add_widget(table_scroll_view)
-
-
-def load_assigned_units_data(army_file_path):
-    """Загружает данные о расквартированных юнитах из файла ."""
-    global army_data
-
-    if os.path.exists(army_file_path):
-        try:
-            with open(army_file_path, 'r', encoding='utf-8') as file:
-                army_data = json.load(file)
-                print('Данные о расквартированных юнитах:', army_data)
-        except json.JSONDecodeError:
-            print(f"Ошибка загрузки данных из {army_file_path}. Файл пуст или содержит некорректные данные.")
-            army_data = {}
-    else:
-        print(f"Файл {army_file_path} не найден. Используем пустой набор данных.")
-
-    return army_data
-
-
-def open_city_dropdown(button, cities):
-    dropdown = DropDown()
-    for city in cities:
-        btn = Button(text=city['name'], size_hint_y=None, height=44)
-        btn.bind(on_release=lambda btn: dropdown.select(btn.text))
-        dropdown.add_widget(btn)
-
-    button.bind(on_release=dropdown.open)
-    dropdown.bind(on_select=lambda instance, x: setattr(button, 'text', x))
-
-
-def open_unit_dropdown(button):
-    dropdown = DropDown()
-    units_data = load_units_data()
-
-    for image_path, unit_info in units_data.items():
-        unit_name = unit_info['name']
-        btn = Button(text=unit_name, size_hint_y=None, height=44)
-
-        # Используем параметр по умолчанию для правильного захвата переменной
-        btn.bind(on_release=lambda btn, name=unit_name, path=image_path: (
-            dropdown.select(path),
-            setattr(button, 'text', name)  # Устанавливаем текст кнопки как имя юнита
-        ))
-
-        dropdown.add_widget(btn)
-
-    button.bind(on_release=dropdown.open)
-
-
-# Загрузка данных о юнитах из файла
-def save_units_data(units_data):
-    units_file_path = 'files/config/arms/arms.json'
-    with open(units_file_path, 'w', encoding='utf-8') as file:
-        json.dump(units_data, file, ensure_ascii=False, indent=4)
-
-
-# Сохранение данных о расквартированных юнитах в файле
-def save_army_in_city(city_name, city_coords, unit_image, unit_name, unit_count, unit_stats):
-    fraction = get_faction_of_city(city_name)
-    army_in_city_file = transform_filename(f'files/config/manage_ii/{fraction}_in_city.json')
-
-    # Проверка существования файла
-    if os.path.exists(army_in_city_file):
-        with open(army_in_city_file, 'r', encoding='utf-8') as file:
-            try:
-                army_data = json.load(file)
-                print(f"Содержимое файла до обновления: {army_data}")  # Логируем текущее содержимое
-            except json.JSONDecodeError:
-                print(f"Ошибка при чтении {army_in_city_file}. Файл может быть пуст или повреждён.")
-                army_data = {}  # Если файл не читается, инициализируем пустой словарь
-    else:
-        army_data = {}  # Если файла не существует, инициализируем пустой словарь
-
-    if city_name not in army_data:
-        army_data[city_name] = []
-
-    # Проверка на наличие существующих координат
-    coords_exists = False
-    for army_unit in army_data[city_name]:
-        if army_unit['coordinates'] == city_coords:
-            coords_exists = True
-            # Проверка на наличие юнита с тем же именем
-            unit_exists = False
-            for unit in army_unit.get('units', []):
-                if unit['unit_name'] == unit_name:
-                    unit['unit_count'] += unit_count  # Увеличиваем количество
-                    unit_exists = True
-                    break
-
-            if not unit_exists:
-                # Если юнит с таким именем не найден, добавляем новый юнит в текущие координаты
-                army_unit['units'].append({
-                    'unit_image': unit_image,
-                    'unit_name': unit_name,
-                    'unit_count': unit_count,
-                    'units_stats': unit_stats
-                })
-            break
-
-    if not coords_exists:
-        # Если координаты не найдены, добавляем новую запись с юнитами
-        army_data[city_name].append({
-            'coordinates': city_coords,
-            'units': [{
-                'unit_image': unit_image,
-                'unit_name': unit_name,
-                'unit_count': unit_count,
-                'units_stats': unit_stats
-            }]
-        })
-
-    with open(army_in_city_file, 'w', encoding='utf-8') as file:
-        json.dump(army_data, file, ensure_ascii=False, indent=4)
-
-
 #--------------------------------
+
+
 class WeaponCash:
     def __init__(self, faction):
         self.faction = faction
-        self.cash_resources = 'files/config/resources/cash.json'
-        self.units_file = 'files/config/arms/weapons.json'  # Путь к файлу юнитов
+        self.db_path = "game_data.db"
+        self.conn = sqlite3.connect(self.db_path)
+        self.cursor = self.conn.cursor()
         self.resources = self.load_resources()
 
     def load_resources(self):
-        """Загружает состояние ресурсов из файла."""
-        if os.path.exists(self.cash_resources):
-            with open(self.cash_resources, 'r') as file:
-                try:
-                    resources = json.load(file)
-                    print(resources)  # Печатаем загруженные ресурсы
-                    return resources
-                except json.JSONDecodeError:
-                    print("Ошибка при загрузке ресурсов: файл пуст или повреждён.")
+        """Загружает состояние ресурсов из таблицы resources."""
+        self.cursor.execute('''
+            SELECT resource_type, amount
+            FROM resources
+            WHERE faction = ?
+        ''', (self.faction,))
+        rows = self.cursor.fetchall()
+
+        resources = {"Кроны": 0, "Рабочие": 0}
+        for resource_type, amount in rows:
+            resources[resource_type] = amount
+
+        return resources
 
     def hire_unit(self, unit_name, unit_cost, quantity, weapon_name, koef=0):
-        """Нанимает юнита, если ресурсов достаточно, и обновляет данные о них."""
-        crowns, workers = unit_cost  # Извлекаем стоимость юнита
-        required_crowns = int(crowns) * int(quantity)  # Рассчитываем общее количество необходимых крон
-        required_workers = int(workers) * int(quantity)  # Рассчитываем общее количество необходимых рабочих
+        """Нанимает юнит (оружие), если ресурсов достаточно."""
+        crowns, workers = unit_cost
+        required_crowns = int(crowns) * int(quantity)
+        required_workers = int(workers) * int(quantity)
 
         # Проверяем, хватает ли ресурсов
         if self.resources['Кроны'] < required_crowns or self.resources['Рабочие'] < required_workers:
-            return False  # Не хватает ресурсов для найма
+            print("Недостаточно ресурсов для найма.")
+            return False
 
-        # Если ресурсов достаточно, обновляем их
+        # Обновляем ресурсы
         self.resources['Кроны'] -= required_crowns
         self.resources['Рабочие'] -= required_workers
-        with open(self.cash_resources, 'w') as file:
-            json.dump(self.resources, file, ensure_ascii=False, indent=4)  # Запись с индентацией для удобства
+        self.cursor.execute('''
+            UPDATE resources
+            SET amount = ?
+            WHERE faction = ? AND resource_type = ?
+        ''', (self.resources['Кроны'], self.faction, "Кроны"))
+        self.cursor.execute('''
+            UPDATE resources
+            SET amount = ?
+            WHERE faction = ? AND resource_type = ?
+        ''', (self.resources['Рабочие'], self.faction, "Рабочие"))
+        self.conn.commit()
 
-        # Загружаем данные о юнитах
-        units_data = {}
-        if os.path.exists(self.units_file):
-            with open(self.units_file, 'r', encoding='UTF-8') as file:
-                try:
-                    units_data = json.load(file)
-                except json.JSONDecodeError:
-                    units_data = {}
+        # Загружаем базовые данные об оружии из таблицы weapons_stats
+        self.cursor.execute('''
+            SELECT damage
+            FROM weapons_stats
+            WHERE faction = ? AND weapon_name = ?
+        ''', (self.faction, weapon_name))
+        result = self.cursor.fetchone()
 
-        # Загружаем базовые данные об оружии
-        weapon_base_data = get_weapons(self.faction)  # Функция для получения исходных данных об оружии
+        if not result:
+            print(f"Оружие {weapon_name} не найдено в базе данных.")
+            return False
 
-        # Вычисление all_damage на основе урона из исходных данных
-        all_damage = 0
-        if weapon_name in weapon_base_data:
-            base_damage = weapon_base_data[weapon_name]['stats']['Вероятный Урон']
-            all_damage = base_damage * quantity  # Общий урон с учетом количества юнитов
+        base_damage = result[0]
 
-        # Обновляем или добавляем юнита с дополнительными параметрами
-        if weapon_name in units_data:
-            units_data[weapon_name]['count'] += quantity
+        # Вычисляем общий урон
+        total_damage = base_damage * quantity
+
+        # Обновляем или добавляем запись в таблицу weapons
+        self.cursor.execute('''
+            SELECT quantity
+            FROM weapons
+            WHERE faction = ? AND weapon_name = ?
+        ''', (self.faction, weapon_name))
+        result = self.cursor.fetchone()
+
+        if result:
+            current_quantity = result[0]
+            new_quantity = current_quantity + quantity
+            self.cursor.execute('''
+                UPDATE weapons
+                SET quantity = ?, damage = ?, koef = ?
+                WHERE faction = ? AND weapon_name = ?
+            ''', (new_quantity, base_damage, koef, self.faction, weapon_name))
         else:
-            units_data[weapon_name] = {
-                'name': unit_name,
-                'count': quantity,
-                'koef': koef,  # Сохранение коэффициента преодоления ПВО
-                'all_damage': all_damage  # Сохранение общего урона
+            self.cursor.execute('''
+                INSERT INTO weapons (faction, weapon_name, quantity, damage, koef)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (self.faction, weapon_name, quantity, base_damage, koef))
+
+        self.conn.commit()
+        print(f"Нанято {quantity} единиц оружия {weapon_name}.")
+        return True
+
+
+# Функция для загрузки данных юнитов (оружия) из БД
+def load_weapon_data(faction):
+    """Загружает данные об оружии для указанной фракции из таблицы weapons_stats."""
+    conn = sqlite3.connect("game_data.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT weapon_name, cost_money, cost_time, image_path, damage, koef
+        FROM weapons_stats
+        WHERE faction = ?
+    """, (faction,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    weapon_data = {}
+    for row in rows:
+        weapon_name, cost_money, cost_time, image_path, damage, koef = row
+        weapon_data[weapon_name] = {
+            "cost": [cost_money, cost_time],
+            "image": image_path,
+            "stats": {
+                "Вероятный Урон": damage,
+                "Коэфициент преодоления ПВО": koef
             }
-
-        # Запись обновлённых данных о юнитах в файл
-        with open(self.units_file, 'w', encoding='UTF-8') as file:
-            json.dump(units_data, file, ensure_ascii=False, indent=4)
-
-        return True  # Возвращаем успех
-
-
-
-# Функция для загрузки данных юнитов (оружия) из файла
-def load_weapon_data():
-    file_path = "files/config/arms/weapons.json"
-    if not os.path.exists(file_path):
-        print(f"Файл {file_path} не найден.")
-        return {}
-
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except json.JSONDecodeError as e:
-        print(f"Ошибка декодирования JSON: {e}")
-        return {}
-    except Exception as e:
-        print(f"Произошла ошибка при загрузке файла: {e}")
-        return {}
+        }
+    return weapon_data
 
 
 # Функция для сохранения данных юнитов
@@ -850,36 +446,44 @@ def save_weapon_data(weapon_data):
 
 
 # Функция для загрузки и очистки данных из файла
-def load_and_clear_coordinates_data():
-    file_path = "files/config/arms/coordinates_weapons.json"
-    if not os.path.exists(file_path):
+def load_and_clear_coordinates_data(faction):
+    """Загружает и очищает данные о координатах из таблицы coordinates_weapons."""
+    conn = sqlite3.connect("game_data.db")
+    cursor = conn.cursor()
+
+    # Загружаем данные
+    cursor.execute('''
+        SELECT city_name, coordinates, path_to_army
+        FROM coordinates_weapons
+        WHERE faction = ?
+    ''', (faction,))
+    row = cursor.fetchone()
+
+    if not row:
+        conn.close()
         return {}
 
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+    city_name, coordinates, path_to_army = row
 
-        # Проверяем структуру данных
-        if not isinstance(data, dict) or 'city_name' not in data or 'coordinates' not in data or 'path_to_army' not in data:
-            return {}
+    # Очищаем данные
+    cursor.execute('''
+        DELETE FROM coordinates_weapons
+        WHERE faction = ?
+    ''', (faction,))
+    conn.commit()
+    conn.close()
 
-        # Очистка данных в файле
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump({}, f)
-
-        return data
-    except json.JSONDecodeError:
-        print("Файл координат для оружия пуст")
-        return {}
-    except Exception as e:
-        print(f"Ошибка: {e}")
-        return {}
+    return {
+        "city_name": city_name,
+        "coordinates": coordinates,
+        "path_to_army": path_to_army
+    }
 
 
 def check_and_open_weapon_management(faction, army_cash):
     def thread_function():
         while True:  # Бесконечный цикл
-            coordinates_data = load_and_clear_coordinates_data()
+            coordinates_data = load_and_clear_coordinates_data(faction)
             if coordinates_data:
                 city_name_text = coordinates_data.get('city_name', '')
                 coordinates_text = coordinates_data.get('coordinates', '')
@@ -887,7 +491,8 @@ def check_and_open_weapon_management(faction, army_cash):
 
                 # Запланировать выполнение функции в основном потоке
                 Clock.schedule_once(
-                    lambda dt: open_weapon_db_management(faction, army_cash, city_name_text, coordinates_text, path_to_army))
+                    lambda dt: open_weapon_db_management(faction, army_cash, city_name_text, coordinates_text,
+                                                         path_to_army))
 
             else:
                 print("")
@@ -915,157 +520,435 @@ def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates
 
     global current_weapon_management_popup, current_weapon_selection_popup
 
-    # Используем FloatLayout для оптимизации интерфейса
+    # Основной макет
     layout = FloatLayout()
 
-    # Логика загрузки изображения фракции
-    faction_image_path = transform_filename(f'files/army/{faction}/stations_weapons.jpg')  # Путь к изображению фракции
-    faction_image = Image(source=faction_image_path, size_hint=(None, None),
-                          size=(240, 270))  # Размер изображения можно настроить
-    faction_image.opacity = 0.8  # Сделать изображение немного полупрозрачным
+    # Загрузка фонового изображения фракции
+    faction_image_path = load_faction_image(faction)
+    if not faction_image_path:
+        print(f"Изображение для фракции {faction} не найдено. Используется запасное изображение.")
+        faction_image_path = "files/default_image.jpg"
 
-    # Добавляем изображение с отступом снизу с использованием pos_hint для установки положения
-    faction_image.pos_hint = {'x': 0, 'y': 0.4}  # Установим его чуть выше низу
-    layout.add_widget(faction_image)
+    with layout.canvas.before:
+        Color(1, 1, 1, 1)  # Цвет фона
+        Rectangle(source=faction_image_path, pos=layout.pos, size=layout.size)
+    layout.bind(pos=lambda *args: setattr(layout.canvas.before.children[-1], 'pos', layout.pos))
+    layout.bind(size=lambda *args: setattr(layout.canvas.before.children[-1], 'size', layout.size))
 
-    weapon_data = load_weapon_data()  # Загружаем данные оружия
+    # Загрузка данных об оружии из базы данных
+    conn = sqlite3.connect("game_data.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT weapon_name, quantity
+        FROM weapons
+        WHERE faction = ?
+    ''', (faction,))
+    rows = cursor.fetchall()
+    conn.close()
 
-    # Левая часть - Найм оружия
+    weapon_data = {}
+    for row in rows:
+        weapon_name, quantity = row
+        weapon_data[weapon_name] = {"count": quantity}
+
+    # Левая панель - выбор оружия
     weapon_selection_layout = BoxLayout(orientation='vertical', size_hint=(0.4, 0.6), padding=10, spacing=5)
-    for weapon_name, weapon_info in weapon_data.items():
-        if isinstance(weapon_info, dict):
-            # Получаем количество для каждого типа оружия (если есть)
-            weapon_count = weapon_info.get('count', 0)
 
-            # Создаем метку для отображения типа оружия и его количества
-            weapon_label = Label(text=f"{weapon_name}: {weapon_count} шт.", size_hint_y=None, height=40,
-                                 color=(0.8, 0.8, 0.8, 1))
-
-            # Задаем позицию метки с помощью pos_hint (например, для первого оружия задаем расположение на высоте 0.8 от верхней границы)
-            weapon_label.pos_hint = {'x': 0.1, 'y': 0.1}  # С небольшим отступом от правого верхнего угла
-
-            weapon_labels[weapon_name] = weapon_label
-            weapon_selection_layout.add_widget(weapon_label)
-
-    # Список оружия с кнопками для найма
-    weapons = get_weapons(faction)  # Получаем список оружия для фракции
-
+    # Создаем кнопки для каждого типа оружия
+    weapons = load_weapon_data(faction)
     for weapon_name, weapon_info in weapons.items():
-        weapon_button = Button(text=weapon_name, size_hint_y=None, height=60, background_normal='', background_color=(0.3, 0.6, 0.3, 1), color=(1, 1, 1, 1), font_size=16)
+        weapon_button = Button(
+            text=weapon_name,
+            size_hint=(1, None),
+            height=50,
+            background_color=(0, 0, 0, 0),
+            color=(1, 1, 1, 1),
+            font_size=16
+        )
+        with weapon_button.canvas.before:
+            Color(0.3, 0.6, 0.3, 1)
+            RoundedRectangle(pos=weapon_button.pos, size=weapon_button.size, radius=[10])
+
+        def update_rect(instance, value, btn_rect=weapon_button.canvas.before.children[-1]):
+            btn_rect.pos = instance.pos
+            btn_rect.size = instance.size
+
+        weapon_button.bind(pos=update_rect, size=update_rect)
         weapon_button.bind(on_release=lambda x, name=weapon_name: select_weapon(name, weapons, faction, army_cash))
-        weapon_button.radius = [10]  # Закругленные углы
-        weapon_button.bind(on_press=lambda x: animate_button(x))  # Добавляем анимацию при нажатии
+        weapon_button.bind(on_press=lambda x: animate_button(x))
         weapon_selection_layout.add_widget(weapon_button)
 
-    # Правая часть - Данные миссии и кнопки
+    # Правая панель - данные миссии и управление
     mission_data_layout = BoxLayout(orientation='vertical', size_hint=(0.6, 0.6), padding=10, spacing=10)
 
-    city_name_input = TextInput(hint_text="Название города", text=city_name_text, multiline=False, size_hint_y=None, height=40)
-    city_name_input.background_normal = ''
-    city_name_input.background_color = (0.9, 0.9, 0.9, 1)
-    city_name_input.foreground_color = (0, 0, 0, 1)
-    city_name_input.radius = [10]  # Закругленные углы для поля ввода
+    # Поле для названия города
+    city_name_input = TextInput(
+        hint_text="Название города",
+        text=city_name_text,
+        multiline=False,
+        size_hint_y=None,
+        height=40,
+        background_normal='',
+        background_color=(0.9, 0.9, 0.9, 1),
+        foreground_color=(0, 0, 0, 1)
+    )
+    with city_name_input.canvas.before:
+        Color(0.9, 0.9, 0.9, 1)
+        RoundedRectangle(pos=city_name_input.pos, size=city_name_input.size, radius=[10])
+    city_name_input.bind(pos=lambda *args: setattr(city_name_input.canvas.before.children[-1], 'pos', city_name_input.pos))
+    city_name_input.bind(size=lambda *args: setattr(city_name_input.canvas.before.children[-1], 'size', city_name_input.size))
 
-    coord_input = TextInput(hint_text="Координаты", text=coordinates_text, multiline=False, size_hint_y=None, height=40)
-    coord_input.background_normal = ''
-    coord_input.background_color = (0.9, 0.9, 0.9, 1)
-    coord_input.radius = [10]
+    # Поле для координат
+    coord_input = TextInput(
+        hint_text="Координаты",
+        text=coordinates_text,
+        multiline=False,
+        size_hint_y=None,
+        height=40,
+        background_normal='',
+        background_color=(0.9, 0.9, 0.9, 1),
+        foreground_color=(0, 0, 0, 1)
+    )
+    with coord_input.canvas.before:
+        Color(0.9, 0.9, 0.9, 1)
+        RoundedRectangle(pos=coord_input.pos, size=coord_input.size, radius=[10])
+    coord_input.bind(pos=lambda *args: setattr(coord_input.canvas.before.children[-1], 'pos', coord_input.pos))
+    coord_input.bind(size=lambda *args: setattr(coord_input.canvas.before.children[-1], 'size', coord_input.size))
 
-    select_weapon_button = Button(text="Выбрать оружие", size_hint_y=None, height=60, background_normal='', background_color=(0.3, 0.4, 0.9, 1), color=(1, 1, 1, 1), font_size=16)
-    select_weapon_button.bind(on_release=lambda x: open_weapon_selection_popup(select_weapon_button))
-    select_weapon_button.radius = [10]  # Закругленные углы
+    # Кнопка выбора оружия
+    select_weapon_button = Button(
+        text="Выбрать оружие",
+        size_hint_y=None,
+        height=60,
+        background_normal='',
+        background_color=(0, 0, 0, 0),
+        color=(1, 1, 1, 1),
+        font_size=16
+    )
+    with select_weapon_button.canvas.before:
+        Color(0.3, 0.4, 0.9, 1)
+        RoundedRectangle(pos=select_weapon_button.pos, size=select_weapon_button.size, radius=[10])
+    select_weapon_button.bind(pos=lambda *args: setattr(select_weapon_button.canvas.before.children[-1], 'pos', select_weapon_button.pos))
+    select_weapon_button.bind(size=lambda *args: setattr(select_weapon_button.canvas.before.children[-1], 'size', select_weapon_button.size))
+
+    # Передаем weapon_quantity_input в функцию open_weapon_selection_popup
+    select_weapon_button.bind(on_release=lambda x: open_weapon_selection_popup(
+        select_weapon_button,
+        faction,
+        weapon_quantity_input  # Передаем поле для количества
+    ))
     select_weapon_button.bind(on_press=lambda x: animate_button(x))
 
-    weapon_quantity_input = TextInput(hint_text="Количество", multiline=False, size_hint_y=None, height=40)
-    weapon_quantity_input.background_normal = ''
-    weapon_quantity_input.background_color = (0.9, 0.9, 0.9, 1)
-    weapon_quantity_input.radius = [10]
+    # Поле для количества
+    weapon_quantity_input = TextInput(
+        hint_text="Количество",
+        multiline=False,
+        size_hint_y=None,
+        height=40,
+        background_normal='',
+        background_color=(0.9, 0.9, 0.9, 1),
+        foreground_color=(0, 0, 0, 1)
+    )
+    with weapon_quantity_input.canvas.before:
+        Color(0.9, 0.9, 0.9, 1)
+        RoundedRectangle(pos=weapon_quantity_input.pos, size=weapon_quantity_input.size, radius=[10])
+    weapon_quantity_input.bind(pos=lambda *args: setattr(weapon_quantity_input.canvas.before.children[-1], 'pos', weapon_quantity_input.pos))
+    weapon_quantity_input.bind(size=lambda *args: setattr(weapon_quantity_input.canvas.before.children[-1], 'size', weapon_quantity_input.size))
 
-    mission_button = Button(text="Запуск", size_hint_y=None, height=60, background_normal='', background_color=(0.8, 0.2, 0.2, 1), color=(1, 1, 1, 1), font_size=16)
-    mission_button.bind(on_release=lambda x: start_mission(city_name_input.text, coord_input.text, select_weapon_button.text, weapon_quantity_input.text, path_to_army))
-    mission_button.radius = [10]
+    # Кнопка запуска миссии
+    mission_button = Button(
+        text="Запуск",
+        size_hint_y=None,
+        height=50,
+        background_normal='',
+        background_color=(0, 0, 0, 0),
+        color=(1, 1, 1, 1),
+        font_size=16
+    )
+    with mission_button.canvas.before:
+        Color(0.8, 0.2, 0.2, 1)
+        RoundedRectangle(pos=mission_button.pos, size=mission_button.size, radius=[10])
+    mission_button.bind(pos=lambda *args: setattr(mission_button.canvas.before.children[-1], 'pos', mission_button.pos))
+    mission_button.bind(size=lambda *args: setattr(mission_button.canvas.before.children[-1], 'size', mission_button.size))
+    mission_button.bind(on_release=lambda x: start_mission(
+        city_name_input.text,
+        coord_input.text,
+        weapon_quantity_input.text,
+        path_to_army
+    ))
     mission_button.bind(on_press=lambda x: animate_button(x))
 
+    # Добавляем виджеты в правую панель
     mission_data_layout.add_widget(city_name_input)
     mission_data_layout.add_widget(coord_input)
     mission_data_layout.add_widget(select_weapon_button)
     mission_data_layout.add_widget(weapon_quantity_input)
     mission_data_layout.add_widget(mission_button)
 
-    # Размещаем блоки в layout с использованием pos_hint для гибкого позиционирования
-    weapon_selection_layout.pos_hint = {'x': 0, 'y': 0.1}  # 0.1 от верхнего края
-    mission_data_layout.pos_hint = {'x': 0.4, 'y': 0.1}  # 0.4 от левого края
-
+    # Размещаем панели на основном макете
+    weapon_selection_layout.pos_hint = {'x': 0, 'y': 0.1}
+    mission_data_layout.pos_hint = {'x': 0.4, 'y': 0.1}
     layout.add_widget(weapon_selection_layout)
     layout.add_widget(mission_data_layout)
 
+    # Всплывающее окно
     if current_weapon_management_popup:
         current_weapon_management_popup.dismiss()
 
-    current_weapon_management_popup = Popup(title="Управление дальнобойным оружием", content=layout, size_hint=(0.8, 0.8), background_color=(0.2, 0.2, 0.2, 1))
+    current_weapon_management_popup = Popup(
+        title="Управление дальнобойным оружием",
+        content=layout,
+        size_hint=(0.8, 0.8),
+        background_color=(0.2, 0.2, 0.2, 1)
+    )
     current_weapon_management_popup.open()
 
 
-# Улучшение функции открытия окна выбора оружия
-class StyledWeaponButton(Button):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.background_normal = ''  # Отключение стандартного фона
-        self.background_color = (0, 0, 0, 0)  # Полностью прозрачный фон
-        self.color = (1, 1, 1, 1)  # Белый цвет текста
-        self.font_size = 18  # Размер шрифта
-
-        with self.canvas.before:
-            self.rect_color = Color(0.3, 0.5, 0.7, 1)  # Основной цвет кнопки
-            self.rect = RoundedRectangle(radius=[15], size=self.size, pos=self.pos)
-
-        self.bind(pos=self.update_rect, size=self.update_rect)
-
-    def update_rect(self, *args):
-        self.rect.pos = self.pos
-        self.rect.size = self.size
-
-    def on_press(self):
-        self.rect_color.rgba = (0.2, 0.4, 0.6, 1)  # Темнее при нажатии
-
-    def on_release(self):
-        self.rect_color.rgba = (0.3, 0.5, 0.7, 1)  # Возврат к исходному цвету
-
-
-def open_weapon_selection_popup(button):
+def open_weapon_selection_popup(selected_weapon_label, faction, weapon_quantity_input):
     """Открывает всплывающее окно для выбора оружия."""
     global current_weapon_selection_popup
-    layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
 
-    weapon_data = load_weapon_data()
-    button_height = 50  # Высота одной кнопки
+    # Основной макет окна
+    popup_layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
 
-    # Генерация кнопок для оружия
-    for weapon_name, weapon_info in weapon_data.items():
-        if isinstance(weapon_info, dict):
-            # Стилизация кнопки
-            weapon_button = StyledWeaponButton(text=weapon_name, size_hint=(1, None), height=button_height)
-            weapon_button.bind(on_release=lambda x, name=weapon_name: select_weapon_from_list(button, name))
-            layout.add_widget(weapon_button)
+    # Загрузка данных об оружии из базы данных
+    conn = sqlite3.connect("game_data.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT weapon_name, quantity, damage
+        FROM weapons
+        WHERE faction = ?
+    ''', (faction,))
+    rows = cursor.fetchall()
+    conn.close()
 
-    # Закрываем предыдущее окно выбора оружия, если оно существует
-    if current_weapon_selection_popup:
-        current_weapon_selection_popup.dismiss()
+    # Создаем таблицу для отображения данных
+    table_layout = GridLayout(cols=3, size_hint_y=None, spacing=5, padding=5)
+    table_layout.bind(minimum_height=table_layout.setter('height'))
 
-    # Вычисление размера окна на основе количества кнопок
-    popup_height = len(weapon_data) * (button_height + 10) + 20  # Высота кнопок + отступы
-    popup_height = min(popup_height, 400)  # Ограничение максимальной высоты окна
+    # Заголовки таблицы
+    headers = ["Тип оружия", "Количество", "Общая мощность"]
+    for header in headers:
+        header_label = Label(
+            text=header,
+            color=(1, 1, 1, 1),
+            size_hint_y=None,
+            height=40,
+            font_size=16,
+            bold=True
+        )
+        table_layout.add_widget(header_label)
 
-    # Создание и отображение всплывающего окна выбора оружия
+    # Добавляем данные в таблицу
+    selected_weapon = {}  # Словарь для хранения выбранного оружия
+    for row in rows:
+        weapon_name, quantity, damage = row
+        total_power = quantity * damage
+
+        # Ячейка с типом оружия (кликабельная метка)
+        weapon_label = Button(
+            text=weapon_name,
+            color=(0.8, 0.8, 0.8, 1),
+            background_color=(0.2, 0.2, 0.2, 1),
+            size_hint_y=None,
+            height=40,
+            background_normal='',
+            on_release=lambda btn, name=weapon_name: select_weapon_from_table(
+                name,
+                selected_weapon,
+                quantity_input,
+                table_layout  # Передаем таблицу для поиска кнопки
+            )
+        )
+
+        # Ячейка с количеством
+        quantity_label = Label(
+            text=str(quantity),
+            color=(0.8, 0.8, 0.8, 1),
+            size_hint_y=None,
+            height=40
+        )
+
+        # Ячейка с общей мощностью
+        power_label = Label(
+            text=str(total_power),
+            color=(0.8, 0.8, 0.8, 1),
+            size_hint_y=None,
+            height=40
+        )
+
+        # Добавляем виджеты в таблицу
+        table_layout.add_widget(weapon_label)
+        table_layout.add_widget(quantity_label)
+        table_layout.add_widget(power_label)
+
+        # Сохраняем данные оружия для последующего выбора
+        selected_weapon[weapon_name] = {"quantity": quantity, "total_power": total_power}
+
+    # Прокручиваемый контейнер для таблицы
+    scroll_view = ScrollView(size_hint=(1, 0.8), do_scroll_x=False)
+    scroll_view.add_widget(table_layout)
+
+    # Контейнер для кнопок
+    button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=60, spacing=10)
+
+    # Поле для выбора количества оружия (TextInput)
+    quantity_input = TextInput(
+        hint_text="Количество",
+        multiline=False,
+        size_hint_x=0.4,
+        height=40,
+        background_color=(0.9, 0.9, 0.9, 1),
+        foreground_color=(0, 0, 0, 1),
+        disabled=False,
+        # Указываем путь к прозрачному фону для нормального состояния
+        background_normal='',
+        # Указываем путь к прозрачному фону для активного состояния
+        background_active='',
+        # Добавляем закругление углов
+        border=(10, 10, 10, 10)  # Закругление по всем углам
+    )
+    # Принудительная передача фокуса
+    quantity_input.bind(on_touch_down=lambda instance, touch:
+    setattr(quantity_input, 'focus', True) if quantity_input.collide_point(*touch.pos) else None
+                        )
+
+    # Кнопка подтверждения выбора
+    confirm_button = Button(
+        text="Подтвердить",
+        size_hint_x=0.3,
+        height=40,
+        background_color=(0.2, 0.8, 0.2, 1),
+        color=(1, 1, 1, 1)
+    )
+    confirm_button.bind(on_release=lambda x: confirm_weapon_selection(selected_weapon, quantity_input.text, weapon_quantity_input))
+
+    # Кнопка закрытия окна
+    done_button = Button(
+        text="Готово",
+        size_hint_x=0.3,
+        height=40,
+        background_color=(0.8, 0.2, 0.2, 1),
+        color=(1, 1, 1, 1)
+    )
+    done_button.bind(on_release=lambda x: current_weapon_selection_popup.dismiss())
+
+    # Добавляем виджеты в контейнер кнопок
+    button_layout.add_widget(quantity_input)
+    button_layout.add_widget(confirm_button)
+    button_layout.add_widget(done_button)
+
+    # Добавляем таблицу и кнопки в основной макет
+    popup_layout.add_widget(scroll_view)
+    popup_layout.add_widget(button_layout)
+
+    # Создаем объект Popup
     current_weapon_selection_popup = Popup(
-        title="Выберите оружие",
-        content=layout,
-        size_hint=(None, None),  # Фиксированный размер
-        size=(300, popup_height),  # Ширина окна 300, высота подгоняется под кнопки
-        title_size=24
+        title="Выбор оружия",
+        content=popup_layout,
+        size_hint=(0.8, 0.8),
+        background_color=(0.2, 0.2, 0.2, 1)
     )
     current_weapon_selection_popup.open()
 
+
+def select_weapon_from_table(weapon_name, selected_weapon, quantity_input, table_layout):
+    # Сброс предыдущего выделения
+    for widget in table_layout.children:
+        if isinstance(widget, Button) and widget.text != "Тип оружия":
+            widget.background_color = (0.2, 0.2, 0.2, 1)
+
+    # Установка нового выделения
+    for widget in table_layout.children:
+        if isinstance(widget, Button) and widget.text == weapon_name:
+            widget.background_color = (0.2, 0.6, 0.2, 1)
+            break
+
+    # Обновление состояния
+    for w in selected_weapon.values():
+        w['selected'] = False
+    selected_weapon[weapon_name]['selected'] = True
+
+    # Обновление поля ввода
+    quantity_input.hint_text = f"Доступно: {selected_weapon[weapon_name]['quantity']}"
+    quantity_input.text = ""
+    quantity_input.disabled = False
+
+
+def confirm_weapon_selection(selected_weapon, quantity_text, weapon_quantity_input):
+    try:
+        # Проверка выбора оружия
+        selected = [k for k, v in selected_weapon.items() if v.get('selected')]
+        if not selected:
+            raise ValueError("Сначала выберите оружие")
+
+        # Проверка ввода количества
+        if not quantity_text.strip():
+            raise ValueError("Введите количество")
+        quantity = int(quantity_text)
+        if quantity <= 0:
+            raise ValueError("Количество должно быть > 0")
+
+        # Проверка доступности
+        weapon_name = selected[0]
+        available = selected_weapon[weapon_name]['quantity']
+        if quantity > available:
+            raise ValueError(f"Доступно только {available}")
+
+        # Обновление интерфейса
+        weapon_quantity_input.text = str(quantity)
+
+    except ValueError as e:
+        print(f"Ошибка: {e}")
+
+
+def select_weapon_quantity(selected_weapon, quantity_text, weapon_quantity_input):
+    """Обновляет поле количества оружия."""
+    try:
+        quantity = int(quantity_text)
+        if quantity <= 0:
+            raise ValueError("Количество должно быть больше 0.")
+
+        # Проверяем, достаточно ли оружия в наличии
+        weapon_name = list(selected_weapon.keys())[0]  # Предполагается выбор первого оружия
+        available_quantity = selected_weapon[weapon_name]["quantity"]
+        if quantity > available_quantity:
+            raise ValueError(f"Недостаточно оружия. Доступно: {available_quantity}.")
+
+        # Обновляем поле количества
+        weapon_quantity_input.text = str(quantity)
+    except ValueError as e:
+        print(f"Ошибка: {e}")
+
+
+def select_weapon_from_list(selected_weapon_label, weapon_name, type_field, count_field, available_count):
+    """Обновляет поля с информацией об оружии."""
+    selected_weapon_label.text = f"Выбрано: {weapon_name}"
+    type_field.text = weapon_name
+    count_field.text = str(available_count)
+
+    if current_weapon_selection_popup:
+        current_weapon_selection_popup.dismiss()
+
+
+
+def load_faction_image(faction):
+    """Загружает путь к изображению станции для указанной фракции из базы данных."""
+    conn = sqlite3.connect("game_data.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT image_path
+        FROM station_images
+        WHERE faction = ?
+    ''', (faction,))
+    result = cursor.fetchone()
+    conn.close()
+
+    if not result:
+        print(f"Изображение для фракции {faction} не найдено.")
+        return None
+
+    return result[0]
 
 
 class StyledButton(Button):
@@ -1079,15 +962,20 @@ class StyledButton(Button):
     def update_rect(self, *args):
         self.rect.pos = self.pos
         self.rect.size = self.size
+        # Фиксируем радиус закругления
+        self.rect.radius = [20]
 
     def on_touch_down(self, touch):
         if self.collide_point(*touch.pos):
-            self.rect.size = (self.size[0] - 5, self.size[1] - 5)  # Анимация при нажатии
+            # Сохраняем радиус при анимации
+            self.rect.size = (self.size[0] - 5, self.size[1] - 5)
+            self.rect.radius = [20]  # Форсируем обновление радиуса
         return super().on_touch_down(touch)
 
     def on_touch_up(self, touch):
         if self.collide_point(*touch.pos):
-            self.rect.size = self.size  # Возврат к исходным размерам
+            self.rect.size = self.size
+            self.rect.radius = [20]  # Форсируем обновление радиуса
         return super().on_touch_up(touch)
 
 
@@ -1158,10 +1046,12 @@ def select_weapon(weapon_name, weapons, faction, army_cash):
     weapon_details_layout.add_widget(info_layout)
     weapon_details_popup.open()
 
+
 # Обновление количества юнитов на основе данных JSON
 def update_unit_quantity(weapon_name, new_quantity):
     if weapon_name in weapon_labels:
         weapon_labels[weapon_name].text = f"{weapon_name}: {new_quantity} шт."
+
 
 def build_weapon(faction, weapon_name, quantity_str, cost, weapon_details_popup, army_cash, koef):
     try:
@@ -1189,82 +1079,75 @@ def build_weapon(faction, weapon_name, quantity_str, cost, weapon_details_popup,
         error_popup.open()
 
 
-def start_mission(city_name, coordinates, selected_weapon_name, selected_quantity, path_to_army):
-    if not city_name or not coordinates:
-        print("Поля города и координат должны быть заполнены.")
-        error_popup = Popup(title="Ошибка", content=Label(text="Поля города и координат должны быть заполнены."),
-                            size_hint=(0.5, 0.5))
-        error_popup.open()
+def get_weapons(faction):
+    """Получает данные об оружии для указанной фракции."""
+    conn = sqlite3.connect("game_data.db")
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT weapon_name, cost_money, cost_time, image_path, damage, koef
+        FROM weapons_stats
+        WHERE faction = ?
+    ''', (faction,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    weapon_data = {}
+    for row in rows:
+        weapon_name, cost_money, cost_time, image_path, damage, koef = row
+        weapon_data[weapon_name] = {
+            "cost": [cost_money, cost_time],
+            "image": image_path,
+            "stats": {
+                "Вероятный Урон": damage,
+                "Коэфициент преодоления ПВО": koef
+            }
+        }
+    return weapon_data
+
+
+def start_mission(faction, city_name, coordinates, selected_weapon_name, selected_quantity):
+    """Запускает миссию с выбранным оружием."""
+    conn = sqlite3.connect("game_data.db")
+    cursor = conn.cursor()
+
+    # Проверяем наличие оружия
+    cursor.execute('''
+        SELECT quantity, damage, koef
+        FROM weapons
+        WHERE faction = ? AND weapon_name = ?
+    ''', (faction, selected_weapon_name))
+    result = cursor.fetchone()
+
+    if not result:
+        print(f"Оружие {selected_weapon_name} не найдено.")
         return
 
-    if not selected_weapon_name:
-        print("Оружие должно быть выбрано.")
-        error_popup = Popup(title="Ошибка", content=Label(text="Оружие должно быть выбрано."), size_hint=(0.5, 0.5))
-        error_popup.open()
+    current_quantity, damage, koef = result
+
+    if selected_quantity > current_quantity:
+        print(
+            f"Недостаточно оружия {selected_weapon_name}. Доступно: {current_quantity}, необходимо: {selected_quantity}.")
         return
 
-    try:
-        selected_quantity = int(selected_quantity)
-    except ValueError:
-        print("Количество оружия должно быть числом.")
-        error_popup = Popup(title="Ошибка", content=Label(text="Количество оружия должно быть числом."),
-                            size_hint=(0.5, 0.5))
-        error_popup.open()
-        return
-
-    weapon_data = load_weapon_data()
-    if selected_weapon_name not in weapon_data:
-        print(f"Оружие {selected_weapon_name} не найдено в базе.")
-        error_popup = Popup(title="Ошибка", content=Label(text=f"Оружие {selected_weapon_name} не найдено в базе."),
-                            size_hint=(0.5, 0.5))
-        error_popup.open()
-        return
-
-    available_quantity = weapon_data[selected_weapon_name].get('count', 0)
-    if selected_quantity > available_quantity:
-        print(f"Недостаточно оружия {selected_weapon_name}. Доступно: {available_quantity}, необходимо: {selected_quantity}.")
-        error_popup = Popup(title="Ошибка", content=Label(
-            text=f"Недостаточно оружия {selected_weapon_name}. Доступно: {available_quantity}, необходимо: {selected_quantity}."),
-                            size_hint=(0.5, 0.5))
-        error_popup.open()
-        return
-
-    # Обновляем количество оружия и сохраняем изменения
-    weapon_data[selected_weapon_name]['count'] -= selected_quantity
-    save_weapon_data(weapon_data)
-    update_unit_quantity(selected_weapon_name, weapon_data[selected_weapon_name]['count'])
-
-    # Извлекаем все характеристики оружия для передачи в strike
-    weapon_characteristics = {
-        "name": selected_weapon_name,
-        "count": weapon_data[selected_weapon_name].get('count', []),
-        "koef": weapon_data[selected_weapon_name].get('koef', []),
-        "all_damage": weapon_data[selected_weapon_name].get('all_damage', {})
-    }
+    # Обновляем количество оружия
+    new_quantity = current_quantity - selected_quantity
+    cursor.execute('''
+        UPDATE weapons
+        SET quantity = ?
+        WHERE faction = ? AND weapon_name = ?
+    ''', (new_quantity, faction, selected_weapon_name))
+    conn.commit()
 
     # Передаем данные в модуль strike
-    strike.strike_to_city(city_name, weapon_characteristics, path_to_army)
-
-    # Закрытие попапа после успешного пуска
-    if current_weapon_management_popup:
-        current_weapon_management_popup.dismiss()
-
-
-
-def select_weapon_from_list(button, weapon_name):
-    """Устанавливает выбранное оружие в текст кнопки и закрывает всплывающее окно."""
-    button.text = weapon_name  # Устанавливаем выбранное оружие на кнопке
-    if current_weapon_selection_popup:
-        current_weapon_selection_popup.dismiss()  # Закрываем окно выбора оружия
-
-# Функция для получения данных юнитов
-def get_weapons(faction):
-    english_faction = translation_dict.get(faction, faction)
-    weapons_file_path = f"files/config/weapon/{english_faction}.json"
-    if os.path.exists(weapons_file_path):
-        with open(weapons_file_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {}
+    weapon_characteristics = {
+        "name": selected_weapon_name,
+        "count": selected_quantity,
+        "damage": damage,
+        "koef": koef
+    }
+    strike.strike_to_city(city_name, weapon_characteristics)
+    print(f"Миссия запущена: {city_name}, {coordinates}")
 
 
 #------Базовая функция------------
@@ -1281,7 +1164,7 @@ def start_army_mode(faction, game_area):
         size_hint=(1, 0.1),
         pos_hint={'x': 0, 'y': 0},
         spacing=10,  # Расстояние между кнопками
-        padding=10   # Отступы внутри layout
+        padding=10  # Отступы внутри layout
     )
 
     # Функция для создания стильных кнопок
@@ -1292,9 +1175,9 @@ def start_army_mode(faction, game_area):
             size_hint_y=None,
             height=50,
             background_color=(0, 0, 0, 0),  # Прозрачный фон
-            color=(1, 1, 1, 1),             # Цвет текста (белый)
-            font_size=16,                   # Размер шрифта
-            bold=True                       # Жирный текст
+            color=(1, 1, 1, 1),  # Цвет текста (белый)
+            font_size=16,  # Размер шрифта
+            bold=True  # Жирный текст
         )
 
         # Добавляем кастомный фон с помощью Canvas
@@ -1315,12 +1198,11 @@ def start_army_mode(faction, game_area):
 
     # Создаем кнопки с новым стилем
     train_btn = create_styled_button("Тренировка войск", lambda x: show_unit_selection(faction, ArmyCash(faction)))
-    headquarters_btn = create_styled_button("Генштаб", lambda x: show_army_headquarters(faction, cities))
-    defend_btn = create_styled_button("Управление дб. оружием", lambda x: open_weapon_db_management(faction, WeaponCash(faction)))
+    defend_btn = create_styled_button("Управление дб. оружием",
+                                      lambda x: open_weapon_db_management(faction, WeaponCash(faction)))
 
     # Добавляем кнопки в layout
     army_layout.add_widget(train_btn)
-    army_layout.add_widget(headquarters_btn)
     army_layout.add_widget(defend_btn)
 
     # Добавляем layout с кнопками в нижнюю часть экрана
