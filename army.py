@@ -101,7 +101,7 @@ class ArmyCash:
             print(f"Ошибка при списании ресурсов: {e}")
             return False
 
-    def hire_unit(self, unit_name, unit_cost, quantity, unit_stats, koef=0):
+    def hire_unit(self, unit_name, unit_cost, quantity, unit_stats, unit_image):
         """
         Нанимает юнит (оружие), если ресурсов достаточно.
         :param unit_name: Название юнита.
@@ -133,7 +133,7 @@ class ArmyCash:
             return False
 
         # Добавление юнитов в базу данных
-        self.add_or_update_army_unit(unit_name, quantity, unit_stats)
+        self.add_or_update_army_unit(unit_name, quantity, unit_stats, unit_image)
 
         # Отображение сообщения об успехе
         self.show_message(
@@ -143,12 +143,12 @@ class ArmyCash:
         )
         return True
 
-    def add_or_update_army_unit(self, unit_name, quantity, unit_stats):
+    def add_or_update_army_unit(self, unit_name, quantity, unit_stats, unit_image):
         """
         Добавляет или обновляет данные о юните в базе данных.
         """
         self.cursor.execute("""
-            SELECT quantity, total_attack, total_defense, total_durability
+            SELECT quantity, total_attack, total_defense, total_durability, unit_image
             FROM armies
             WHERE faction = ? AND unit_type = ?
         """, (self.faction, unit_name))
@@ -156,25 +156,26 @@ class ArmyCash:
 
         if result:
             # Если юнит уже существует, обновляем его данные
-            current_quantity, total_attack, total_defense, total_durability = result
+            current_quantity, total_attack, total_defense, total_durability, _ = result
             new_quantity = current_quantity + quantity
             self.cursor.execute("""
                 UPDATE armies
-                SET quantity = ?, total_attack = ?, total_defense = ?, total_durability = ?
+                SET quantity = ?, total_attack = ?, total_defense = ?, total_durability = ?, unit_image = ?
                 WHERE faction = ? AND unit_type = ?
             """, (
                 new_quantity,
                 total_attack + unit_stats["Урон"] * quantity,
                 total_defense + unit_stats["Защита"] * quantity,
                 total_durability + unit_stats["Живучесть"] * quantity,
+                unit_image,  # Обновляем изображение
                 self.faction,
                 unit_name
             ))
         else:
             # Если юнит новый, добавляем его в базу
             self.cursor.execute("""
-                INSERT INTO armies (faction, unit_type, quantity, total_attack, total_defense, total_durability, unit_class)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO armies (faction, unit_type, quantity, total_attack, total_defense, total_durability, unit_class, unit_image)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 self.faction,
                 unit_name,
@@ -182,7 +183,8 @@ class ArmyCash:
                 unit_stats["Урон"] * quantity,
                 unit_stats["Защита"] * quantity,
                 unit_stats["Живучесть"] * quantity,
-                unit_stats["Класс юнита"]
+                unit_stats["Класс юнита"],
+                unit_image  # Добавляем изображение
             ))
 
         self.conn.commit()
@@ -339,7 +341,7 @@ def show_unit_selection(faction, army_hire, class_faction):
                           font_size=16, color=(1, 1, 1, 1))
         hire_btn.bind(on_release=lambda instance, name=unit_name, cost=unit_info['cost'],
                                         input_box=quantity_input, stats=unit_info['stats'], image=unit_info["image"]:
-        army_hire.hire_unit(name, cost, int(input_box.text), image, stats))
+        broadcast_units(name, cost, input_box, army_hire, image, stats))
 
         button_layout.add_widget(hire_btn)
         button_layout.add_widget(quantity_input)
@@ -368,7 +370,7 @@ def show_unit_selection(faction, army_hire, class_faction):
 def broadcast_units(unit_name, unit_cost, quantity_input, army_hire, image, unit_stats):
     """Обрабатывает найм юнитов и проверяет количество."""
     quantity_text = quantity_input.text  # Получаем текст из поля ввода
-
+    print(f"Полученный unit_stats: {unit_stats}")
     try:
         # Проверяем, не пустое ли поле
         if not quantity_text:
@@ -381,8 +383,8 @@ def broadcast_units(unit_name, unit_cost, quantity_input, army_hire, image, unit
             print("Количество должно быть больше нуля.")
             return
 
-        # Передача ссылки на изображение юнита в функцию hire_unit
-        if army_hire.hire_unit(unit_name, unit_cost, quantity, image, unit_stats):
+        # Корректный порядок аргументов: unit_stats перед image
+        if army_hire.hire_unit(unit_name, unit_cost, quantity, unit_stats, image):
             print(f"{quantity} юнитов {unit_name} наняты! Ссылка на изображение: {image}")
         else:
             print(f"Не удалось нанять {quantity} юнитов {unit_name} из-за недостатка ресурсов.")
@@ -1027,7 +1029,7 @@ def build_weapon(faction, weapon_name, quantity_str, cost, weapon_details_popup,
         damage = weapon_info.get("stats", {}).get("Вероятный Урон", 0)
         koef_value = weapon_info.get("stats", {}).get("Коэффициент преодоления ПВО", 0)
 
-        # Передаем параметры в hire_unit
+        # Передаем параметры в hire_weapons
         if army_cash.hire_weapons(weapon_name, cost, quantity):
             print(f"Построено {quantity} юнитов {weapon_name}. "
                   f"Общая стоимость: {total_cost[0]} Крон, {total_cost[1]} Рабочих.")

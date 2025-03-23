@@ -94,12 +94,23 @@
                 {
                     "unit_image": "files/army/giperion/CPS-12.jpg",
                     "unit_name": "HPAAL",
-                    "unit_count": 625,
+                    "unit_count": 641,
                     "units_stats": {
-                        "Урон": 50000,
-                        "Защита": 1000000,
-                        "Живучесть": 137500,
+                        "Урон": 51280,
+                        "Защита": 1025600,
+                        "Живучесть": 141020,
                         "Класс юнита": "3"
+                    }
+                },
+                {
+                    "unit_image": "files/army/giperion/pretorian.jpg",
+                    "unit_name": "Преторианцы",
+                    "unit_count": 5,
+                    "units_stats": {
+                        "Урон": 900,
+                        "Защита": 450,
+                        "Живучесть": 600,
+                        "Класс юнита": "1"
                     }
                 }
             ]
@@ -189,12 +200,23 @@
                 {
                     "unit_image": "files/army/giperion/CPS-12.jpg",
                     "unit_name": "HPAAL",
-                    "unit_count": 52,
+                    "unit_count": 147,
                     "units_stats": {
-                        "Урон": 4160,
-                        "Защита": 83200,
-                        "Живучесть": 11440,
+                        "Урон": 11760,
+                        "Защита": 235200,
+                        "Живучесть": 32340,
                         "Класс юнита": "3"
+                    }
+                },
+                {
+                    "unit_image": "files/army/giperion/pretorian.jpg",
+                    "unit_name": "Преторианцы",
+                    "unit_count": 5,
+                    "units_stats": {
+                        "Урон": 900,
+                        "Защита": 450,
+                        "Живучесть": 600,
+                        "Класс юнита": "1"
                     }
                 }
             ]

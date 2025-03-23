@@ -41,11 +41,11 @@
                 {
                     "unit_image": "files/army/celestia/S-19.jpg",
                     "unit_name": "F-25C",
-                    "unit_count": 174,
+                    "unit_count": 181,
                     "units_stats": {
-                        "Урон": 17400,
-                        "Защита": 206712,
-                        "Живучесть": 107880,
+                        "Урон": 18100,
+                        "Защита": 215028,
+                        "Живучесть": 112220,
                         "Класс юнита": "3"
                     }
                 }
@@ -62,12 +62,23 @@
                 {
                     "unit_image": "files/army/celestia/grenader.jpg",
                     "unit_name": "Гренадеры",
-                    "unit_count": 18,
+                    "unit_count": 42,
                     "units_stats": {
-                        "Урон": 2610,
-                        "Защита": 1440,
-                        "Живучесть": 1620,
+                        "Урон": 6090,
+                        "Защита": 3360,
+                        "Живучесть": 3780,
                         "Класс юнита": "1"
+                    }
+                },
+                {
+                    "unit_image": "files/army/celestia/S-19.jpg",
+                    "unit_name": "F-25C",
+                    "unit_count": 79,
+                    "units_stats": {
+                        "Урон": 7900,
+                        "Защита": 93852,
+                        "Живучесть": 48980,
+                        "Класс юнита": "3"
                     }
                 }
             ]
@@ -83,12 +94,23 @@
                 {
                     "unit_image": "files/army/celestia/S-19.jpg",
                     "unit_name": "F-25C",
-                    "unit_count": 201,
+                    "unit_count": 207,
                     "units_stats": {
-                        "Урон": 20100,
-                        "Защита": 238788,
-                        "Живучесть": 124620,
+                        "Урон": 20700,
+                        "Защита": 245916,
+                        "Живучесть": 128340,
                         "Класс юнита": "3"
+                    }
+                },
+                {
+                    "unit_image": "files/army/celestia/grenader.jpg",
+                    "unit_name": "Гренадеры",
+                    "unit_count": 49,
+                    "units_stats": {
+                        "Урон": 7105,
+                        "Защита": 3920,
+                        "Живучесть": 4410,
+                        "Класс юнита": "1"
                     }
                 }
             ]

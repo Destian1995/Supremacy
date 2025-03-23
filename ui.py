@@ -1,8 +1,6 @@
 import json
 import os
-import re
 import shutil
-import sqlite3
 
 from kivy.core.window import Window
 from kivy.graphics import Rectangle, Color
@@ -15,11 +13,11 @@ from kivy.uix.button import Button
 from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
 from collections import defaultdict
-from kivy.uix.image import Image as KivyImage  # Для отображения изображений в Kivy
+from kivy.uix.image import Image as KivyImage
 from kivy.uix.textinput import TextInput
-from kivy.uix.widget import Widget
 
 import fight
+import sqlite3
 
 arkadia_file_path = "files/config/manage_ii/arkadia_in_city.json"
 celestia_file_path = "files/config/manage_ii/celestia_in_city.json"
@@ -147,10 +145,14 @@ def load_json_file(filepath):
         return {}
 
 
-
 class FortressInfoPopup(Popup):
     def __init__(self, kingdom, city_coords, player_fraction, **kwargs):
         super(FortressInfoPopup, self).__init__(**kwargs)
+
+        # Создаем подключение к БД
+        self.conn = sqlite3.connect('game_data.db')
+        self.cursor = self.conn.cursor()
+
         self.fraction = kingdom
         self.city_name = ''
         self.city_coords = list(city_coords)
@@ -158,15 +160,23 @@ class FortressInfoPopup(Popup):
         self.player_fraction = player_fraction
         self.file_path2 = None
         self.file_path1 = None
-        self.garrison = transform_filename(f'files/config/manage_ii/{self.player_fraction}_in_city.json')
+        self.city_coords = city_coords  # Это кортеж (x, y)
 
-        # Загрузка данных о городах
-        with open('files/config/cities.json', 'r', encoding='utf-8') as file:
-            cities_data = json.load(file)["cities"]
-            for city in cities_data:
-                if city["coordinates"] == self.city_coords:
-                    self.city_name = city["name"]
-                    break
+        # Преобразуем координаты в строку для сравнения с БД
+        coords_str = f"[{self.city_coords[0]}, {self.city_coords[1]}]"
+
+        # Получаем информацию о городе из таблицы cities
+        self.cursor.execute("""
+            SELECT name FROM cities 
+            WHERE coordinates = ?
+        """, (coords_str,))
+
+        city_data = self.cursor.fetchone()
+        if city_data:
+            self.city_name = city_data[0]
+        else:
+            print(f"Город с координатами {self.city_coords} не найден в базе данных")
+            return
 
         self.title = f"Информация о поселении {self.city_name}"
         self.create_ui()
@@ -225,89 +235,154 @@ class FortressInfoPopup(Popup):
         main_layout.add_widget(close_button)
 
         self.content = main_layout
-        self.load_troops(self.fraction, self.city_coords)
+        self.get_garrison()
         self.load_buildings()
 
-    def load_troops(self, kingdom, city_coords):
-        merge_army_and_ii_files()
-        log_file = 'files/config/arms/all_arms.json'
-        attacking_units = self.get_units(log_file, self.city_name)
-        for unit in attacking_units:
-            unit_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=70, spacing=5)
-            unit_image = Image(source=unit['unit_image'], size_hint=(1, 0.7))
-            unit_name_label = Label(
-                text=f"{unit['unit_name']} (кол-во: {unit['unit_count']})",
-                size_hint_y=None,
-                height=30,
-                color=(0.2, 0.2, 0.2, 1)
-            )
-            unit_layout.add_widget(unit_image)
-            unit_layout.add_widget(unit_name_label)
-            self.attacking_units_box.add_widget(unit_layout)
-
     def load_buildings(self):
-        buildings = self.get_buildings()
-        for building in buildings:
-            label = Label(
-                text=building,
-                size_hint_y=None,
-                height=30,
-                color=(0.2, 0.2, 0.2, 1)
-            )
-            self.buildings_box.add_widget(label)
+        """Загружает здания в интерфейс."""
+        buildings = self.get_buildings()  # Получаем список зданий
 
-    def get_units(self, log_file, city_name):
-        units = []
+        # Очищаем контейнер перед добавлением новых данных
+        self.buildings_box.clear_widgets()
+
+        # Если зданий нет, добавляем сообщение об этом
+        if not buildings:
+            label = Label(
+                text="Зданий нет",
+                size_hint_y=None,
+                height=40,
+                font_size='18sp',  # Увеличиваем размер шрифта
+                color=(1, 0, 0, 1),  # Ярко-красный цвет текста
+                halign='center',
+                valign='middle'
+            )
+            label.bind(size=label.setter('text_size'))  # Для корректного выравнивания текста
+            self.buildings_box.add_widget(label)
+            return
+
+        # Добавляем каждое здание в интерфейс
+        for building in buildings:
+            # Создаем макет для одного здания
+            building_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=60, spacing=10)
+
+            # Информация о здании (текст с названием и количеством)
+            text_container = BoxLayout(orientation='vertical', size_hint=(1, 1), padding=5)
+            with text_container.canvas.before:
+                Color(0.1, 0.1, 0.1, 1)  # Темно-серый фон для контраста
+                text_container.bg_rect = Rectangle(pos=text_container.pos, size=text_container.size)
+
+            def update_rect(instance, value):
+                """Обновляет позицию и размер фона при изменении размеров виджета."""
+                if hasattr(instance, 'bg_rect'):
+                    instance.bg_rect.pos = instance.pos
+                    instance.bg_rect.size = instance.size
+
+            text_container.bind(pos=update_rect, size=update_rect)
+
+            # Текст с названием и количеством
+            text_label = Label(
+                text=building,
+                font_size='18sp',  # Увеличиваем размер шрифта
+                color=(1, 1, 1, 1),  # Белый цвет текста
+                halign='left',
+                valign='middle'
+            )
+            text_label.bind(size=text_label.setter('text_size'))  # Для корректного выравнивания текста
+            text_container.add_widget(text_label)
+
+            building_layout.add_widget(text_container)
+
+            # Добавляем макет здания в контейнер
+            self.buildings_box.add_widget(building_layout)
+
+    def get_garrison(self):
+        """Получает гарнизон города из таблицы garrisons"""
         try:
-            with open(log_file, 'r', encoding='utf-8') as file:
-                army_data = json.load(file)
-                for army_type in ['arkadia_in_city', 'celestia_in_city', 'halidon_in_city', 'giperion_in_city',
-                                  'eteria_in_city']:  # Проверка всех разделов
-                    if city_name in army_data.get(army_type, {}):
-                        for entry in army_data[army_type][city_name]:
-                            for unit in entry.get('units', []):
-                                units.append({
-                                    'unit_image': unit['unit_image'],
-                                    'unit_name': unit['unit_name'],
-                                    'unit_count': unit['unit_count']
-                                })
-        except (json.JSONDecodeError, FileNotFoundError):
-            print(f"Файл {log_file} не найден или пуст.")
+            # Запрос к базе данных для получения гарнизона
+            self.cursor.execute("""
+                SELECT unit_name, unit_count, unit_image 
+                FROM garrisons 
+                WHERE city_id = ?
+            """, (self.city_name,))
+            garrison_data = self.cursor.fetchall()
+
+            # Очищаем контейнер с предыдущими данными
+            self.attacking_units_box.clear_widgets()
+
+            if not garrison_data:
+                print(f"Гарнизон для города {self.city_name} пуст.")
+                return
+
+            print('Выполняется запрос к базе данных гарнизона', garrison_data)
+
+            # Добавляем данные о каждом юните в интерфейс
+            for unit_name, unit_count, unit_image in garrison_data:
+                # Создаем макет для одного юнита
+                unit_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=100, spacing=10)
+
+                # Изображение юнита
+                unit_image_widget = Image(
+                    source=unit_image,
+                    size_hint=(None, None),
+                    size=(110, 110)  # Увеличиваем размер изображения
+                )
+                unit_layout.add_widget(unit_image_widget)
+
+                # Информация о юните (текст с названием и количеством)
+                text_container = BoxLayout(orientation='vertical', size_hint=(1, 1), padding=5)
+                with text_container.canvas.before:
+                    Color(0.3, 0.3, 0.3, 1)  
+                    text_container.bg_rect = Rectangle(pos=text_container.pos, size=text_container.size)
+
+                def update_rect(instance, value):
+                    """Обновляет позицию и размер фона при изменении размеров виджета."""
+                    if hasattr(instance, 'bg_rect'):
+                        instance.bg_rect.pos = instance.pos
+                        instance.bg_rect.size = instance.size
+
+                text_container.bind(pos=update_rect, size=update_rect)
+
+                # Текст с названием и количеством
+                unit_text = f"{unit_name}\nКоличество: {unit_count}"
+                text_label = Label(
+                    text=unit_text,
+                    font_size='16sp',  # Увеличиваем размер шрифта
+                    color=(1, 1, 1, 1),  # Белый текст
+                    halign='left',
+                    valign='middle'
+                )
+                text_label.bind(size=text_label.setter('text_size'))  # Для корректного выравнивания текста
+                text_container.add_widget(text_label)
+
+                unit_layout.add_widget(text_container)
+
+                # Добавляем макет юнита в контейнер
+                self.attacking_units_box.add_widget(unit_layout)
+
         except Exception as e:
-            print(f"Произошла ошибка при загрузке юнитов: {e}")
-        return units
+            print(f"Ошибка при получении гарнизона: {e}")
 
     def get_buildings(self):
-        """Получает количество зданий в указанном городе из JSON-файла."""
-        # Формируем путь к файлу зданий фракции
-        path_to_buildings = transform_filename(f'files/config/buildings_in_city/{self.fraction}_buildings_city.json')
+        """Получает количество зданий в указанном городе из таблицы buildings."""
+        try:
+            # Выполняем запрос к базе данных
+            self.cursor.execute("""
+                SELECT building_type, count 
+                FROM buildings 
+                WHERE city_name = ? AND faction = ?
+            """, (self.city_name, self.fraction))
 
-        # Инициализируем словарь для подсчета зданий
-        buildings_count = defaultdict(int)
+            buildings_data = self.cursor.fetchall()
 
-        # Проверяем, существует ли файл
-        if os.path.exists(path_to_buildings):
-            try:
-                with open(path_to_buildings, 'r', encoding='utf-8') as file:
-                    data = json.load(file)
+            # Формируем список с информацией о зданиях
+            buildings = [f"{building_type}: {count}" for building_type, count in buildings_data]
 
-                # Проверяем, есть ли информация о здании для текущего города
-                if self.city_name in data:
-                    buildings_info = data[self.city_name].get('Здания', {})
-                    for building_type, count in buildings_info.items():
-                        buildings_count[building_type] = count
+            # Если зданий нет, возвращаем пустой список
+            return buildings if buildings else []
 
-            except (FileNotFoundError, json.JSONDecodeError) as e:
-                print(f"Ошибка при чтении файла {path_to_buildings}: {e}")
-
-        # Формируем список с информацией о зданиях
-        buildings = [f"{building}: {count}" for building, count in buildings_count.items()]
-
-        # Если зданий нет, добавляем пустую строку
-        if not buildings:
-            buildings.append("")
-
-        return buildings
+        except Exception as e:
+            print(f"Ошибка при получении данных о зданиях: {e}")
+            return []
 
     def introduce_troops(self, instance):
         # Открытие окна для выбора гарнизона
@@ -357,11 +432,64 @@ class FortressInfoPopup(Popup):
         garrison_selection_popup.content = garrison_selection_layout
         garrison_selection_popup.open()
 
+    def add_to_garrison(self, unit, *args):
+        """
+        Проверяет наличие юнитов и добавляет выбранный тип войск в гарнизон.
+        """
+        # Создание всплывающего окна для выбора количества
+        popup = Popup(title="Выберите количество", size_hint=(0.6, 0.4))
+        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+
+        # Поле ввода количества
+        input_label = Label(text=f"Введите количество {unit['unit_type']} (доступно: {unit['quantity']}):")
+        count_input = TextInput(multiline=False, input_filter='int')  # Разрешаем только целые числа
+        layout.add_widget(input_label)
+        layout.add_widget(count_input)
+
+        # Кнопки подтверждения и отмены
+        button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=10)
+        confirm_button = Button(text="Подтвердить", background_color=(0.6, 0.8, 0.6, 1))
+        cancel_button = Button(text="Отмена", background_color=(0.8, 0.6, 0.6, 1))
+
+        # Привязка действий к кнопкам
+        confirm_button.bind(on_press=lambda btn: self.transfer_army_to_garrison(unit))
+        cancel_button.bind(on_press=popup.dismiss)
+
+        button_layout.add_widget(confirm_button)
+        button_layout.add_widget(cancel_button)
+        layout.add_widget(button_layout)
+
+        popup.content = layout
+        popup.open()
+
+    def show_warning_popup(self):
+        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        label = Label(text="Для размещения юнитов сначала надо нанять!")
+        btn = Button(text="OK", size_hint=(1, 0.3))
+
+        popup = Popup(title="Внимание!", content=layout, size_hint=(0.5, 0.3))
+        btn.bind(on_release=popup.dismiss)
+
+        layout.add_widget(label)
+        layout.add_widget(btn)
+
+        popup.open()
+
     def place_army(self, instance):
-        arms_file_path = 'files/config/arms/arms.json'
         try:
-            with open(arms_file_path, 'r', encoding='utf-8') as file:
-                arms_data = json.load(file)
+            cursor = self.cursor
+
+            # Запрос для получения данных из таблицы armies
+            cursor.execute("""
+                SELECT unit_type, quantity, total_attack, total_defense, total_durability, unit_class, unit_image 
+                FROM armies
+            """)
+            army_data = cursor.fetchall()
+            print('army_data:', army_data)
+            if not army_data:
+                print("Нет доступных юнитов для размещения.")
+                self.show_warning_popup()
+                return
 
             popup = Popup(title="Разместить армию", size_hint=(0.9, 0.9))
             main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
@@ -397,18 +525,33 @@ class FortressInfoPopup(Popup):
                     instance.bg_rect.pos = instance.pos
                     instance.bg_rect.size = instance.size
 
-            for unit_key, unit_data in arms_data.items():
+            for unit in army_data:
+                unit_type, quantity, attack, defense, durability, unit_class, unit_image = unit
+
+                # Формируем данные о юните
+                unit_data = {
+                    "unit_type": unit_type,
+                    "quantity": quantity,
+                    "stats": {
+                        "Attack": attack,
+                        "Defense": defense,
+                        "Durability": durability,
+                        "Class": unit_class
+                    },
+                    "unit_image": unit_image
+                }
+
                 image_container = BoxLayout(size_hint_y=None, height=image_height)
-                unit_image = KivyImage(
-                    source=unit_data["image"],
+                unit_image_widget = KivyImage(
+                    source=unit_image,
                     size_hint=(None, None),
                     size=(image_width, image_height)
                 )
-                image_container.add_widget(unit_image)
+                image_container.add_widget(unit_image_widget)
                 table_layout.add_widget(image_container)
 
                 name_label = Label(
-                    text=unit_data["name"],
+                    text=unit_type,
                     font_size=f'{font_size}sp',
                     size_hint_y=None,
                     height=60,
@@ -421,7 +564,7 @@ class FortressInfoPopup(Popup):
                 table_layout.add_widget(name_label)
 
                 count_label = Label(
-                    text=str(unit_data["count"]),
+                    text=str(quantity),
                     font_size=f'{font_size}sp',
                     size_hint_y=None,
                     height=60,
@@ -433,7 +576,12 @@ class FortressInfoPopup(Popup):
                 count_label.bind(pos=update_rect, size=update_rect)
                 table_layout.add_widget(count_label)
 
-                stats_text = "\n".join([f"{stat}: {value}" for stat, value in unit_data["stats"].items()])
+                stats_text = "\n".join([
+                    f"Attack: {attack}",
+                    f"Defense: {defense}",
+                    f"Durability: {durability}",
+                    f"Class: {unit_class}"
+                ])
                 stats_label = Label(
                     text=stats_text,
                     font_size=f'{font_size}sp',
@@ -474,220 +622,106 @@ class FortressInfoPopup(Popup):
             popup.content = main_layout
             popup.open()
 
-        except FileNotFoundError:
-            print(f"Файл {arms_file_path} не найден.")
-        except json.JSONDecodeError:
-            print(f"Ошибка при декодировании JSON из файла {arms_file_path}.")
-            self.show_warning_popup()
+        except sqlite3.Error as e:
+            print(f"Ошибка при работе с базой данных: {e}")
         except Exception as e:
-            print(f"Произошла ошибка при загрузке данных о войсках: {e}")
+            print(f"Произошла ошибка: {e}")
 
-
-    def add_to_garrison(self, unit, *args):
+    def transfer_army_to_garrison(self, selected_units):
         """
-        Проверяет наличие юнитов и добавляет выбранный тип войск в гарнизон.
+        Переносит данные о войсках из таблицы armies в таблицу garrisons.
+        :param selected_units: Словарь с данными о юнитах для переноса.
         """
-        # Создание всплывающего окна для выбора количества
-        popup = Popup(title="Выберите количество", size_hint=(0.6, 0.4))
-        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
-
-        # Поле ввода количества
-        input_label = Label(text=f"Введите количество {unit['name']} (доступно: {unit['count']})")
-        count_input = TextInput(multiline=False, input_filter='int')  # Разрешаем только целые числа
-        layout.add_widget(input_label)
-        layout.add_widget(count_input)
-
-        # Кнопки подтверждения и отмены
-        button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=10)
-        confirm_button = Button(text="Подтвердить", background_color=(0.6, 0.8, 0.6, 1))
-        cancel_button = Button(text="Отмена", background_color=(0.8, 0.6, 0.6, 1))
-
-        # Привязка действий к кнопкам
-        confirm_button.bind(on_press=lambda btn: self.confirm_addition(unit, count_input.text, popup))
-        cancel_button.bind(on_press=popup.dismiss)
-
-        button_layout.add_widget(confirm_button)
-        button_layout.add_widget(cancel_button)
-        layout.add_widget(button_layout)
-
-        popup.content = layout
-        popup.open()
-
-        # Перенос армии в файл зданий
-        self.transfer_army_to_buildings_file(unit)
-
-    def show_warning_popup(self):
-        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        label = Label(text="Для размещения юнитов сначала надо нанять!")
-        btn = Button(text="OK", size_hint=(1, 0.3))
-
-        popup = Popup(title="Внимание!", content=layout, size_hint=(0.5, 0.3))
-        btn.bind(on_release=popup.dismiss)
-
-        layout.add_widget(label)
-        layout.add_widget(btn)
-
-        popup.open()
-
-    def confirm_addition(self, unit, count_text, popup):
-        """
-        Подтверждает добавление войск в гарнизон после проверки введенного количества.
-        """
+        print('selected_units прилетает в transfer_army_to_garrison в таком виде:', selected_units)
         try:
-            count = int(count_text)  # Преобразуем введенное значение в число
-            if count <= 0:
-                raise ValueError("Количество должно быть больше нуля.")
-            if count > unit['count']:
-                raise ValueError(f"Недостаточно войск. Доступно только {unit['count']}.")
+            cursor = self.cursor
 
-            # Обновляем файл гарнизона
-            self.update_garrison(unit, count)
+            # Извлекаем данные из selected_units
+            unit_type = selected_units.get("unit_type")
+            taken_count = selected_units.get("quantity")
+            stats = selected_units.get("stats", {})
+            unit_image = selected_units.get("unit_image")
 
-            # Закрываем всплывающее окно
-            popup.dismiss()
-            print(f"Добавлено в гарнизон: {unit['name']} (количество: {count})")
+            # Проверяем, что все необходимые данные присутствуют
+            if not all([unit_type, taken_count, stats, unit_image]):
+                raise ValueError("Некорректные данные для переноса юнита.")
 
-        except ValueError as e:
-            # Выводим сообщение об ошибке
-            error_popup = Popup(title="Ошибка", size_hint=(0.6, 0.4), auto_dismiss=True)
-            error_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
-            error_label = Label(text=str(e))
-            close_button = Button(text="Закрыть", size_hint_y=None, height=50)
-            close_button.bind(on_press=error_popup.dismiss)
-            error_layout.add_widget(error_label)
-            error_layout.add_widget(close_button)
-            error_popup.content = error_layout
-            error_popup.open()
+            # Преобразуем stats обратно в отдельные характеристики
+            total_attack = stats.get("Attack", 0)
+            total_defense = stats.get("Defense", 0)
+            total_durability = stats.get("Durability", 0)
 
-    def update_garrison(self, unit, count):
-        """
-        Обновляет файл гарнизона, добавляя или изменяя данные о войсках.
-        """
+            # Получаем текущее количество юнитов из таблицы armies
+            cursor.execute("""
+                SELECT quantity, total_attack, total_defense, total_durability 
+                FROM armies
+                WHERE faction = ? AND unit_type = ?
+            """, (self.player_fraction, unit_type))
 
-        try:
-            # Проверяем, существует ли файл
-            if not os.path.exists(self.garrison) or os.path.getsize(self.garrison) == 0:
-                print(f"Файл {self.garrison} не найден или пустой. Создаем новый файл.")
-                with open(self.garrison, 'w', encoding='utf-8') as file:
-                    json.dump({}, file, ensure_ascii=False, indent=4)
+            result = cursor.fetchone()
 
-            # Загружаем текущие данные гарнизона
-            with open(self.garrison, 'r', encoding='utf-8') as file:
-                try:
-                    garrison_data = json.load(file)
-                except json.JSONDecodeError:
-                    print(f"Файл {self.garrison} пустой или содержит некорректные данные. Используем пустой словарь.")
-                    garrison_data = {}
+            if not result:
+                print(f"Юнит '{unit_type}' не найден в таблице armies.")
+                return
 
-            # Проверяем, есть ли уже войска в городе
-            if self.city_name not in garrison_data:
-                garrison_data[self.city_name] = [
-                    {
-                        "coordinates": self.city_coords,
-                        "units": []
-                    }
-                ]
+            old_count, current_attack, current_defense, current_durability = result
 
-            units = garrison_data[self.city_name][0]["units"]
+            # Проверяем, что можно взять указанное количество юнитов
+            if taken_count > old_count:
+                print(f"Ошибка: нельзя взять больше, чем есть. {unit_type}: {taken_count} > {old_count}")
+                return
 
-            # Ищем совпадающий тип войск
-            matching_unit = next((u for u in units if u["unit_name"] == unit['name']), None)
-            if matching_unit:
-                # Если войска уже есть, увеличиваем их количество
-                matching_unit["unit_count"] += count
+            # Проверяем, есть ли уже такой юнит в гарнизоне
+            cursor.execute("""
+                SELECT unit_count FROM garrisons 
+                WHERE city_id = ? AND unit_name = ?
+            """, (self.city_name, unit_type))
+
+            existing_unit = cursor.fetchone()
+
+            if existing_unit:
+                # Если юнит уже есть, обновляем количество
+                new_count = existing_unit[0] + taken_count
+                cursor.execute("""
+                    UPDATE garrisons 
+                    SET unit_count = ? 
+                    WHERE city_id = ? AND unit_name = ?
+                """, (new_count, self.city_name, unit_type))
             else:
-                # Если войск нет, добавляем новый тип
-                units.append({
-                    "unit_image": unit['image'],
-                    "unit_name": unit['name'],
-                    "unit_count": count,
-                    "units_stats": unit['stats']
-                })
+                # Если юнита нет, добавляем новую запись
+                cursor.execute("""
+                    INSERT INTO garrisons (city_id, unit_name, unit_count, unit_image)
+                    VALUES (?, ?, ?, ?)
+                """, (self.city_name, unit_type, taken_count, unit_image))
 
-            # Сохраняем обновленные данные в файл
-            with open(self.garrison, 'w', encoding='utf-8') as file:
-                json.dump(garrison_data, file, ensure_ascii=False, indent=4)
-
-            print(f"Добавлено в гарнизон: {unit['name']} (количество: {count})")
-
-        except Exception as e:
-            print(f"Произошла ошибка при обновлении гарнизона: {e}")
-
-    def transfer_army_to_buildings_file(self, selected_units):
-        """
-        Переносит данные о войсках из arms.json в файл buildings_in_city/{fraction}_buildings_city.json
-        и модифицирует оставшиеся данные в arms.json.
-        :param selected_units: Словарь {unit_key: count} с выбранными юнитами.
-        """
-        arms_file_path = 'files/config/arms/arms.json'
-        buildings_file_path = transform_filename(f'files/config/buildings_in_city/{self.fraction}_buildings_city.json')
-
-        try:
-            # Загружаем текущие войска
-            with open(arms_file_path, 'r', encoding='utf-8') as file:
-                arms_data = json.load(file)
-
-            # Загружаем или создаем файл с войсками в городе
-            if not os.path.exists(buildings_file_path) or os.path.getsize(buildings_file_path) == 0:
-                initial_data = {}
+            # Обновляем оставшиеся войска в таблице armies
+            remaining_count = old_count - taken_count
+            if remaining_count > 0:
+                cursor.execute("""
+                    UPDATE armies 
+                    SET quantity = ?, total_attack = ?, total_defense = ?, total_durability = ?
+                    WHERE faction = ? AND unit_type = ?
+                """, (
+                    remaining_count,
+                    round(current_attack * (remaining_count / old_count), 2),
+                    round(current_defense * (remaining_count / old_count), 2),
+                    round(current_durability * (remaining_count / old_count), 2),
+                    self.player_fraction,
+                    unit_type
+                ))
             else:
-                with open(buildings_file_path, 'r', encoding='utf-8') as file:
-                    initial_data = json.load(file)
+                # Удаляем запись, если юнитов больше не осталось
+                cursor.execute("""
+                    DELETE FROM armies 
+                    WHERE faction = ? AND unit_type = ?
+                """, (self.player_fraction, unit_type))
 
-            # Структура для войск города
-            if self.city_name not in initial_data:
-                initial_data[self.city_name] = {"coordinates": self.city_coords, "units": []}
+            # Сохраняем изменения в базе данных
+            self.conn.commit()
+            print("Данные успешно перенесены из таблицы armies в таблицу garrisons.")
 
-            city_units = initial_data[self.city_name]["units"]
-
-            # Обрабатываем выбранные войска
-            for unit_key, taken_count in selected_units.items():
-                if unit_key in arms_data:
-                    unit_info = arms_data[unit_key]
-                    old_count = unit_info["count"]
-
-                    if taken_count > old_count:
-                        print(f"Ошибка: нельзя взять больше, чем есть. {unit_key}: {taken_count} > {old_count}")
-                        continue  # Пропускаем обработку этого юнита
-
-                    # Пересчет характеристик для нового отряда
-                    new_unit = {
-                        "unit_image": unit_info["image"],
-                        "unit_name": unit_info["name"],
-                        "unit_count": taken_count,
-                        "units_stats": {stat: round(value * (taken_count / old_count), 2) for stat, value in
-                                        unit_info["stats"].items()}
-                    }
-
-                    # Добавляем войска в гарнизон
-                    existing_city_unit = next((u for u in city_units if u["unit_name"] == unit_info["name"]), None)
-                    if existing_city_unit:
-                        existing_city_unit["unit_count"] += taken_count
-                    else:
-                        city_units.append(new_unit)
-
-                    # Обновляем оставшиеся войска в arms.json
-                    remaining_count = old_count - taken_count
-                    if remaining_count > 0:
-                        arms_data[unit_key]["count"] = remaining_count
-                        arms_data[unit_key]["stats"] = {stat: round(value * (remaining_count / old_count), 2) for
-                                                        stat, value in unit_info["stats"].items()}
-                    else:
-                        del arms_data[unit_key]  # Полностью убираем юнита, если его больше нет
-
-            # Сохраняем обновленные данные в файлы
-            with open(buildings_file_path, 'w', encoding='utf-8') as file:
-                json.dump(initial_data, file, ensure_ascii=False, indent=4)
-
-            with open(arms_file_path, 'w', encoding='utf-8') as file:
-                json.dump(arms_data, file, ensure_ascii=False, indent=4)
-
-            print(f"Данные успешно перенесены в {buildings_file_path}, оставшиеся войска обновлены в {arms_file_path}")
-
-        except FileNotFoundError:
-            print(f"Файл {arms_file_path} не найден.")
-        except json.JSONDecodeError:
-            print(f"Ошибка при чтении JSON из {arms_file_path}.")
+        except sqlite3.Error as e:
+            print(f"Произошла ошибка при работе с базой данных: {e}")
         except Exception as e:
             print(f"Произошла ошибка при переносе данных: {e}")
 

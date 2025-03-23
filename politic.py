@@ -1578,7 +1578,7 @@ def create_army_rating_table(faction_files):
 
 
 #------------------------------------------------------------------
-def start_politic_mode(faction, game_area):
+def start_politic_mode(faction, game_area, class_faction):
     """Инициализация политического режима для выбранной фракции"""
     # Создаем layout для кнопок
     politics_layout = BoxLayout(
