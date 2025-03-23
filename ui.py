@@ -331,7 +331,7 @@ class FortressInfoPopup(Popup):
                 # Информация о юните (текст с названием и количеством)
                 text_container = BoxLayout(orientation='vertical', size_hint=(1, 1), padding=5)
                 with text_container.canvas.before:
-                    Color(0.3, 0.3, 0.3, 1)  
+                    Color(0.3, 0.3, 0.3, 1)
                     text_container.bg_rect = Rectangle(pos=text_container.pos, size=text_container.size)
 
                 def update_rect(instance, value):
@@ -533,10 +533,10 @@ class FortressInfoPopup(Popup):
                     "unit_type": unit_type,
                     "quantity": quantity,
                     "stats": {
-                        "Attack": attack,
-                        "Defense": defense,
-                        "Durability": durability,
-                        "Class": unit_class
+                        "Атака": attack,
+                        "Защита": defense,
+                        "Живучесть": durability,
+                        "Класс": unit_class
                     },
                     "unit_image": unit_image
                 }
@@ -577,10 +577,10 @@ class FortressInfoPopup(Popup):
                 table_layout.add_widget(count_label)
 
                 stats_text = "\n".join([
-                    f"Attack: {attack}",
-                    f"Defense: {defense}",
-                    f"Durability: {durability}",
-                    f"Class: {unit_class}"
+                    f"Атака: {attack}",
+                    f"Защита: {defense}",
+                    f"Живучесть: {durability}",
+                    f"Класс: {unit_class}"
                 ])
                 stats_label = Label(
                     text=stats_text,
