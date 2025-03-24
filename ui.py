@@ -161,6 +161,7 @@ class FortressInfoPopup(Popup):
         self.file_path2 = None
         self.file_path1 = None
         self.city_coords = city_coords  # Это кортеж (x, y)
+        self.current_popup = None  # Ссылка на текущее всплывающее окно
 
         # Преобразуем координаты в строку для сравнения с БД
         coords_str = f"[{self.city_coords[0]}, {self.city_coords[1]}]"
@@ -190,6 +191,7 @@ class FortressInfoPopup(Popup):
         # Левая колонка: Гарнизон
         troops_column = BoxLayout(orientation='vertical', spacing=10)
         troops_column.add_widget(Label(text="Гарнизон", font_size='20sp', bold=True, size_hint_y=None, height=30))
+
         self.attacking_units_list = ScrollView(size_hint=(1, 1))
         self.attacking_units_box = BoxLayout(orientation='vertical', size_hint_y=None, spacing=10)
         self.attacking_units_box.bind(minimum_height=self.attacking_units_box.setter('height'))
@@ -235,8 +237,13 @@ class FortressInfoPopup(Popup):
         main_layout.add_widget(close_button)
 
         self.content = main_layout
+
+        # Инициализация данных
         self.get_garrison()
         self.load_buildings()
+
+        # Ссылки на виджеты гарнизона
+        self.garrison_widgets = {}  # Словарь для хранения ссылок на виджеты гарнизона
 
     def load_buildings(self):
         """Загружает здания в интерфейс."""
@@ -432,6 +439,85 @@ class FortressInfoPopup(Popup):
         garrison_selection_popup.content = garrison_selection_layout
         garrison_selection_popup.open()
 
+    def update_garrison(self):
+        """
+        Обновляет данные о гарнизоне на интерфейсе с сохранением стиля.
+        """
+        try:
+            # Очищаем текущие виджеты гарнизона
+            self.attacking_units_box.clear_widgets()
+
+            # Получаем актуальные данные о гарнизоне из базы данных
+            cursor = self.cursor
+            cursor.execute("""
+                SELECT unit_name, unit_count, unit_image 
+                FROM garrisons 
+                WHERE city_id = ?
+            """, (self.city_name,))
+            garrison_data = cursor.fetchall()
+
+            if not garrison_data:
+                # Если гарнизон пуст, добавляем сообщение
+                label = Label(
+                    text="Гарнизон пуст",
+                    size_hint_y=None,
+                    height=60,
+                    font_size='18sp',
+                    color=(1, 0, 0, 1),  # Ярко-красный текст
+                    halign='center',
+                    valign='middle'
+                )
+                label.bind(size=label.setter('text_size'))  # Для корректного выравнивания текста
+                self.attacking_units_box.add_widget(label)
+                return
+
+            # Добавляем новые виджеты для каждого юнита в гарнизоне
+            for unit_name, unit_count, unit_image in garrison_data:
+                # Создаем макет для одного юнита
+                unit_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=100, spacing=10)
+
+                # Изображение юнита
+                unit_image_widget = Image(
+                    source=unit_image,
+                    size_hint=(None, None),
+                    size=(110, 110)  # Увеличиваем размер изображения
+                )
+                unit_layout.add_widget(unit_image_widget)
+
+                # Информация о юните (текст с названием и количеством)
+                text_container = BoxLayout(orientation='vertical', size_hint=(1, 1), padding=5)
+                with text_container.canvas.before:
+                    Color(0.3, 0.3, 0.3, 1)  # Темно-серый фон
+                    text_container.bg_rect = Rectangle(pos=text_container.pos, size=text_container.size)
+
+                def update_rect(instance, value):
+                    """Обновляет позицию и размер фона при изменении размеров виджета."""
+                    if hasattr(instance, 'bg_rect'):
+                        instance.bg_rect.pos = instance.pos
+                        instance.bg_rect.size = instance.size
+
+                text_container.bind(pos=update_rect, size=update_rect)
+
+                # Текст с названием и количеством
+                unit_text = f"{unit_name}\nКоличество: {unit_count}"
+                text_label = Label(
+                    text=unit_text,
+                    font_size='16sp',  # Увеличиваем размер шрифта
+                    color=(1, 1, 1, 1),  # Белый текст
+                    halign='left',
+                    valign='middle'
+                )
+                text_label.bind(size=text_label.setter('text_size'))  # Для корректного выравнивания текста
+                text_container.add_widget(text_label)
+
+                unit_layout.add_widget(text_container)
+
+                # Добавляем макет юнита в контейнер
+                self.attacking_units_box.add_widget(unit_layout)
+
+        except Exception as e:
+            print(f"Ошибка при обновлении гарнизона: {e}")
+
     def add_to_garrison(self, unit, *args):
         """
         Проверяет наличие юнитов и добавляет выбранный тип войск в гарнизон.
@@ -452,7 +538,32 @@ class FortressInfoPopup(Popup):
         cancel_button = Button(text="Отмена", background_color=(0.8, 0.6, 0.6, 1))
 
         # Привязка действий к кнопкам
-        confirm_button.bind(on_press=lambda btn: self.transfer_army_to_garrison(unit))
+        def confirm_action(btn):
+            try:
+                count = int(count_input.text)
+                if 0 < count <= unit['quantity']:
+                    # Передаем unit и количество в метод
+                    self.transfer_army_to_garrison(unit, count)
+
+                    # Закрываем текущее всплывающее окно
+                    popup.dismiss()
+
+                    # Обновляем интерфейс гарнизона
+                    self.update_garrison()
+
+                    # Обновляем интерфейс, вызывая place_army заново
+                    self.place_army(None)
+                else:
+                    # Показываем ошибку, если количество некорректно
+                    error_popup = Popup(title="Ошибка", content=Label(text="Некорректное количество"),
+                                        size_hint=(0.6, 0.4))
+                    error_popup.open()
+            except ValueError:
+                # Обработка случая, если ввод не является числом
+                error_popup = Popup(title="Ошибка", content=Label(text="Введите число"), size_hint=(0.6, 0.4))
+                error_popup.open()
+
+        confirm_button.bind(on_press=confirm_action)
         cancel_button.bind(on_press=popup.dismiss)
 
         button_layout.add_widget(confirm_button)
@@ -477,6 +588,11 @@ class FortressInfoPopup(Popup):
 
     def place_army(self, instance):
         try:
+            # Закрываем предыдущее всплывающее окно, если оно существует
+            if self.current_popup:
+                self.current_popup.dismiss()
+                self.current_popup = None  # Очищаем ссылку
+
             cursor = self.cursor
 
             # Запрос для получения данных из таблицы armies
@@ -491,7 +607,10 @@ class FortressInfoPopup(Popup):
                 self.show_warning_popup()
                 return
 
+            # Создаем новое всплывающее окно
             popup = Popup(title="Разместить армию", size_hint=(0.9, 0.9))
+            self.current_popup = popup  # Сохраняем ссылку на текущее окно
+
             main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
 
             table_layout = GridLayout(cols=5, spacing=10, size_hint_y=None)
@@ -627,20 +746,21 @@ class FortressInfoPopup(Popup):
         except Exception as e:
             print(f"Произошла ошибка: {e}")
 
-    def transfer_army_to_garrison(self, selected_units):
+    def transfer_army_to_garrison(self, selected_unit, taken_count):
         """
         Переносит данные о войсках из таблицы armies в таблицу garrisons.
-        :param selected_units: Словарь с данными о юнитах для переноса.
+        :param selected_unit: Словарь с данными о юните (тип, статистика, изображение и т.д.).
+        :param taken_count: Количество юнитов для переноса.
         """
-        print('selected_units прилетает в transfer_army_to_garrison в таком виде:', selected_units)
+        print('selected_unit прилетает в transfer_army_to_garrison в таком виде:', selected_unit)
+        print(f'Количество юнитов для переноса: {taken_count}')
         try:
             cursor = self.cursor
 
-            # Извлекаем данные из selected_units
-            unit_type = selected_units.get("unit_type")
-            taken_count = selected_units.get("quantity")
-            stats = selected_units.get("stats", {})
-            unit_image = selected_units.get("unit_image")
+            # Извлекаем данные из selected_unit
+            unit_type = selected_unit.get("unit_type")
+            stats = selected_unit.get("stats", {})
+            unit_image = selected_unit.get("unit_image")
 
             # Проверяем, что все необходимые данные присутствуют
             if not all([unit_type, taken_count, stats, unit_image]):
@@ -912,3 +1032,10 @@ class FortressInfoPopup(Popup):
 
         # Закрытие окна после выполнения действия
         self.dismiss()
+
+    def close_popup(self):
+        """
+        Закрывает текущее всплывающее окно и освобождает ресурсы.
+        """
+        self.dismiss()  # Закрываем окно
+        self.clear_widgets()  # Очищаем все виджеты

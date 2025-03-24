@@ -63,12 +63,23 @@
                 {
                     "unit_image": "files/army/arkadia/vepr.jpg",
                     "unit_name": "Вепрь",
-                    "unit_count": 19,
+                    "unit_count": 166,
                     "units_stats": {
-                        "Урон": 3610,
-                        "Защита": 10070,
-                        "Живучесть": 6460,
+                        "Урон": 31540,
+                        "Защита": 87980,
+                        "Живучесть": 56440,
                         "Класс юнита": "2"
+                    }
+                },
+                {
+                    "unit_image": "files/army/arkadia/pancir.jpg",
+                    "unit_name": "C-225 Медведь",
+                    "unit_count": 2,
+                    "units_stats": {
+                        "Урон": 440,
+                        "Защита": 30340,
+                        "Живучесть": 3500,
+                        "Класс юнита": "3"
                     }
                 }
             ]
