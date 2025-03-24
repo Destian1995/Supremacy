@@ -183,27 +183,62 @@ class FortressInfoPopup(Popup):
         self.create_ui()
 
     def create_ui(self):
-        main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        """
+        Создает масштабируемый пользовательский интерфейс.
+        """
+        # Базовые параметры для масштабирования
+        screen_width, screen_height = Window.size
+        scale_factor = screen_width / 360  # Масштабный коэффициент (360 — базовая ширина экрана)
+
+        base_font_size = 8  # Базовый размер шрифта
+        base_padding = 7  # Базовый отступ
+        base_spacing = 7  # Базовое расстояние между виджетами
+        base_button_height = 20  # Базовая высота кнопок
+
+        font_size = int(base_font_size * scale_factor)
+        padding = int(base_padding * scale_factor)
+        spacing = int(base_spacing * scale_factor)
+        button_height = int(base_button_height * scale_factor)
+
+        # Главный макет
+        main_layout = BoxLayout(orientation='vertical', padding=padding, spacing=spacing)
 
         # Верхняя часть: Гарнизон и здания
-        columns_layout = GridLayout(cols=2, spacing=20, size_hint_y=0.7)
+        columns_layout = GridLayout(cols=2, spacing=spacing, size_hint_y=0.7)
 
         # Левая колонка: Гарнизон
-        troops_column = BoxLayout(orientation='vertical', spacing=10)
-        troops_column.add_widget(Label(text="Гарнизон", font_size='20sp', bold=True, size_hint_y=None, height=30))
+        troops_column = BoxLayout(orientation='vertical', spacing=spacing)
+        troops_label = Label(
+            text="Гарнизон",
+            font_size=f'{font_size*1.2}sp',
+            bold=True,
+            size_hint_y=None,
+            height=int(30 * scale_factor),
+            color=(1, 1, 1, 1)  # Черный текст
+        )
+        troops_column.add_widget(troops_label)
 
         self.attacking_units_list = ScrollView(size_hint=(1, 1))
-        self.attacking_units_box = BoxLayout(orientation='vertical', size_hint_y=None, spacing=10)
+        self.attacking_units_box = BoxLayout(orientation='vertical', size_hint_y=None, spacing=spacing)
         self.attacking_units_box.bind(minimum_height=self.attacking_units_box.setter('height'))
         self.attacking_units_list.add_widget(self.attacking_units_box)
         troops_column.add_widget(self.attacking_units_list)
         columns_layout.add_widget(troops_column)
 
         # Правая колонка: Здания
-        buildings_column = BoxLayout(orientation='vertical', spacing=10)
-        buildings_column.add_widget(Label(text="Здания", font_size='20sp', bold=True, size_hint_y=None, height=30))
+        buildings_column = BoxLayout(orientation='vertical', spacing=spacing)
+        buildings_label = Label(
+            text="Здания",
+            font_size=f'{font_size*1.2}sp',
+            bold=True,
+            size_hint_y=None,
+            height=int(30 * scale_factor),
+            color=(1, 1, 1, 1)  # Черный текст
+        )
+        buildings_column.add_widget(buildings_label)
+
         self.buildings_list = ScrollView(size_hint=(1, 1))
-        self.buildings_box = BoxLayout(orientation='vertical', size_hint_y=None, spacing=10)
+        self.buildings_box = BoxLayout(orientation='vertical', size_hint_y=None, spacing=spacing)
         self.buildings_box.bind(minimum_height=self.buildings_box.setter('height'))
         self.buildings_list.add_widget(self.buildings_box)
         buildings_column.add_widget(self.buildings_list)
@@ -212,27 +247,51 @@ class FortressInfoPopup(Popup):
         main_layout.add_widget(columns_layout)
 
         # Нижняя часть: Кнопки действий
-        button_layout = GridLayout(cols=3, size_hint_y=None, height=50, spacing=10)
+        button_layout = GridLayout(cols=3, size_hint_y=None, height=button_height, spacing=spacing)
 
         # Кнопка "Ввести войска"
-        send_troops_button = Button(text="Ввести войска", background_color=(0.6, 0.8, 0.6, 1))
-        send_troops_button.bind(on_press=self.introduce_troops)
+        send_troops_button = Button(
+            text="Ввести войска",
+            font_size=f'{font_size}sp',
+            size_hint_y=None,
+            height=button_height,
+            background_color=(0.6, 0.8, 0.6, 1)
+        )
+        send_troops_button.bind(on_press=self.select_troop_type)
         button_layout.add_widget(send_troops_button)
 
         # Кнопка "Нанести удар ДБ оружием"
-        strike_weapon_button = Button(text="Нанести удар ДБ оружием", background_color=(0.8, 0.6, 0.6, 1))
+        strike_weapon_button = Button(
+            text="Нанести удар \nДБ оружием",
+            font_size=f'{font_size}sp',
+            size_hint_y=None,
+            height=button_height,
+            background_color=(0.8, 0.6, 0.6, 1)
+        )
         strike_weapon_button.bind(on_press=self.strike_with_dbs)
         button_layout.add_widget(strike_weapon_button)
 
         # Кнопка "Разместить армию"
-        place_army_button = Button(text="Разместить армию", background_color=(0.6, 0.6, 0.8, 1))
+        place_army_button = Button(
+            text="Разместить армию",
+            font_size=f'{font_size}sp',
+            size_hint_y=None,
+            height=button_height,
+            background_color=(0.6, 0.6, 0.8, 1)
+        )
         place_army_button.bind(on_press=self.place_army)
         button_layout.add_widget(place_army_button)
 
         main_layout.add_widget(button_layout)
 
         # Кнопка "Закрыть"
-        close_button = Button(text="Закрыть", size_hint_y=None, height=50, background_color=(0.8, 0.8, 0.8, 1))
+        close_button = Button(
+            text="Закрыть",
+            font_size=f'{font_size}sp',
+            size_hint_y=None,
+            height=button_height,
+            background_color=(0.8, 0.8, 0.8, 1)
+        )
         close_button.bind(on_press=self.dismiss)
         main_layout.add_widget(close_button)
 
@@ -391,53 +450,352 @@ class FortressInfoPopup(Popup):
             print(f"Ошибка при получении данных о зданиях: {e}")
             return []
 
-    def introduce_troops(self, instance):
-        # Открытие окна для выбора гарнизона
-        garrison_selection_popup = Popup(title="Выберите гарнизон для ввода войск",
-                                         size_hint=(0.8, 0.8))
+    def select_troop_type(self, instance=None):
+        """
+        Открывает окно для выбора типа войск: Защитные, Атакующие, Любые.
+        :param instance: Экземпляр виджета, который вызвал метод (не используется).
+        """
+        popup = Popup(title="Выберите тип войск", size_hint=(0.6, 0.4))
+        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
 
-        # Создание макета для выбора гарнизона
-        garrison_selection_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        # Кнопки для выбора типа войск
+        defensive_button = Button(text="Защитные", background_color=(0.6, 0.8, 0.6, 1))
+        offensive_button = Button(text="Атакующие", background_color=(0.8, 0.6, 0.6, 1))
+        any_button = Button(text="Любые", background_color=(0.6, 0.6, 0.8, 1))
 
-        # Загружаем данные гарнизонов из файла
-        with open(self.garrison, 'r', encoding='utf-8') as file:
-            try:
-                army_data = json.load(file)
-            except json.JSONDecodeError:
-                print("Файл army_in_city.json пустой или поврежден, загружаем пустые данные.")
-                army_data = {}
+        # Привязка действий к кнопкам
+        defensive_button.bind(on_press=lambda btn: self.load_troops_by_type("Defensive", popup))
+        offensive_button.bind(on_press=lambda btn: self.load_troops_by_type("Offensive", popup))
+        any_button.bind(on_press=lambda btn: self.load_troops_by_type("Any", popup))
 
-        # Отображение гарнизонов с информацией о войсках
-        for city_name, entries in army_data.items():
-            for entry in entries:
-                coordinates = entry.get("coordinates", "")
-                units_info = "\n".join(
-                    [f"{unit['unit_name']} (Кол-во: {unit['unit_count']})" for unit in entry.get("units", [])]
-                )  # Информация о каждом типе войск
-
-                # Создаем кнопку с именем гарнизона, координатами и составом войск
-                garrison_button = Button(
-                    text=f"{city_name} - Войска:\n{units_info}",
-                    size_hint_y=None,
-                    height=100
-                )
-
-                # Привязываем действие к кнопке, чтобы при нажатии вызвать метод передачи войск
-                garrison_button.bind(
-                    on_press=lambda btn, name=city_name: self.choose_garrison(name, garrison_selection_popup)
-                )
-
-                # Добавляем кнопку в макет
-                garrison_selection_layout.add_widget(garrison_button)
-
-        # Кнопка для закрытия окна
-        close_button = Button(text="Закрыть", size_hint_y=None, height=50)
-        close_button.bind(on_press=garrison_selection_popup.dismiss)
-        garrison_selection_layout.add_widget(close_button)
+        # Добавляем кнопки в макет
+        layout.add_widget(defensive_button)
+        layout.add_widget(offensive_button)
+        layout.add_widget(any_button)
 
         # Устанавливаем содержимое окна и открываем его
-        garrison_selection_popup.content = garrison_selection_layout
-        garrison_selection_popup.open()
+        popup.content = layout
+        popup.open()
+
+    def select_troops(self, selected_data):
+        """
+        Обрабатывает выбор войск для перемещения и выполняет обновление данных в базе данных.
+        :param selected_data: Кортеж с данными о выбранном юните (город, название юнита, количество).
+        """
+        try:
+            # Распаковываем данные о выбранном юните
+            source_city_id, unit_name, unit_count = selected_data
+
+            # Запрос у пользователя количества юнитов для переноса
+            popup = Popup(title="Выберите количество", size_hint=(0.6, 0.4))
+            layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+
+            input_label = Label(text=f"Введите количество {unit_name} (доступно: {unit_count}):")
+            count_input = TextInput(multiline=False, input_filter='int')  # Разрешаем только целые числа
+            layout.add_widget(input_label)
+            layout.add_widget(count_input)
+
+            # Кнопки подтверждения и отмены
+            button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=10)
+            confirm_button = Button(text="Подтвердить", background_color=(0.6, 0.8, 0.6, 1))
+            cancel_button = Button(text="Отмена", background_color=(0.8, 0.6, 0.6, 1))
+
+            def confirm_action(btn):
+                try:
+                    # Получаем введенное количество
+                    taken_count = int(count_input.text)
+
+                    if 0 < taken_count <= unit_count:
+                        # Выполняем перенос войск
+                        self.transfer_troops_between_cities(source_city_id, self.city_name, unit_name, taken_count)
+
+                        # Закрываем окно ввода
+                        popup.dismiss()
+
+                        # Обновляем интерфейс гарнизона
+                        self.update_garrison()
+
+                        # Закрываем текущее окно выбора войск
+                        self.current_popup.dismiss()
+
+                        # Показываем обновленное окно выбора войск
+                        self.show_troops_selection(self.load_troops_data())
+                    else:
+                        # Показываем ошибку, если количество некорректно
+                        error_popup = Popup(
+                            title="Ошибка",
+                            content=Label(text="Некорректное количество"),
+                            size_hint=(0.6, 0.4)
+                        )
+                        error_popup.open()
+                except ValueError:
+                    # Обработка случая, если ввод не является числом
+                    error_popup = Popup(
+                        title="Ошибка",
+                        content=Label(text="Введите число"),
+                        size_hint=(0.6, 0.4)
+                    )
+                    error_popup.open()
+
+            confirm_button.bind(on_press=confirm_action)
+            cancel_button.bind(on_press=popup.dismiss)
+
+            button_layout.add_widget(confirm_button)
+            button_layout.add_widget(cancel_button)
+            layout.add_widget(button_layout)
+
+            popup.content = layout
+            popup.open()
+
+        except Exception as e:
+            print(f"Ошибка при выборе войск: {e}")
+
+    def load_troops_data(self):
+        """
+        Загружает данные о войсках из базы данных.
+        :return: Список войск.
+        """
+        try:
+            cursor = self.cursor
+            cursor.execute("""
+                SELECT city_id, unit_name, unit_count, unit_image 
+                FROM garrisons
+            """)
+            troops_data = cursor.fetchall()
+            return troops_data
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке данных о войсках: {e}")
+            return []
+
+    def transfer_troops_between_cities(self, source_city_id, destination_city_id, unit_name, taken_count):
+        """
+        Переносит войска из одного города в другой.
+        :param source_city_id: Идентификатор исходного города.
+        :param destination_city_id: Идентификатор целевого города.
+        :param unit_name: Название юнита.
+        :param taken_count: Количество юнитов для переноса.
+        """
+        try:
+            cursor = self.cursor
+
+            # Шаг 1: Проверяем наличие юнитов в исходном городе
+            cursor.execute("""
+                SELECT unit_count, unit_image FROM garrisons 
+                WHERE city_id = ? AND unit_name = ?
+            """, (source_city_id, unit_name))
+            source_unit = cursor.fetchone()
+
+            if not source_unit or source_unit[0] < taken_count:
+                print(f"Ошибка: недостаточно юнитов '{unit_name}' в городе '{source_city_id}'.")
+                return
+
+            # Получаем изображение юнита
+            unit_image = source_unit[1]
+
+            # Шаг 2: Обновляем количество юнитов в исходном городе
+            remaining_count = source_unit[0] - taken_count
+            if remaining_count > 0:
+                cursor.execute("""
+                    UPDATE garrisons 
+                    SET unit_count = ? 
+                    WHERE city_id = ? AND unit_name = ?
+                """, (remaining_count, source_city_id, unit_name))
+            else:
+                cursor.execute("""
+                    DELETE FROM garrisons 
+                    WHERE city_id = ? AND unit_name = ?
+                """, (source_city_id, unit_name))
+
+            # Шаг 3: Проверяем наличие юнитов в целевом городе
+            cursor.execute("""
+                SELECT unit_count FROM garrisons 
+                WHERE city_id = ? AND unit_name = ?
+            """, (destination_city_id, unit_name))
+            destination_unit = cursor.fetchone()
+
+            if destination_unit:
+                # Если юнит уже есть, увеличиваем его количество
+                new_count = destination_unit[0] + taken_count
+                cursor.execute("""
+                    UPDATE garrisons 
+                    SET unit_count = ? 
+                    WHERE city_id = ? AND unit_name = ?
+                """, (new_count, destination_city_id, unit_name))
+            else:
+                # Если юнита нет, добавляем новую запись с изображением
+                cursor.execute("""
+                    INSERT INTO garrisons (city_id, unit_name, unit_count, unit_image)
+                    VALUES (?, ?, ?, ?)
+                """, (destination_city_id, unit_name, taken_count, unit_image))
+
+            # Сохраняем изменения в базе данных
+            self.conn.commit()
+            print("Войска успешно перенесены.")
+
+        except sqlite3.Error as e:
+            print(f"Произошла ошибка при работе с базой данных: {e}")
+        except Exception as e:
+            print(f"Произошла ошибка при переносе войск: {e}")
+
+    def load_troops_by_type(self, troop_type, previous_popup):
+        """
+        Загружает войска из гарнизонов в зависимости от выбранного типа.
+        :param troop_type: Тип войск ("Defensive", "Offensive", "Any").
+        :param previous_popup: Предыдущее всплывающее окно для закрытия.
+        """
+        try:
+            # Закрываем предыдущее окно
+            previous_popup.dismiss()
+
+            # Шаг 1: Получаем все юниты из таблицы garrisons
+            self.cursor.execute("""
+                SELECT city_id, unit_name, unit_count, unit_image 
+                FROM garrisons
+            """)
+            all_troops = self.cursor.fetchall()
+
+            if not all_troops:
+                # Если войск нет, показываем сообщение
+                error_popup = Popup(
+                    title="Ошибка",
+                    content=Label(text=f"Нет доступных войск."),
+                    size_hint=(0.6, 0.4)
+                )
+                error_popup.open()
+                return
+
+            # Шаг 2: Фильтруем юниты по типу (атакующие, защитные, любые)
+            filtered_troops = []
+            for city_id, unit_name, unit_count, unit_image in all_troops:
+                # Получаем характеристики юнита из таблицы units
+                self.cursor.execute("""
+                    SELECT attack, defense, durability 
+                    FROM units 
+                    WHERE unit_name = ?
+                """, (unit_name,))
+                unit_stats = self.cursor.fetchone()
+
+                if not unit_stats:
+                    print(f"Характеристики для юнита '{unit_name}' не найдены.")
+                    continue
+
+                attack, defense, durability = unit_stats
+
+                # Определяем тип юнита
+                if troop_type == "Defensive":
+                    if defense > attack and defense > durability:
+                        filtered_troops.append((city_id, unit_name, unit_count, unit_image))
+                elif troop_type == "Offensive":
+                    if attack > defense and attack > durability:
+                        filtered_troops.append((city_id, unit_name, unit_count, unit_image))
+                else:  # "Any"
+                    filtered_troops.append((city_id, unit_name, unit_count, unit_image))
+
+            if not filtered_troops:
+                # Если подходящих войск нет, показываем сообщение
+                error_popup = Popup(
+                    title="Ошибка",
+                    content=Label(text=f"Нет доступных {troop_type.lower()} войск."),
+                    size_hint=(0.6, 0.4)
+                )
+                error_popup.open()
+                return
+
+            # Открываем окно с выбором войск
+            self.show_troops_selection(filtered_troops)
+
+        except Exception as e:
+            print(f"Ошибка при загрузке войск: {e}")
+
+    def show_troops_selection(self, troops_data):
+        """
+        Отображает окно с выбором войск.
+        :param troops_data: Список войск, полученный из базы данных.
+        """
+        popup = Popup(title="Выберите войска для перемещения", size_hint=(0.9, 0.9))
+        self.current_popup = popup  # Сохраняем ссылку на текущее окно
+
+        main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+
+        # Создаем таблицу для отображения войск
+        table_layout = GridLayout(cols=5, spacing=10, size_hint_y=None)
+        table_layout.bind(minimum_height=table_layout.setter('height'))
+
+        headers = ["Город", "Юнит", "Количество", "Изображение", "Действие"]
+        for header in headers:
+            label = Label(
+                text=header,
+                font_size='14sp',
+                bold=True,
+                size_hint_y=None,
+                height=40,
+                color=(1, 1, 1, 1)
+            )
+            table_layout.add_widget(label)
+
+        for city_id, unit_name, unit_count, unit_image in troops_data:
+            # Город
+            city_label = Label(
+                text=city_id,
+                font_size='14sp',
+                size_hint_y=None,
+                height=60,
+                color=(1, 1, 1, 1)
+            )
+            table_layout.add_widget(city_label)
+
+            # Юнит
+            unit_label = Label(
+                text=unit_name,
+                font_size='14sp',
+                size_hint_y=None,
+                height=60,
+                color=(1, 1, 1, 1)
+            )
+            table_layout.add_widget(unit_label)
+
+            # Количество
+            count_label = Label(
+                text=str(unit_count),
+                font_size='14sp',
+                size_hint_y=None,
+                height=60,
+                color=(1, 1, 1, 1)
+            )
+            table_layout.add_widget(count_label)
+
+            # Изображение
+            image_container = BoxLayout(size_hint_y=None, height=60)
+            unit_image_widget = Image(
+                source=unit_image,
+                size_hint=(None, None),
+                size=(50, 50)
+            )
+            image_container.add_widget(unit_image_widget)
+            table_layout.add_widget(image_container)
+
+            # Кнопка действия
+            action_button = Button(
+                text="Выбрать",
+                font_size='14sp',
+                size_hint_y=None,
+                height=40,
+                background_color=(0.6, 0.8, 0.6, 1)
+            )
+            action_button.bind(on_press=lambda btn, data=(city_id, unit_name, unit_count): self.select_troops(data))
+            table_layout.add_widget(action_button)
+
+        scroll_view = ScrollView(size_hint=(1, 1))
+        scroll_view.add_widget(table_layout)
+        main_layout.add_widget(scroll_view)
+
+        # Кнопка для закрытия окна
+        close_button = Button(text="Закрыть", size_hint_y=None, height=50, background_color=(0.8, 0.8, 0.8, 1))
+        close_button.bind(on_press=popup.dismiss)
+        main_layout.add_widget(close_button)
+
+        popup.content = main_layout
+        popup.open()
 
     def update_garrison(self):
         """
@@ -594,14 +952,13 @@ class FortressInfoPopup(Popup):
                 self.current_popup = None  # Очищаем ссылку
 
             cursor = self.cursor
-
             # Запрос для получения данных из таблицы armies
             cursor.execute("""
                 SELECT unit_type, quantity, total_attack, total_defense, total_durability, unit_class, unit_image 
                 FROM armies
             """)
             army_data = cursor.fetchall()
-            print('army_data:', army_data)
+
             if not army_data:
                 print("Нет доступных юнитов для размещения.")
                 self.show_warning_popup()
@@ -612,14 +969,18 @@ class FortressInfoPopup(Popup):
             self.current_popup = popup  # Сохраняем ссылку на текущее окно
 
             main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
-
-            table_layout = GridLayout(cols=5, spacing=10, size_hint_y=None)
+            table_layout = GridLayout(cols=5, spacing=5, size_hint_y=None)  # Уменьшаем отступы между элементами
             table_layout.bind(minimum_height=table_layout.setter('height'))
 
-            base_font_size = 7
+            # Базовые параметры для масштабирования (еще меньше)
+            base_font_size = 8  # Очень маленький базовый размер шрифта
+            base_image_width, base_image_height = 50, 50  # Меньшие размеры изображений
             screen_width, _ = Window.size
-            scale_factor = screen_width / 360
+            scale_factor = screen_width / 360  # Масштабный коэффициент
+
             font_size = int(base_font_size * scale_factor)
+            image_width = int(base_image_width * scale_factor)
+            image_height = int(base_image_height * scale_factor)
 
             headers = ["Изображение", "Название", "Количество", "Статистика", "Действие"]
             for header in headers:
@@ -628,14 +989,10 @@ class FortressInfoPopup(Popup):
                     font_size=f'{font_size}sp',
                     bold=True,
                     size_hint_y=None,
-                    height=40,
+                    height=80,  # Уменьшаем высоту заголовков
                     color=(1, 1, 1, 1)
                 )
                 table_layout.add_widget(label)
-
-            base_image_width, base_image_height = 50, 50
-            image_width = int(base_image_width * scale_factor)
-            image_height = int(base_image_height * scale_factor)
 
             bg_color = (0.2, 0.2, 0.2, 1)  # Цвет окна интерфейса
 
@@ -646,7 +1003,6 @@ class FortressInfoPopup(Popup):
 
             for unit in army_data:
                 unit_type, quantity, attack, defense, durability, unit_class, unit_image = unit
-
                 # Формируем данные о юните
                 unit_data = {
                     "unit_type": unit_type,
@@ -660,6 +1016,7 @@ class FortressInfoPopup(Popup):
                     "unit_image": unit_image
                 }
 
+                # Изображение юнита
                 image_container = BoxLayout(size_hint_y=None, height=image_height)
                 unit_image_widget = KivyImage(
                     source=unit_image,
@@ -669,11 +1026,12 @@ class FortressInfoPopup(Popup):
                 image_container.add_widget(unit_image_widget)
                 table_layout.add_widget(image_container)
 
+                # Название юнита
                 name_label = Label(
                     text=unit_type,
                     font_size=f'{font_size}sp',
                     size_hint_y=None,
-                    height=60,
+                    height=70,  # Уменьшаем высоту
                     color=(1, 1, 1, 1)
                 )
                 with name_label.canvas.before:
@@ -682,11 +1040,12 @@ class FortressInfoPopup(Popup):
                 name_label.bind(pos=update_rect, size=update_rect)
                 table_layout.add_widget(name_label)
 
+                # Количество юнитов
                 count_label = Label(
                     text=str(quantity),
                     font_size=f'{font_size}sp',
                     size_hint_y=None,
-                    height=60,
+                    height=60,  # Уменьшаем высоту
                     color=(1, 1, 1, 1)
                 )
                 with count_label.canvas.before:
@@ -695,17 +1054,18 @@ class FortressInfoPopup(Popup):
                 count_label.bind(pos=update_rect, size=update_rect)
                 table_layout.add_widget(count_label)
 
+                # Статистика юнита
                 stats_text = "\n".join([
-                    f"Attack: {attack}",
-                    f"Defense: {defense}",
-                    f"Durability: {durability}",
-                    f"Class: {unit_class}"
+                    f"Атака: {attack}",
+                    f"Защита: {defense}",
+                    f"Живучесть: {durability}",
+                    f"Класс: {unit_class}"
                 ])
                 stats_label = Label(
                     text=stats_text,
                     font_size=f'{font_size}sp',
                     size_hint_y=None,
-                    height=100,
+                    height=150,  # Уменьшаем высоту
                     color=(1, 1, 1, 1)
                 )
                 with stats_label.canvas.before:
@@ -714,11 +1074,12 @@ class FortressInfoPopup(Popup):
                 stats_label.bind(pos=update_rect, size=update_rect)
                 table_layout.add_widget(stats_label)
 
+                # Кнопка действия
                 action_button = Button(
                     text="Добавить",
                     font_size=f'{font_size}sp',
                     size_hint_y=None,
-                    height=40,
+                    height=70,  # Уменьшаем высоту кнопки
                     background_color=(0.6, 0.8, 0.6, 1)
                 )
                 action_button.bind(on_press=partial(self.add_to_garrison, unit_data))
@@ -732,7 +1093,7 @@ class FortressInfoPopup(Popup):
                 text="Закрыть",
                 font_size=f'{font_size}sp',
                 size_hint_y=None,
-                height=40,
+                height=30,  # Уменьшаем высоту кнопки "Закрыть"
                 background_color=(0.8, 0.8, 0.8, 1)
             )
             close_button.bind(on_press=popup.dismiss)
