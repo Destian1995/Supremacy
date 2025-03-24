@@ -192,7 +192,7 @@ class ArmyCash:
     def hire_weapons(self, weapon_name, unit_cost, quantity):
         """
         Обновляет или создает запись в таблице weapons.
-        :param unit_cost : кортеж, содержащий стоимость оружия в кронах и рабочих.
+        :param unit_cost: кортеж, содержащий стоимость оружия в кронах и рабочих.
         """
         crowns, workers = unit_cost
         required_crowns = int(crowns) * int(quantity)
@@ -210,13 +210,6 @@ class ArmyCash:
                         f"Необходимые: {required_crowns} крон и {required_workers} рабочих."
             )
             return False
-
-        # Отображение сообщения об успехе
-        self.show_message(
-            title="Успех",
-            message=f"Юнит {weapon_name} нанят! "
-                    f"Потрачено: {required_crowns} крон и {required_workers} рабочих."
-        )
         return True
 
     def update_weapon_in_db(self, faction, weapon_name, quantity, damage, koef):
@@ -261,18 +254,42 @@ class ArmyCash:
 
     def show_message(self, title, message):
         """
-        Показывает всплывающее окно с сообщением.
+        Отображает всплывающее сообщение поверх всех окон.
+        :param title: Заголовок сообщения.
+        :param message: Текст сообщения.
         """
-        layout = BoxLayout(orientation='vertical', padding=10)
-        label = Label(text=message, halign='center')
-        button = Button(text="OK", size_hint=(1, 0.3))
+        # Создаем контент для всплывающего окна
+        content_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        message_label = Label(
+            text=message,
+            color=(1, 1, 1, 1),  # Белый текст
+            font_size=16,
+            size_hint_y=None,
+            height=100
+        )
+        close_button = Button(
+            text="Закрыть",
+            size_hint_y=None,
+            height=50,
+            background_color=(0.2, 0.6, 1, 1)  # Синий фон кнопки
+        )
 
-        popup = Popup(title=title, content=layout, size_hint=(0.75, 0.5), auto_dismiss=False)
-        button.bind(on_press=popup.dismiss)
+        # Добавляем виджеты в контент
+        content_layout.add_widget(message_label)
+        content_layout.add_widget(close_button)
 
-        layout.add_widget(label)
-        layout.add_widget(button)
+        # Создаем Popup
+        popup = Popup(
+            title=title,
+            content=content_layout,
+            size_hint=(0.6, 0.4),  # Размер окна (60% ширины, 40% высоты)
+            auto_dismiss=False  # Окно не закрывается автоматически при клике вне его
+        )
 
+        # Привязываем кнопку "Закрыть" к закрытию Popup
+        close_button.bind(on_release=popup.dismiss)
+
+        # Открываем Popup
         popup.open()
 
 
@@ -505,7 +522,7 @@ def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates
     if isinstance(coordinates_text, list):
         coordinates_text = ', '.join(map(str, coordinates_text))
 
-    global current_weapon_management_popup, current_weapon_selection_popup
+    global current_weapon_management_popup
 
     # Основной макет
     layout = FloatLayout()
@@ -533,6 +550,7 @@ def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates
     rows = cursor.fetchall()
     conn.close()
 
+    # Создаем словарь с данными об оружии
     weapon_data = {}
     for row in rows:
         weapon_name, quantity = row
@@ -544,8 +562,11 @@ def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates
     # Создаем кнопки для каждого типа оружия
     weapons = load_weapon_data(faction)
     for weapon_name, weapon_info in weapons.items():
+        available_quantity = weapon_data.get(weapon_name, {}).get("count", 0)
+        button_text = f"{weapon_name} ({available_quantity} шт.)"
+
         weapon_button = Button(
-            text=weapon_name,
+            text=button_text,
             size_hint=(1, None),
             height=50,
             background_color=(0, 0, 0, 0),
@@ -561,8 +582,22 @@ def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates
             btn_rect.size = instance.size
 
         weapon_button.bind(pos=update_rect, size=update_rect)
-        weapon_button.bind(on_release=lambda x, name=weapon_name: select_weapon(name, weapons, faction, army_cash))
+
+        # Обновляем количество выбранного оружия при нажатии на кнопку
+        def on_weapon_select(instance, name=weapon_name):
+            select_weapon(name, weapons, faction, army_cash)
+            weapon_quantity_input.text = str(available_quantity)  # Передаем количество в поле ввода
+            print(f"Выбранное оружие: {name}, Количество: {available_quantity}")  # Отладочное сообщение
+
+        weapon_button.bind(on_release=on_weapon_select)
         weapon_button.bind(on_press=lambda x: animate_button(x))
+
+        # Отключаем кнопку, если это боевой режим (army_cash is None)
+        if army_cash is None:
+            weapon_button.disabled = True
+            weapon_button.background_color = (0.5, 0.5, 0.5, 1)  # Серый цвет для отключенных кнопок
+            weapon_button.color = (0.8, 0.8, 0.8, 1)  # Светло-серый текст
+
         weapon_selection_layout.add_widget(weapon_button)
 
     # Правая панель - данные миссии и управление
@@ -570,37 +605,43 @@ def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates
 
     # Поле для названия города
     city_name_input = TextInput(
-        hint_text="Название города",
-        text=city_name_text,
+        text=str(city_name_text),
         multiline=False,
+        readonly=True,
         size_hint_y=None,
         height=40,
-        background_normal='',
-        background_color=(0.9, 0.9, 0.9, 1),
-        foreground_color=(0, 0, 0, 1)
+        background_normal='',  # Прозрачный фон
+        background_color=(0.9, 0.9, 0.9, 1),  # Серый фон
+        foreground_color=(0, 0, 0, 1),  # Черный текст
+        font_size=16
     )
-    with city_name_input.canvas.before:
-        Color(0.9, 0.9, 0.9, 1)
-        RoundedRectangle(pos=city_name_input.pos, size=city_name_input.size, radius=[10])
-    city_name_input.bind(pos=lambda *args: setattr(city_name_input.canvas.before.children[-1], 'pos', city_name_input.pos))
-    city_name_input.bind(size=lambda *args: setattr(city_name_input.canvas.before.children[-1], 'size', city_name_input.size))
 
-    # Поле для координат
-    coord_input = TextInput(
-        hint_text="Координаты",
-        text=coordinates_text,
+    # Поле для режима работы
+    mode_input = TextInput(
+        text="Боевой режим" if army_cash is None else "Обычный режим",
         multiline=False,
+        readonly=True,
         size_hint_y=None,
         height=40,
-        background_normal='',
-        background_color=(0.9, 0.9, 0.9, 1),
-        foreground_color=(0, 0, 0, 1)
+        background_normal='',  # Прозрачный фон
+        background_color=(0.9, 0.9, 0.9, 1),  # Серый фон
+        foreground_color=(1, 0, 0, 1) if army_cash is None else (0, 0.5, 0, 1),  # Красный или темно-зеленый текст
+        font_size=16
     )
-    with coord_input.canvas.before:
-        Color(0.9, 0.9, 0.9, 1)
-        RoundedRectangle(pos=coord_input.pos, size=coord_input.size, radius=[10])
-    coord_input.bind(pos=lambda *args: setattr(coord_input.canvas.before.children[-1], 'pos', coord_input.pos))
-    coord_input.bind(size=lambda *args: setattr(coord_input.canvas.before.children[-1], 'size', coord_input.size))
+
+    # Поле для количества оружия
+    weapon_quantity_input = TextInput(
+        hint_text="Количество",
+        text="0",
+        multiline=False,
+        readonly=True,
+        size_hint_y=None,
+        height=40,
+        background_normal='',  # Прозрачный фон
+        background_color=(0.9, 0.9, 0.9, 1),  # Серый фон
+        foreground_color=(0, 0, 0, 1),  # Черный текст
+        font_size=16
+    )
 
     # Кнопка выбора оружия
     select_weapon_button = Button(
@@ -618,29 +659,28 @@ def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates
     select_weapon_button.bind(pos=lambda *args: setattr(select_weapon_button.canvas.before.children[-1], 'pos', select_weapon_button.pos))
     select_weapon_button.bind(size=lambda *args: setattr(select_weapon_button.canvas.before.children[-1], 'size', select_weapon_button.size))
 
-    # Передаем weapon_quantity_input в функцию open_weapon_selection_popup
-    select_weapon_button.bind(on_release=lambda x: open_weapon_selection_popup(
-        select_weapon_button,
-        faction,
-        weapon_quantity_input  # Передаем поле для количества
-    ))
-    select_weapon_button.bind(on_press=lambda x: animate_button(x))
+    # Функция для проверки выбора города
+    def check_city_selection(instance):
+        if not city_name_input.text.strip():  # Проверяем, пустое ли поле
+            # Всплывающее сообщение
+            popup_content = Label(text="Сначала выберите город в качестве цели!")
+            popup = Popup(
+                title="Ошибка",
+                content=popup_content,
+                size_hint=(0.6, 0.3)
+            )
+            popup.open()
+        else:
+            # Если город выбран, открываем окно выбора оружия
+            open_weapon_selection_popup(
+                select_weapon_button,
+                faction,
+                weapon_quantity_input  # Передаем поле для количества
+            )
 
-    # Поле для количества
-    weapon_quantity_input = TextInput(
-        hint_text="Количество",
-        multiline=False,
-        size_hint_y=None,
-        height=40,
-        background_normal='',
-        background_color=(0.9, 0.9, 0.9, 1),
-        foreground_color=(0, 0, 0, 1)
-    )
-    with weapon_quantity_input.canvas.before:
-        Color(0.9, 0.9, 0.9, 1)
-        RoundedRectangle(pos=weapon_quantity_input.pos, size=weapon_quantity_input.size, radius=[10])
-    weapon_quantity_input.bind(pos=lambda *args: setattr(weapon_quantity_input.canvas.before.children[-1], 'pos', weapon_quantity_input.pos))
-    weapon_quantity_input.bind(size=lambda *args: setattr(weapon_quantity_input.canvas.before.children[-1], 'size', weapon_quantity_input.size))
+    # Привязываем функцию к кнопке
+    select_weapon_button.bind(on_release=check_city_selection)
+    select_weapon_button.bind(on_press=lambda x: animate_button(x))
 
     # Кнопка запуска миссии
     mission_button = Button(
@@ -659,7 +699,7 @@ def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates
     mission_button.bind(size=lambda *args: setattr(mission_button.canvas.before.children[-1], 'size', mission_button.size))
     mission_button.bind(on_release=lambda x: start_mission(
         city_name_input.text,
-        coord_input.text,
+        coordinates_text,
         weapon_quantity_input.text,
         path_to_army
     ))
@@ -667,9 +707,9 @@ def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates
 
     # Добавляем виджеты в правую панель
     mission_data_layout.add_widget(city_name_input)
-    mission_data_layout.add_widget(coord_input)
-    mission_data_layout.add_widget(select_weapon_button)
+    mission_data_layout.add_widget(mode_input)
     mission_data_layout.add_widget(weapon_quantity_input)
+    mission_data_layout.add_widget(select_weapon_button)
     mission_data_layout.add_widget(mission_button)
 
     # Размещаем панели на основном макете
@@ -788,17 +828,12 @@ def open_weapon_selection_popup(selected_weapon_label, faction, weapon_quantity_
         background_color=(0.9, 0.9, 0.9, 1),
         foreground_color=(0, 0, 0, 1),
         disabled=False,
-        # Указываем путь к прозрачному фону для нормального состояния
         background_normal='',
-        # Указываем путь к прозрачному фону для активного состояния
         background_active='',
-        # Добавляем закругление углов
         border=(10, 10, 10, 10)  # Закругление по всем углам
     )
-    # Принудительная передача фокуса
     quantity_input.bind(on_touch_down=lambda instance, touch:
-    setattr(quantity_input, 'focus', True) if quantity_input.collide_point(*touch.pos) else None
-                        )
+    setattr(quantity_input, 'focus', True) if quantity_input.collide_point(*touch.pos) else None)
 
     # Кнопка подтверждения выбора
     confirm_button = Button(
@@ -808,7 +843,10 @@ def open_weapon_selection_popup(selected_weapon_label, faction, weapon_quantity_
         background_color=(0.2, 0.8, 0.2, 1),
         color=(1, 1, 1, 1)
     )
-    confirm_button.bind(on_release=lambda x: confirm_weapon_selection(selected_weapon, quantity_input.text, weapon_quantity_input))
+    confirm_button.bind(on_release=lambda x: (
+        confirm_weapon_selection(selected_weapon, quantity_input.text, weapon_quantity_input),
+        current_weapon_selection_popup.dismiss()  # Закрываем окно после подтверждения
+    ))
 
     # Кнопка закрытия окна
     done_button = Button(
@@ -837,7 +875,6 @@ def open_weapon_selection_popup(selected_weapon_label, faction, weapon_quantity_
         background_color=(0.2, 0.2, 0.2, 1)
     )
     current_weapon_selection_popup.open()
-
 
 def select_weapon_from_table(weapon_name, selected_weapon, quantity_input, table_layout):
     # Сброс предыдущего выделения
@@ -942,11 +979,6 @@ def select_weapon(weapon_name, weapons, faction, army_cash):
     stats_info = '\n'.join([f"{key}: {value}" for key, value in weapon_info.get('stats', {}).items()])
 
     weapon_details_layout = BoxLayout(orientation='horizontal', padding=20, spacing=15)
-
-    # Фон для Popup
-    with weapon_details_layout.canvas.before:
-        Color(0.1, 0.1, 0.2, 1)  # Темный фон
-        RoundedRectangle(size=weapon_details_layout.size, pos=weapon_details_layout.pos, radius=[20])
 
     # Изображение оружия
     weapon_image = Image(

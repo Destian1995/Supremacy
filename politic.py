@@ -230,8 +230,6 @@ def show_new_agreement_window(faction, game_area):
     modal.add_widget(window)
     modal.open()
 
-
-# Обновленная функция для формы торгового соглашения
 # Обновленная функция для создания формы торгового соглашения
 def show_trade_agreement_form(faction, game_area):
     """Окно формы для торгового соглашения"""
@@ -1630,19 +1628,3 @@ def start_politic_mode(faction, game_area, class_faction):
     game_area.add_widget(politics_layout)
 
 
-def switch_to_army(faction, game_area):
-    import army  # Импортируем здесь, чтобы избежать циклического импорта
-    game_area.clear_widgets()
-    army.start_army_mode(faction, game_area)
-
-
-def switch_to_economy(faction, game_area):
-    import economic  # Импортируем здесь, чтобы избежать циклического импорта
-    game_area.clear_widgets()
-    economic.start_economy_mode(faction, game_area)
-
-
-def switch_to_politics(faction, game_area):
-    import politic  # Импортируем здесь, чтобы избежать циклического импорта
-    game_area.clear_widgets()
-    politic.start_politic_mode(faction, game_area)

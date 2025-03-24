@@ -12,7 +12,7 @@ from kivy.uix.image import Image
 from kivy.uix.button import Button
 from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
-from collections import defaultdict
+from army import open_weapon_db_management
 from kivy.uix.image import Image as KivyImage
 from kivy.uix.textinput import TextInput
 
@@ -1381,17 +1381,29 @@ class FortressInfoPopup(Popup):
             print(f"Ошибка при обновлении данных о городе: {e}")
 
     def strike_with_dbs(self, instance):
-        path_to_army_strike = transform_filename(f'files/config/manage_ii/{self.fraction}_in_city.json')
-        data = {
-            "city_name": self.city_name,
-            "coordinates": self.city_coords,
-            "path_to_army": path_to_army_strike
-        }
-        with open('files/config/arms/coordinates_weapons.json', 'w', encoding='utf-8') as file:
-            json.dump(data, file)
-        print(f"Данные о городе '{self.city_name}' и его координатах {self.city_coords} сохранены в файл.")
+        # Получаем данные о городе из таблицы cities
+        coords_str = f"[{self.city_coords[0]}, {self.city_coords[1]}]"
+        self.cursor.execute("""
+            SELECT name FROM cities 
+            WHERE coordinates = ?
+        """, (coords_str,))
+        city_data = self.cursor.fetchone()
 
-        # Закрытие окна после выполнения действия
+        if not city_data:
+            print(f"Город с координатами {self.city_coords} не найден в базе данных")
+            return
+
+        city_name = city_data[0]
+
+        # Вызываем функцию open_weapon_db_management из модуля army
+        open_weapon_db_management(
+            faction=self.player_fraction,  # Фракция
+            army_cash=None,  # Боевой режим
+            city_name_text=city_name,  # Название города
+            coordinates_text=self.city_coords  # Координаты города
+        )
+
+        # Закрываем текущее окно
         self.dismiss()
 
     def close_popup(self):
