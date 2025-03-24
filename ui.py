@@ -464,9 +464,9 @@ class FortressInfoPopup(Popup):
         any_button = Button(text="Любые", background_color=(0.6, 0.6, 0.8, 1))
 
         # Привязка действий к кнопкам
-        defensive_button.bind(on_press=lambda btn: self.load_troops_by_type("Defensive", popup))
-        offensive_button.bind(on_press=lambda btn: self.load_troops_by_type("Offensive", popup))
-        any_button.bind(on_press=lambda btn: self.load_troops_by_type("Any", popup))
+        defensive_button.bind(on_press=lambda btn: self.load_troops_by_type("Защитные", popup))
+        offensive_button.bind(on_press=lambda btn: self.load_troops_by_type("Атакующие", popup))
+        any_button.bind(on_press=lambda btn: self.load_troops_by_type("Любые", popup))
 
         # Добавляем кнопки в макет
         layout.add_widget(defensive_button)
@@ -682,10 +682,10 @@ class FortressInfoPopup(Popup):
                 attack, defense, durability = unit_stats
 
                 # Определяем тип юнита
-                if troop_type == "Defensive":
+                if troop_type == "Защитные":
                     if defense > attack and defense > durability:
                         filtered_troops.append((city_id, unit_name, unit_count, unit_image))
-                elif troop_type == "Offensive":
+                elif troop_type == "Атакующие":
                     if attack > defense and attack > durability:
                         filtered_troops.append((city_id, unit_name, unit_count, unit_image))
                 else:  # "Any"
