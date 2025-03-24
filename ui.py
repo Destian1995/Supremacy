@@ -577,10 +577,10 @@ class FortressInfoPopup(Popup):
                 table_layout.add_widget(count_label)
 
                 stats_text = "\n".join([
-                    f"Атака: {attack}",
-                    f"Защита: {defense}",
-                    f"Живучесть: {durability}",
-                    f"Класс: {unit_class}"
+                    f"Attack: {attack}",
+                    f"Defense: {defense}",
+                    f"Durability: {durability}",
+                    f"Class: {unit_class}"
                 ])
                 stats_label = Label(
                     text=stats_text,
