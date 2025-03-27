@@ -46,7 +46,8 @@ def restore_from_backup():
             ("city_default", "city"),
             ("diplomacies_default", "diplomacies"),
             ("relations_default", "relations"),
-            ("resources_default", "resources")
+            ("resources_default", "resources"),
+            ("cities_default", "cities")
         ]
 
         # Проверяем существование всех стандартных таблиц
@@ -193,6 +194,7 @@ class MapWidget(Widget):
     def __init__(self, selected_kingdom=None, player_kingdom=None, **kwargs):
         super(MapWidget, self).__init__(**kwargs)
         self.touch_start = None  # Стартовая позиция касания
+        self.conn = sqlite3.connect('game_data.db', check_same_thread=False)
         self.fortress_rectangles = []  # Список для хранения крепостей
         self.current_player_kingdom = player_kingdom  # Текущее королевство игрока
         self.map_pos = self.map_positions_start()  # Позиция карты
@@ -218,50 +220,73 @@ class MapWidget(Widget):
     def draw_fortresses(self):
         self.fortress_rectangles.clear()
         self.canvas.clear()
-        # Загружаем данные о княжествах
-        file_path = os.path.join('files', 'config', 'city.json')
-        data = load_kingdom_data(file_path)
-
-        # Словарь для соответствия фракций и изображений
-        faction_images = {
-            'Хиперион': 'files/buildings/giperion.png',
-            'Аркадия': 'files/buildings/arkadia.png',
-            'Селестия': 'files/buildings/celestia.png',
-            'Этерия': 'files/buildings/eteria.png',
-            'Халидон': 'files/buildings/halidon.png'
-        }
 
         # Отрисовываем фон карты
         with self.canvas:
             self.map_image = Rectangle(source='files/map/map.png', pos=self.map_pos, size=(screen_width, screen_height))
-            # Отрисовываем крепости всех княжеств
-            for kingdom_name, kingdom_data in data["kingdoms"].items():
-                for fortress in kingdom_data["fortresses"]:
-                    fort_x, fort_y = fortress["coordinates"]
-                    # Сдвигаем изображение правее и выше
-                    fort_x += self.map_pos[0] + 4  # Сдвиг вправо
-                    fort_y += self.map_pos[1] + 2  # Сдвиг вверх
 
-                    # Получаем путь к изображению для текущей фракции
-                    image_path = faction_images.get(kingdom_name, 'files/buildings/default.png')
+            # Словарь для соответствия фракций и изображений
+            faction_images = {
+                'Хиперион': 'files/buildings/giperion.png',
+                'Аркадия': 'files/buildings/arkadia.png',
+                'Селестия': 'files/buildings/celestia.png',
+                'Этерия': 'files/buildings/eteria.png',
+                'Халидон': 'files/buildings/halidon.png'
+            }
 
-                    # Сохраняем прямоугольник и владельца для проверки касания
-                    fort_rect = (fort_x, fort_y, 40, 40)  # Размеры изображения (например, 40x40)
-                    self.fortress_rectangles.append((fort_rect, fortress, kingdom_name))
+            # Запрашиваем данные о городах из базы данных
+            try:
+                cursor = self.conn.cursor()
+                cursor.execute("""
+                    SELECT fortress_name, kingdom, coordinates 
+                    FROM city
+                """)
+                fortresses_data = cursor.fetchall()
+            except sqlite3.Error as e:
+                print(f"Ошибка при загрузке данных о городах: {e}")
+                return
 
-                    # Рисуем изображение крепости
-                    Rectangle(source=image_path, pos=(fort_x, fort_y), size=(40, 40))
+            # Отрисовываем крепости всех фракций
+            for fortress in fortresses_data:
+                fortress_name, kingdom, coords_str = fortress
+                try:
+                    # Преобразуем строку координат в список
+                    original_coords = json.loads(coords_str)  # Пример: "[400, 300]" -> [400, 300]
+                    fort_x, fort_y = original_coords
+                except (json.JSONDecodeError, ValueError) as e:
+                    print(f"Ошибка при разборе координат города '{fortress_name}': {e}")
+                    continue
+
+                # Сдвигаем изображение только для отрисовки
+                drawn_x = fort_x + self.map_pos[0] + 4  # Сдвиг вправо
+                drawn_y = fort_y + self.map_pos[1] + 2  # Сдвиг вверх
+
+                # Получаем путь к изображению для текущей фракции
+                image_path = faction_images.get(kingdom, 'files/buildings/default.png')
+
+                # Сохраняем прямоугольник и владельца для проверки касания
+                # Используем оригинальные координаты, а не сдвинутые
+                fort_rect = (drawn_x, drawn_y, 40, 40)  # Размеры изображения (например, 40x40)
+                self.fortress_rectangles.append((fort_rect, {"coordinates": original_coords}, kingdom))
+
+                # Рисуем изображение крепости
+                Rectangle(source=image_path, pos=(drawn_x, drawn_y), size=(40, 40))
 
     def check_fortress_click(self, touch):
         # Проверяем, была ли нажата крепость
         for fort_rect, fortress_data, owner in self.fortress_rectangles:
             if (fort_rect[0] <= touch.x <= fort_rect[0] + fort_rect[2] and
                     fort_rect[1] <= touch.y <= fort_rect[1] + fort_rect[3]):
-                # Получаем координаты крепости из словаря fortress_data
-                fortress_coords = fortress_data["coordinates"]  # Предполагаем, что это ключ "coordinates"
-                popup = FortressInfoPopup(kingdom=owner, city_coords=fortress_coords, player_fraction=self.current_player_kingdom)
+                # Получаем оригинальные координаты крепости
+                fortress_coords = fortress_data["coordinates"]  # Оригинальные координаты
+                popup = FortressInfoPopup(
+                    kingdom=owner,
+                    city_coords=fortress_coords,
+                    player_fraction=self.current_player_kingdom
+                )
                 popup.open()
-                print(f"Крепость {fortress_coords} принадлежит {'вашему' if owner == self.current_player_kingdom else 'чужому'} королевству!")
+                print(
+                    f"Крепость {fortress_coords} принадлежит {'вашему' if owner == self.current_player_kingdom else 'чужому'} королевству!")
 
     def on_touch_down(self, touch):
         # Запоминаем начальную точку касания
@@ -283,13 +308,6 @@ class MapWidget(Widget):
     def update_map_position(self):
         # Обновляем позицию изображения карты
         self.map_image.pos = self.map_pos
-        # Обновляем позиции крепостей
-        for index, (fort_rect, fortress_data, owner) in enumerate(self.fortress_rectangles):
-            fort_x, fort_y = fortress_data["coordinates"]  # Извлекаем координаты
-            fort_x += self.map_pos[0] + 4  # Сдвиг вправо
-            fort_y += self.map_pos[1] + 2  # Сдвиг вверх
-            self.fortress_rectangles[index] = (
-                (fort_x, fort_y, 40, 40), fortress_data, owner)  # Обновляем прямоугольник
         # Очищаем canvas и снова рисуем карту и крепости
         self.canvas.clear()
         self.draw_map()  # Вызываем отрисовку карты
