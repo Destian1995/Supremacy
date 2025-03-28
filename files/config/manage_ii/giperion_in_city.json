@@ -41,22 +41,22 @@
                 {
                     "unit_image": "files/army/giperion/pretorian.jpg",
                     "unit_name": "Преторианцы",
-                    "unit_count": 20,
+                    "unit_count": 42,
                     "units_stats": {
-                        "Урон": 3600,
-                        "Защита": 1800,
-                        "Живучесть": 2400,
+                        "Урон": 7560,
+                        "Защита": 3780,
+                        "Живучесть": 5040,
                         "Класс юнита": "1"
                     }
                 },
                 {
                     "unit_image": "files/army/giperion/CPS-12.jpg",
                     "unit_name": "HPAAL",
-                    "unit_count": 325,
+                    "unit_count": 353,
                     "units_stats": {
-                        "Урон": 26000,
-                        "Защита": 520000,
-                        "Живучесть": 71500,
+                        "Урон": 28240,
+                        "Защита": 564800,
+                        "Живучесть": 77660,
                         "Класс юнита": "3"
                     }
                 }

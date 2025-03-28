@@ -670,6 +670,7 @@ class Faction:
         """
         try:
             # Обновляем данные о зданиях из таблицы buildings
+            self.update_buildings()
             self.update_buildings_from_db()
 
             # Генерируем новую цену на сырье

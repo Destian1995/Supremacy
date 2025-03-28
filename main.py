@@ -100,6 +100,7 @@ def restore_from_backup():
         if conn:
             conn.close()
 
+
 def clear_tables(conn):
     """
     Очищает данные из указанных таблиц базы данных.
@@ -132,6 +133,17 @@ def clear_tables(conn):
         print(f"Ошибка при очистке таблиц: {e}")
         conn.rollback()  # Откат изменений в случае ошибки
 
+
+def housekeeping():
+    wal_file = "game_data.db-wal"
+    shm_file = "game_data.db-shm"
+
+    if os.path.exists(wal_file):
+        os.remove(wal_file)
+    if os.path.exists(shm_file):
+        os.remove(shm_file)
+
+
 def delete_dipforce_files():
     """Удаляет указанные файлы в поддиректориях files/config/status/dipforce."""
     filenames = {'halidon.json', 'giperion.json', 'eteria.json', 'celestia.json', 'arkadia.json'}
@@ -147,6 +159,7 @@ def delete_dipforce_files():
                 except Exception as e:
                     print(f"Ошибка при удалении {file_path}: {e}")
 
+
 class HallOfFameWidget(FloatLayout):
     def __init__(self, **kwargs):
         super(HallOfFameWidget, self).__init__(**kwargs)
@@ -159,7 +172,8 @@ class HallOfFameWidget(FloatLayout):
 
         # Поле для вывода лучших результатов
         self.results_label = Label(text=self.get_top_scores(), font_size='30sp', markup=True, halign="center",
-                                   size_hint=(0.8, 0.6), pos_hint={'center_x': 0.5, 'center_y': 0.5}, color=(0, 0, 0, 5))
+                                   size_hint=(0.8, 0.6), pos_hint={'center_x': 0.5, 'center_y': 0.5},
+                                   color=(0, 0, 0, 5))
         self.add_widget(self.results_label)
 
         # Кнопка "Назад"
@@ -329,7 +343,8 @@ class MenuWidget(FloatLayout):
         super(MenuWidget, self).__init__(**kwargs)
 
         # Список с именами файлов картинок
-        menu_images = ['files/menu/1.jpg', 'files/menu/2.jpg', 'files/menu/3.jpg', 'files/menu/4.jpg', 'files/menu/5.jpg']
+        menu_images = ['files/menu/1.jpg', 'files/menu/2.jpg', 'files/menu/3.jpg', 'files/menu/4.jpg',
+                       'files/menu/5.jpg']
 
         # Выбираем случайное изображение
         random_image = random.choice(menu_images)
@@ -343,12 +358,14 @@ class MenuWidget(FloatLayout):
         self.add_widget(title)
 
         # Кнопки
-        btn_start_game = Button(text="Старт новой игры", size_hint=(0.5, 0.1), pos_hint={'center_x': 0.5, 'center_y': 0.7},
+        btn_start_game = Button(text="Старт новой игры", size_hint=(0.5, 0.1),
+                                pos_hint={'center_x': 0.5, 'center_y': 0.7},
                                 background_normal='', background_color=(0, 0, 0, 1))
         btn_start_game.bind(on_press=self.start_game)
 
         btn_load_game = Button(text="Загрузка ранее сохраненной", size_hint=(0.5, 0.1),
-                               pos_hint={'center_x': 0.5, 'center_y': 0.5}, background_normal='', background_color=(0, 0, 0, 1))
+                               pos_hint={'center_x': 0.5, 'center_y': 0.5}, background_normal='',
+                               background_color=(0, 0, 0, 1))
         btn_load_game.bind(on_press=self.load_game)
 
         btn_hall_of_fame = Button(text="Зал славы", size_hint=(0.5, 0.1), pos_hint={'center_x': 0.5, 'center_y': 0.3},
@@ -379,6 +396,7 @@ class MenuWidget(FloatLayout):
 
     def exit_game(self, instance):
         App.get_running_app().stop()
+
 
 # Виджет выбора княжества
 class KingdomSelectionWidget(FloatLayout):
@@ -484,8 +502,10 @@ class KingdomSelectionWidget(FloatLayout):
 
         # Стилизация кнопок вкладок
         for tab in self.tabs_panel.tab_list:
-            tab.bind(on_enter=lambda x: setattr(tab, 'background_color', (0.7, 0.85, 1, 1)))  # Более яркий оттенок при наведении
-            tab.bind(on_leave=lambda x: setattr(tab, 'background_color', (0.6, 0.8, 1, 1)))  # Вернуться к оригинальному цвету
+            tab.bind(on_enter=lambda x: setattr(tab, 'background_color',
+                                                (0.7, 0.85, 1, 1)))  # Более яркий оттенок при наведении
+            tab.bind(on_leave=lambda x: setattr(tab, 'background_color',
+                                                (0.6, 0.8, 1, 1)))  # Вернуться к оригинальному цвету
             tab.size_hint_y = None
             tab.height = 50  # Высота кнопок
             tab.background_normal = ''  # Убираем стандартный фон кнопок
@@ -550,13 +570,8 @@ class KingdomSelectionWidget(FloatLayout):
         return info.get(kingdom, "")
 
     def start_game(self, instance):
-        wal_file = "game_data.db-wal"
-        shm_file = "game_data.db-shm"
-
-        if os.path.exists(wal_file):
-            os.remove(wal_file)
-        if os.path.exists(shm_file):
-            os.remove(shm_file)
+        # Очистка старых данных из БД
+        # housekeeping()
         app = App.get_running_app()
         selected_kingdom = app.selected_kingdom
         if selected_kingdom is None:
@@ -595,6 +610,7 @@ class EmpireApp(App):
 
 class Main(App):
     def __init__(self, **kwargs):
-        super(EmpireApp, self).__init__(**kwargs)# Запуск приложения
+        super(EmpireApp, self).__init__(**kwargs)  # Запуск приложения
         self.selected_kingdom = None  # Инициализация атрибутаif __name__ == '__main__':
+
     EmpireApp().run()

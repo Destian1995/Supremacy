@@ -455,22 +455,6 @@ class FortressInfoPopup(Popup):
         except Exception as e:
             print(f"Ошибка при выборе войск: {e}")
 
-    def load_troops_data(self):
-        """
-        Загружает данные о войсках из базы данных.
-        :return: Список войск.
-        """
-        try:
-            cursor = self.cursor
-            cursor.execute("""
-                SELECT city_id, unit_name, unit_count, unit_image 
-                FROM garrisons
-            """)
-            troops_data = cursor.fetchall()
-            return troops_data
-        except sqlite3.Error as e:
-            print(f"Ошибка при загрузке данных о войсках: {e}")
-            return []
 
     def load_troops_by_type(self, troop_type, previous_popup):
         """
@@ -1228,35 +1212,6 @@ class FortressInfoPopup(Popup):
         except Exception as e:
             print(f"Произошла ошибка при переносе данных: {e}")
 
-    def get_relationship(self, faction1, faction2):
-        try:
-            with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
-                diplomacies = json.load(file)
-            # Получаем отношения от faction1 к faction2
-            relationship = diplomacies.get(faction1, {}).get("отношения", {}).get(faction2, "нейтралитет")
-            return relationship
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"Ошибка при загрузке diplomacies.json: {e}")
-            return "нейтралитет"
-
-    def get_army_from_city(self, city_name):
-        log_file = 'files/config/arms/all_arms.json'
-        try:
-            with open(log_file, 'r', encoding='utf-8') as file:
-                army_data = json.load(file)
-                for army_type in ['arkadia_in_city', 'celestia_in_city', 'halidon_in_city', 'giperion_in_city',
-                                  'eteria_in_city']:  # Проверка всех разделов
-                    if city_name in army_data.get(army_type, {}):
-                        for entry in army_data[army_type][city_name]:
-                            return entry.get('units', [])  # Возвращаем список юнитов
-            print(f"Армия для города '{city_name}' не найдена.")
-            return None
-        except (json.JSONDecodeError, FileNotFoundError):
-            print(f"Файл {log_file} не найден или пуст.")
-            return None
-        except Exception as e:
-            print(f"Произошла ошибка при загрузке армии из города '{city_name}': {e}")
-            return None
 
     def capture_city(self, fortress_name, new_owner, source_city):
         try:
@@ -1283,7 +1238,14 @@ class FortressInfoPopup(Popup):
                 WHERE city_id = ?
             """, (fortress_name, source_city))
 
-            # 4. Сохраняем изменения в базе данных
+            # 4. Здания переходят под контроль новой фракции
+            cursor.execute("""
+                UPDATE buildings
+                SET faction = ?
+                WHERE city_name = ?
+            """, (new_owner, fortress_name))
+
+            # 5. Сохраняем изменения в базе данных
             self.conn.commit()
 
             print(f"Город '{fortress_name}' успешно захвачен фракцией '{new_owner}'.")

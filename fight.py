@@ -94,18 +94,6 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
     """
     Основная функция боя между двумя армиями.
     """
-    # Если нет обороняющихся, захватываем город без боя
-    if not defending_army:
-        capture_city_without_fight(
-            attacking_city=attacking_city,
-            defending_city=defending_city,
-            attacking_fraction=attacking_fraction,
-            defending_fraction=defending_fraction,
-            attacking_army=attacking_army,
-            db_connection=db_connection
-        )
-        return
-
     print('attacking_army in fight:', attacking_army)
     print('defending_army in fight:', defending_army)
 
@@ -123,7 +111,7 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
     for attacking_unit in attacking_army:
         for defending_unit in defending_army:
             if attacking_unit['unit_count'] > 0 and defending_unit['unit_count'] > 0:
-                attacking_unit, defending_unit = battle_units(attacking_unit, defending_unit)
+                attacking_unit, defending_unit = battle_units(attacking_unit, defending_unit, defending_city)
 
     # Генерация отчета
     report_data = generate_battle_report(attacking_army, defending_army)
@@ -215,9 +203,10 @@ def calculate_unit_power(unit, is_attacking):
         return durability + defense
 
 
-def battle_units(attacking_unit, defending_unit):
+def battle_units(attacking_unit, defending_unit, city):
     """
     Осуществляет бой между двумя юнитами.
+    :param city:
     :param attacking_unit: Атакующий юнит.
     :param defending_unit: Защитный юнит.
     :return: Обновленные данные об атакующем и защитном юнитах после боя.
@@ -229,6 +218,8 @@ def battle_units(attacking_unit, defending_unit):
     # Расчет силы защитного юнита
     defense_points = calculate_unit_power(defending_unit, is_attacking=False)
     total_defense_power = defense_points * defending_unit['unit_count']
+
+    damage_to_infrastructure(total_attack_power, city)
 
     # Определение победителя раунда
     if total_attack_power > total_defense_power:
@@ -284,6 +275,14 @@ def update_garrisons_after_battle(winner, attacking_city, defending_city,
                         SELECT color FROM city WHERE fortress_name = ?
                     ) WHERE fortress_name = ?
                 """, (attacking_fraction, attacking_city, defending_city))
+
+                # Уцелевшие здания переходят под контроль захватчика
+                cursor.execute("""
+                    UPDATE buildings
+                    SET faction = ?
+                    WHERE city_name = ?
+                """, (attacking_fraction, defending_city))
+
             else:
                 # Если победила обороняющаяся сторона
                 # Удаляем гарнизон атакующей стороны из захваченного города
@@ -313,125 +312,119 @@ def update_garrisons_after_battle(winner, attacking_city, defending_city,
     except sqlite3.Error as e:
         print(f"Ошибка при обновлении гарнизонов: {e}")
 
-def capture_city_without_fight(attacking_city, defending_city, attacking_fraction,
-                               defending_fraction, attacking_army, db_connection):
-    """
-    Захватывает город без боя, если у обороняющейся стороны нет гарнизона.
-    """
-    cursor = db_connection.cursor()
-
-    try:
-        # Перемещаем атакующую армию в захваченный город
-        cursor.execute("""
-            INSERT INTO garrisons (city_id, unit_name, unit_count)
-            VALUES (?, ?, ?)
-        """, (defending_city, attacking_army[0]['unit_name'], attacking_army[0]['unit_count']))
-
-        # Обновляем принадлежность города
-        cursor.execute("""
-            UPDATE city SET kingdom = ?, color = (
-                SELECT color FROM city WHERE fortress_name = ?
-            ) WHERE fortress_name = ?
-        """, (attacking_fraction, attacking_city, defending_city))
-
-        # Удаляем гарнизон из атакующего города
-        cursor.execute("""
-            DELETE FROM garrisons WHERE city_id = ?
-        """, (attacking_city,))
-
-        # Сохраняем изменения
-        db_connection.commit()
-
-        print(f"Город {defending_city} успешно захвачен без боя.")
-
-    except sqlite3.Error as e:
-        db_connection.rollback()
-        print(f"Ошибка при захвате города: {e}")
-
-
-
-
-
-
-
-
-
 
 
 
 #------------------------------------
 
-def damage_to_infrastructure(city_name, all_damage):
+def damage_to_infrastructure(all_damage, city_name):
+    """
+    Вычисляет урон по инфраструктуре города и обновляет данные в базе данных.
+
+    :param all_damage: Общий урон, который нужно нанести.
+    :param city_name: Название города, по которому наносится урон.
+    """
+    global conn, damage_info
     print('Начинаем расчет урона по инфраструктуре')
-    fraction = city_name
-    path_to_buildings = ""
-    # Чтение данных о зданиях
-    try:
-        with open(path_to_buildings, 'r', encoding='utf-8') as file:
-            all_data = 'json.load(file)'
-
-        if city_name not in all_data:
-            print(f"Город '{city_name}' не найден в файле.")
-            return
-
-        city_data = all_data[city_name].get('Здания', {})
-    except Exception as e:
-        print(f"Ошибка при чтении данных инфраструктуры: {e}")
-        return
-
-    print(f"Данные инфраструктуры до удара: {city_data}")
-
-    effective_weapon_damage = all_damage
-    print(f"Эффективный урон по инфраструктуре: {effective_weapon_damage}")
 
     # Константа для урона, необходимого для разрушения одного здания
-    DAMAGE_PER_BUILDING = 578797
+    DAMAGE_PER_BUILDING = 45900
 
-    # Подсчет общего числа зданий
-    total_buildings = sum(city_data.values())
-    if total_buildings == 0:
-        print("В городе нет зданий для нанесения урона.")
-        return
-
-    # Сколько зданий может быть разрушено этим уроном
-    potential_destroyed_buildings = int(effective_weapon_damage // DAMAGE_PER_BUILDING)
-    print(f"Максимально возможное количество разрушенных зданий: {potential_destroyed_buildings}")
-
-    # Уничтожаем здания, начиная с больниц и фабрик
-    damage_info = {}
-    for building in ['Больница', 'Фабрика']:
-        if building in city_data and city_data[building] > 0:
-            count = city_data[building]
-            if potential_destroyed_buildings >= count:
-                # Уничтожаем все здания этого типа
-                damage_info[building] = count
-                city_data[building] = 0
-                potential_destroyed_buildings -= count
-            else:
-                # Уничтожаем часть зданий
-                damage_info[building] = potential_destroyed_buildings
-                city_data[building] -= potential_destroyed_buildings
-                potential_destroyed_buildings = 0
-
-            if potential_destroyed_buildings == 0:
-                break
-
-    print(f"Данные инфраструктуры после удара: {city_data}")
-
-    # Сохранение обновленной инфраструктуры в файл
+    # Подключение к базе данных
     try:
-        all_data[city_name]['Здания'] = city_data
-        with open(path_to_buildings, 'w', encoding='utf-8') as file:
-            'json.dump(all_data, file, ensure_ascii=False, indent=4)'
+        conn = sqlite3.connect('game_data.db')  # Замените 'game_data.db' на путь к вашей БД
+        cursor = conn.cursor()
+
+        # Загрузка данных о зданиях для указанного города
+        cursor.execute('''
+            SELECT building_type, count 
+            FROM buildings 
+            WHERE city_name = ? AND count > 0
+        ''', (city_name,))
+        rows = cursor.fetchall()
+
+        # Преобразование данных в словарь
+        city_data = {}
+        for row in rows:
+            building_type, count = row
+            city_data[building_type] = count
+
+        if not city_data:
+            print(f"Город '{city_name}' не найден в базе данных или в нем нет зданий.")
+            return
+
+        print(f"Данные инфраструктуры до удара: {city_data}")
+
+        effective_weapon_damage = all_damage
+        print(f"Эффективный урон по инфраструктуре: {effective_weapon_damage}")
+
+        # Подсчет общего числа зданий
+        total_buildings = sum(city_data.values())
+        if total_buildings == 0:
+            print("В городе нет зданий для нанесения урона.")
+            return
+
+        # Сколько зданий может быть разрушено этим уроном
+        potential_destroyed_buildings = int(effective_weapon_damage // DAMAGE_PER_BUILDING)
+        print(f"Максимально возможное количество разрушенных зданий: {potential_destroyed_buildings}")
+
+        # Уничтожаем здания, начиная с больниц и фабрик
+        damage_info = {}
+        priority_buildings = ['Больница', 'Фабрика']  # Приоритетные типы зданий для уничтожения
+
+        for building in priority_buildings:
+            if building in city_data and city_data[building] > 0:
+                count = city_data[building]
+                if potential_destroyed_buildings >= count:
+                    # Уничтожаем все здания этого типа
+                    damage_info[building] = count
+                    city_data[building] = 0
+                    potential_destroyed_buildings -= count
+
+                    # Обновляем данные в базе данных
+                    cursor.execute('''
+                        UPDATE buildings 
+                        SET count = 0 
+                        WHERE city_name = ? AND building_type = ?
+                    ''', (city_name, building))
+                else:
+                    # Уничтожаем часть зданий
+                    damage_info[building] = potential_destroyed_buildings
+                    city_data[building] -= potential_destroyed_buildings
+
+                    # Обновляем данные в базе данных
+                    cursor.execute('''
+                        UPDATE buildings 
+                        SET count = count - ? 
+                        WHERE city_name = ? AND building_type = ?
+                    ''', (potential_destroyed_buildings, city_name, building))
+
+                    potential_destroyed_buildings = 0
+
+                if potential_destroyed_buildings == 0:
+                    break
+
+        print(f"Данные инфраструктуры после удара: {city_data}")
+
+        # Сохраняем изменения в базе данных
+        conn.commit()
         print('Обновленная инфраструктура сохранена.')
+
     except Exception as e:
-        print(f"Ошибка при сохранении данных инфраструктуры: {e}")
+        print(f"Ошибка при работе с базой данных: {e}")
+    finally:
+        conn.close()
 
     # Показать информацию об уроне
     show_damage_info_infrastructure(damage_info)
 
 
 def show_damage_info_infrastructure(damage_info):
+    from kivy.uix.boxlayout import BoxLayout
+    from kivy.uix.label import Label
+    from kivy.uix.button import Button
+    from kivy.uix.popup import Popup
+
     content = BoxLayout(orientation='vertical')
     message = "Информация об уроне по инфраструктуре:\n\n"
     for building, destroyed_count in damage_info.items():
