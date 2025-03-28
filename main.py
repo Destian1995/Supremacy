@@ -550,6 +550,13 @@ class KingdomSelectionWidget(FloatLayout):
         return info.get(kingdom, "")
 
     def start_game(self, instance):
+        wal_file = "game_data.db-wal"
+        shm_file = "game_data.db-shm"
+
+        if os.path.exists(wal_file):
+            os.remove(wal_file)
+        if os.path.exists(shm_file):
+            os.remove(shm_file)
         app = App.get_running_app()
         selected_kingdom = app.selected_kingdom
         if selected_kingdom is None:

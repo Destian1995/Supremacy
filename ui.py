@@ -17,10 +17,15 @@ from kivy.uix.image import Image as KivyImage
 from kivy.uix.textinput import TextInput
 
 from fight import fight
+from economic import format_number
 import sqlite3
 
 # Установка мягких цветов для фона
 Window.clearcolor = (0.95, 0.95, 0.95, 1)  # Светло-серый фон
+
+
+# format_number(unit_count)
+
 
 def dict_factory(cursor, row):
     d = {}
@@ -295,7 +300,7 @@ class FortressInfoPopup(Popup):
                 text_container.bind(pos=update_rect, size=update_rect)
 
                 # Текст с названием и количеством
-                unit_text = f"{unit_name}\nКоличество: {unit_count}"
+                unit_text = f"{unit_name}\nКоличество: {format_number(unit_count)}"
                 text_label = Label(
                     text=unit_text,
                     font_size='16sp',  # Увеличиваем размер шрифта
@@ -376,7 +381,7 @@ class FortressInfoPopup(Popup):
             popup = Popup(title="Выберите количество", size_hint=(0.6, 0.4))
             layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
 
-            input_label = Label(text=f"Введите количество {unit_name} (доступно: {unit_count}):")
+            input_label = Label(text=f"{unit_name} доступно:{format_number(unit_count)}")
             count_input = TextInput(multiline=False, input_filter='int')  # Разрешаем только целые числа
             layout.add_widget(input_label)
             layout.add_widget(count_input)
@@ -399,7 +404,6 @@ class FortressInfoPopup(Popup):
                 try:
                     # Получаем введенное количество
                     taken_count = int(count_input.text)
-
                     if 0 < taken_count <= unit_count:
                         # Проверяем принадлежность города
                         destination_city_owner = self.get_city_owner(self.city_name)  # Владелец целевого города
@@ -429,20 +433,18 @@ class FortressInfoPopup(Popup):
                         self.update_garrison()
 
                         # Закрываем текущее окно выбора войск
-                        self.current_popup.dismiss()
+                        self.close_current_popup()  # <--- ЗАКРЫВАЕМ ОКНО show_troops_selection
 
-                        # Показываем обновленное окно выбора войск
-                        self.show_troops_selection(self.load_troops_data())
                     else:
                         # Показываем ошибку, если количество некорректно
                         error_label.text = "Ошибка: некорректное количество."
+
                 except ValueError:
                     # Обработка случая, если ввод не является числом
                     error_label.text = "Ошибка: введите число."
 
             confirm_button.bind(on_press=confirm_action)
             cancel_button.bind(on_press=popup.dismiss)
-
             button_layout.add_widget(confirm_button)
             button_layout.add_widget(cancel_button)
             layout.add_widget(button_layout)
@@ -593,7 +595,7 @@ class FortressInfoPopup(Popup):
 
             # Количество
             count_label = Label(
-                text=str(unit_count),
+                text=str(format_number(unit_count)),
                 font_size='14sp',
                 size_hint_y=None,
                 height=60,
@@ -694,7 +696,7 @@ class FortressInfoPopup(Popup):
                 text_container.bind(pos=update_rect, size=update_rect)
 
                 # Текст с названием и количеством
-                unit_text = f"{unit_name}\nКоличество: {unit_count}"
+                unit_text = f"{unit_name}\nКоличество: {format_number(unit_count)}"
                 text_label = Label(
                     text=unit_text,
                     font_size='16sp',  # Увеличиваем размер шрифта
@@ -722,7 +724,7 @@ class FortressInfoPopup(Popup):
         layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
 
         # Поле ввода количества
-        input_label = Label(text=f"Введите количество {unit['unit_type']} (доступно: {unit['quantity']}):")
+        input_label = Label(text=f"{unit['unit_type']} доступно: {format_number(unit['quantity'])}")
         count_input = TextInput(multiline=False, input_filter='int')  # Разрешаем только целые числа
         layout.add_widget(input_label)
         layout.add_widget(count_input)
@@ -732,7 +734,6 @@ class FortressInfoPopup(Popup):
         confirm_button = Button(text="Подтвердить", background_color=(0.6, 0.8, 0.6, 1))
         cancel_button = Button(text="Отмена", background_color=(0.8, 0.6, 0.6, 1))
 
-        # Привязка действий к кнопкам
         def confirm_action(btn):
             try:
                 count = int(count_input.text)
@@ -746,13 +747,15 @@ class FortressInfoPopup(Popup):
                     # Обновляем интерфейс гарнизона
                     self.update_garrison()
 
-                    # Обновляем интерфейс, вызывая place_army заново
-                    self.place_army(None)
+                    # Закрываем текущее окно выбора войск
+                    self.close_current_popup()  # <--- ЗАКРЫВАЕМ ОКНО show_troops_selection
+
                 else:
                     # Показываем ошибку, если количество некорректно
                     error_popup = Popup(title="Ошибка", content=Label(text="Некорректное количество"),
                                         size_hint=(0.6, 0.4))
                     error_popup.open()
+
             except ValueError:
                 # Обработка случая, если ввод не является числом
                 error_popup = Popup(title="Ошибка", content=Label(text="Введите число"), size_hint=(0.6, 0.4))
@@ -760,7 +763,6 @@ class FortressInfoPopup(Popup):
 
         confirm_button.bind(on_press=confirm_action)
         cancel_button.bind(on_press=popup.dismiss)
-
         button_layout.add_widget(confirm_button)
         button_layout.add_widget(cancel_button)
         layout.add_widget(button_layout)
@@ -888,7 +890,7 @@ class FortressInfoPopup(Popup):
 
                 # Количество юнитов
                 count_label = Label(
-                    text=str(quantity),
+                    text=str(format_number(quantity)),
                     font_size=f'{font_size}sp',
                     size_hint_y=None,
                     height=60,  # Уменьшаем высоту
@@ -902,9 +904,12 @@ class FortressInfoPopup(Popup):
 
                 # Статистика юнита
                 stats_text = "\n".join([
-                    f"Атака: {attack}",
-                    f"Защита: {defense}",
-                    f"Живучесть: {durability}",
+                    f"Атака: \n"
+                    f"{format_number(attack)}",
+                    f"Защита: \n"
+                    f"{format_number(defense)}",
+                    f"Живучесть: \n"
+                    f"{format_number(durability)}",
                     f"Класс: {unit_class}"
                 ])
                 stats_label = Label(
@@ -1078,6 +1083,7 @@ class FortressInfoPopup(Popup):
             # Сохраняем изменения в базе данных
             self.conn.commit()
             print("Войска успешно перенесены.")
+            self.close_current_popup()
 
         except sqlite3.Error as e:
             print(f"Произошла ошибка при работе с базой данных(move_troops): {e}")
@@ -1216,7 +1222,7 @@ class FortressInfoPopup(Popup):
             # Сохраняем изменения в базе данных
             self.conn.commit()
             print("Данные успешно перенесены из таблицы armies в таблицу garrisons.")
-
+            self.close_current_popup()
         except sqlite3.Error as e:
             print(f"Произошла ошибка при работе с базой данных(transfer_army_to_garrison): {e}")
         except Exception as e:
@@ -1252,12 +1258,7 @@ class FortressInfoPopup(Popup):
             print(f"Произошла ошибка при загрузке армии из города '{city_name}': {e}")
             return None
 
-    def capture_city(self, fortress_name, new_owner):
-        """
-        Обновляет владельца города в базе данных.
-        :param fortress_name: Название города/крепости.
-        :param new_owner: Новый владелец города (фракция).
-        """
+    def capture_city(self, fortress_name, new_owner, source_city):
         try:
             cursor = self.cursor
 
@@ -1275,10 +1276,20 @@ class FortressInfoPopup(Popup):
                 WHERE name = ?
             """, (new_owner, fortress_name))
 
-            # Сохраняем изменения в базе данных
+            # 3. Переносим войска из атакующего города в захваченный
+            cursor.execute("""
+                UPDATE garrisons
+                SET city_id = ?
+                WHERE city_id = ?
+            """, (fortress_name, source_city))
+
+            # 4. Сохраняем изменения в базе данных
             self.conn.commit()
 
             print(f"Город '{fortress_name}' успешно захвачен фракцией '{new_owner}'.")
+            show_popup_message("Успех", f"Город '{fortress_name}' захвачен без боя!")
+            self.update_garrison()  # Обновляем интерфейс гарнизона
+
         except sqlite3.Error as e:
             print(f"Ошибка при захвате города: {e}")
 
@@ -1302,10 +1313,6 @@ class FortressInfoPopup(Popup):
                 source_owner = self.get_city_owner(source_fortress_name)
                 destination_owner = self.get_city_owner(destination_fortress_name)
 
-                if not source_owner or not destination_owner:
-                    show_popup_message("Ошибка", "Один из городов не существует.")
-                    return
-
                 # Логирование владельцев городов
                 print(f"Владелец исходного города ({source_fortress_name}): {source_owner}")
                 print(f"Владелец целевого города ({destination_fortress_name}): {destination_owner}")
@@ -1318,8 +1325,8 @@ class FortressInfoPopup(Popup):
 
                 # Если гарнизон целевого города пуст, захватываем город без боя
                 if not defending_garrison:
-                    self.capture_city(destination_fortress_name, source_owner)
-                    show_popup_message("Успех", "Город захвачен без боя!")
+                    self.capture_city(destination_fortress_name, source_owner, source_fortress_name)
+                    self.close_current_popup()  # Закрываем окно интерфейса
                     return
 
                 # Проверяем данные о юнитах атакующей стороны
@@ -1329,7 +1336,7 @@ class FortressInfoPopup(Popup):
                 attacking_garrison = cursor.fetchall()
 
                 if not attacking_garrison:
-                    show_popup_message("Ошибка", "Атакующий гарнизон пуст. Невозможно начать бой.")
+                    self.close_current_popup()  # Закрываем окно интерфейса
                     return
 
                 # Собираем имена юнитов для оптимизации запросов
@@ -1340,6 +1347,7 @@ class FortressInfoPopup(Popup):
 
                 if not unit_names:
                     show_popup_message("Ошибка", "Нет юнитов для боя.")
+                    self.close_current_popup()  # Закрываем окно интерфейса
                     return
 
                 placeholders = ', '.join(['?'] * len(unit_names))
@@ -1412,9 +1420,14 @@ class FortressInfoPopup(Popup):
         except sqlite3.Error as e:
             print(f"SQLite error: {type(e).__name__}, args: {e.args}")
             show_popup_message("Ошибка", f"Произошла ошибка при работе с базой данных(start_battle): {e}")
+            self.close_current_popup()  # Закрываем окно интерфейса
         except Exception as e:
             print(f"Unexpected error: {type(e).__name__}, args: {e.args}")
             show_popup_message("Ошибка", f"Произошла неожиданная ошибка при запуске боя: {e}")
+            self.close_current_popup()  # Закрываем окно интерфейса
+
+        # Закрываем окно интерфейса в конце выполнения функции
+        self.close_current_popup()
 
     def strike_with_dbs(self, instance):
         # Получаем данные о городе из таблицы cities
@@ -1442,12 +1455,19 @@ class FortressInfoPopup(Popup):
         # Закрываем текущее окно
         self.dismiss()
 
+    def close_current_popup(self):
+        """Закрывает текущее всплывающее окно."""
+        if self.current_popup:
+            self.current_popup.dismiss()
+            self.current_popup = None  # Очищаем ссылку
+
     def close_popup(self):
         """
         Закрывает текущее всплывающее окно и освобождает ресурсы.
         """
         self.dismiss()  # Закрываем окно
         self.clear_widgets()  # Очищаем все виджеты
+
 
 def show_popup_message(title, message):
     """
