@@ -1,51 +1,21 @@
 import random
-import json
 import os
+import sqlite3
 
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 
-translation_dict = {
-    "Аркадия": "arkadia",
-    "Селестия": "celestia",
-    "Этерия": "eteria",
-    "Хиперион": "giperion",
-    "Халидон": "halidon",
-}
-
-
-def transform_filename(file_path):
-    path_parts = file_path.split('/')
-    for i, part in enumerate(path_parts):
-        for ru_name, en_name in translation_dict.items():
-            if ru_name in part:
-                path_parts[i] = part.replace(ru_name, en_name)
-    transformed_path = '/'.join(path_parts)
-    return transformed_path
-
-reverse_translation_dict = {v: k for k, v in translation_dict.items()}
 
 class AIController:
     def __init__(self, faction):
         self.faction = faction
         self.diplomacy_status = {}
         self.economic_params = {}
-        self.buildings_path = transform_filename(f'files/config/buildings_in_city/{self.faction}_buildings_city.json')
-        self.garrison_path = transform_filename(f'files/config/manage_ii/{self.faction}_in_city.json')
-        self.resources_path = transform_filename(f'files/config/manage_ii/resources/{self.faction}_resources.json')
-        self.army_path = transform_filename(f'files/config/units/{self.faction}.json')
-        self.cities_path = transform_filename(f'files/config/manage_ii/list_cities/{self.faction}.json')
-        self.trade_contract = transform_filename(f'files/config/status/trade_dogovor/{self.faction}.json')
-        self.resources_file = transform_filename(f'files/config/status/trade_dogovor/resources/{self.faction}.json')
         self.cities = {}
         self.all_cities = {}
         self.buildings = {}
         self.garrison = {}
-        self.resources = {}
         self.army = {}
-        self.relations = {}
-        self.relations_path = transform_filename(rf'files\config\status\dipforce\{self.faction}')
-        self.relations_file = r'files\config\status\dipforce\relations.json'
         self.money = self.resources.get('Кроны', 0)
         self.workers = self.resources.get('Рабочие', 0)
         self.surie = self.resources.get('Сырье', 0)
@@ -53,51 +23,70 @@ class AIController:
         self.hospitals = self.buildings.get('Больницы', 0)
         self.factory = self.buildings.get('Фабрики', 0)
         self.born_peoples = 0
+        self.db_connection = sqlite3.connect('game_data.db')
+        self.cursor = self.db_connection.cursor()
+        self.resources = {}
+        self.relations = {}
+        self.load_resources_from_db()
+        self.load_relations_from_db()
         self.load_data_fractions()  # Это не трогаем.
 
     def load_all_data(self):
         self.load_city_for_fractions()
 
+    def load_resources_from_db(self):
+        query = "SELECT resource_type, amount FROM resources WHERE faction = ?"
+        self.cursor.execute(query, (self.faction,))
+        for row in self.cursor.fetchall():
+            self.resources[row[0]] = row[1]
+
+    def load_relations_from_db(self):
+        query = """
+            SELECT faction2, relationship 
+            FROM relations 
+            WHERE faction1 = ?
+        """
+        self.cursor.execute(query, (self.faction,))
+        for row in self.cursor.fetchall():
+            self.relations[row[0]] = row[1]
+
     def load_city_for_fractions(self):
-        with open('files/config/cities.json', 'r', encoding='utf-8') as file:
-            all_city = json.load(file)
-
-        print('all_city', all_city)
-        self.all_cities = all_city
-
-    def load_data(self, file_path):
         """
-        Загружает данные из указанного JSON-файла.
-        Если файл отсутствует, пуст или некорректен, возвращается пустой словарь.
+        Загружает данные о городах из БД для текущей фракции
         """
-        if not os.path.exists(file_path):
-            print(f"Файл {file_path} не найден. Данные будут инициализированы пустым словарем.")
-            return {}
-
         try:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                content = file.read().strip()  # Удаляем лишние пробелы и символы новой строки
-                if not content:  # Проверяем, пуст ли файл
-                    print(f"Файл {file_path} пуст. Инициализация пустым словарем.")
-                    return {}
-                data = json.loads(content)  # Загружаем JSON из содержимого файла
-            return data
-        except UnicodeDecodeError as e:
-            print(f"Ошибка кодировки в файле {file_path}: {e}. Инициализация пустым словарем.")
-            return {}
-        except json.JSONDecodeError as e:
-            print(f"Ошибка загрузки данных из {file_path}: {e}. Инициализация пустым словарем.")
-            return {}
+            # SQL-запрос для получения данных о городах
+            query = """
+                SELECT id, name, coordinates 
+                FROM cities 
+                WHERE faction = ?
+            """
+            self.cursor.execute(query, (self.faction,))
+            rows = self.cursor.fetchall()
+
+            # Преобразуем результаты в нужный формат
+            self.all_cities = {
+                'cities': [
+                    {
+                        'id': row[0],
+                        'name': row[1],
+                        'coordinates': row[2]
+                    }
+                    for row in rows
+                ]
+            }
+
+            print(f'Загружены города для фракции {self.faction}:', self.all_cities)
+
         except Exception as e:
-            print(f"Неожиданная ошибка при загрузке {file_path}: {e}. Инициализация пустым словарем.")
-            return {}
+            print(f"Ошибка при загрузке городов для фракции {self.faction}: {e}")
 
     def load_data_fractions(self):
-        self.buildings = self.load_data(self.buildings_path)
-        self.garrison = self.load_data(self.garrison_path)
-        self.resources = self.load_data(self.resources_path)
-        self.army = self.load_data(self.army_path)
-        self.cities = self.load_data(self.cities_path)
+        self.buildings = self.load_data()
+        self.garrison = self.load_data()
+        self.resources = self.load_data()
+        self.army = self.load_data()
+        self.cities = self.load_data()
 
     def unqiue_fraction_tax_rate(self):
         rates = {
