@@ -559,6 +559,9 @@ class FortressInfoPopup(Popup):
         self.selected_group = []  # Группа для ввода войск
         self.selected_units_set = set()  # Множество для отслеживания добавленных юнитов
 
+        # Словарь для хранения ссылок на виджеты строк таблицы
+        self.table_widgets = {}
+
         for city_id, unit_name, unit_count, unit_image in troops_data:
             # Город
             city_label = Label(
@@ -609,8 +612,17 @@ class FortressInfoPopup(Popup):
                 background_color=(0.6, 0.8, 0.6, 1)
             )
             action_button.bind(on_press=lambda btn, data=(city_id, unit_name, unit_count, unit_image):
-            self.create_troop_group(data, btn, unit_label))
+            self.create_troop_group(data, btn, city_label, unit_label, count_label, image_container, action_button))
             table_layout.add_widget(action_button)
+
+            # Сохраняем ссылки на виджеты строки таблицы
+            self.table_widgets[unit_name] = {
+                "city_label": city_label,
+                "unit_label": unit_label,
+                "count_label": count_label,
+                "image_container": image_container,
+                "action_button": action_button
+            }
 
         scroll_view = ScrollView(size_hint=(1, 1))
         scroll_view.add_widget(table_layout)
@@ -641,12 +653,17 @@ class FortressInfoPopup(Popup):
         popup.content = main_layout
         popup.open()
 
-    def create_troop_group(self, troop_data, button, unit_label):
+    def create_troop_group(self, troop_data, button, city_label, unit_label, count_label, image_container,
+                           action_button):
         """
         Создает окно для добавления юнитов в группу с использованием слайдера для выбора количества.
         :param troop_data: Данные о юните (город, название, количество, изображение).
         :param button: Кнопка "Добавить", которую нужно обновить.
-        :param unit_label: Метка с названием юнита для изменения цвета.
+        :param city_label: Метка города.
+        :param unit_label: Метка названия юнита.
+        :param count_label: Метка количества юнитов.
+        :param image_container: Контейнер изображения.
+        :param action_button: Кнопка действия.
         """
         city_id, unit_name, unit_count, unit_image = troop_data
 
@@ -704,29 +721,39 @@ class FortressInfoPopup(Popup):
         cancel_button = Button(text="Отмена", background_color=(0.8, 0.6, 0.6, 1))
 
         def confirm_action(btn):
-            selected_count = int(slider.value)
-            if 0 < selected_count <= unit_count:
-                # Добавляем юнит в группу
-                self.selected_group.append({
-                    "city_id": city_id,
-                    "unit_name": unit_name,
-                    "unit_count": selected_count,
-                    "unit_image": unit_image
-                })
-                self.selected_units_set.add(unit_name)  # Отмечаем юнит как добавленный
-                popup.dismiss()  # Закрываем окно
-                print(f"Добавлено в группу: {unit_name} x {selected_count}")
+            try:
+                selected_count = int(slider.value)
+                if 0 < selected_count <= unit_count:
+                    # Добавляем юнит в группу
+                    self.selected_group.append({
+                        "city_id": city_id,
+                        "unit_name": unit_name,
+                        "unit_count": selected_count,
+                        "unit_image": unit_image
+                    })
+                    self.selected_units_set.add(unit_name)  # Отмечаем юнит как добавленный
+                    popup.dismiss()  # Закрываем окно
+                    print(f"Добавлено в группу: {unit_name} x {selected_count}")
 
-                # Активируем кнопку "Отправить группу в город", если группа не пуста
-                if self.selected_group and self.send_group_button:
-                    self.send_group_button.disabled = False
+                    # Активируем кнопку "Отправить группу в город", если группа не пуста
+                    if self.selected_group and hasattr(self, "send_group_button") and self.send_group_button:
+                        self.send_group_button.disabled = False
 
-                # Изменяем цвет метки юнита на зеленый
-                unit_label.color = (0, 1, 0, 1)  # Зеленый цвет
-                button.text = "Добавлено"  # Изменяем текст кнопки
-                button.background_color = (0.6, 0.8, 0.6, 1)  # Изменяем цвет кнопки
-            else:
-                error_label.text = "Ошибка: некорректное количество."
+                    # Удаляем юнит из таблицы
+                    if unit_name in self.table_widgets:
+                        widgets = self.table_widgets[unit_name]
+                        table_layout = city_label.parent  # Получаем родительский контейнер
+                        table_layout.remove_widget(widgets["city_label"])
+                        table_layout.remove_widget(widgets["unit_label"])
+                        table_layout.remove_widget(widgets["count_label"])
+                        table_layout.remove_widget(widgets["image_container"])
+                        table_layout.remove_widget(widgets["action_button"])
+                        del self.table_widgets[unit_name]  # Удаляем запись из словаря
+
+                else:
+                    error_label.text = "Ошибка: некорректное количество."
+            except ValueError:
+                error_label.text = "Ошибка: введите корректное число."
 
         confirm_button.bind(on_press=confirm_action)
         cancel_button.bind(on_press=popup.dismiss)
@@ -845,61 +872,6 @@ class FortressInfoPopup(Popup):
 
         except Exception as e:
             print(f"Ошибка при обновлении гарнизона: {e}")
-
-    def add_to_garrison(self, unit, *args):
-        """
-        Проверяет наличие юнитов и добавляет выбранный тип войск в гарнизон.
-        """
-        # Создание всплывающего окна для выбора количества
-        popup = Popup(title="Выберите количество", size_hint=(0.6, 0.4))
-        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
-
-        # Поле ввода количества
-        input_label = Label(text=f"{unit['unit_type']} доступно: {format_number(unit['quantity'])}")
-        count_input = TextInput(multiline=False, input_filter='int')  # Разрешаем только целые числа
-        layout.add_widget(input_label)
-        layout.add_widget(count_input)
-
-        # Кнопки подтверждения и отмены
-        button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=10)
-        confirm_button = Button(text="Подтвердить", background_color=(0.6, 0.8, 0.6, 1))
-        cancel_button = Button(text="Отмена", background_color=(0.8, 0.6, 0.6, 1))
-
-        def confirm_action(btn):
-            try:
-                count = int(count_input.text)
-                if 0 < count <= unit['quantity']:
-                    # Передаем unit и количество в метод
-                    self.transfer_army_to_garrison(unit, count)
-
-                    # Закрываем текущее всплывающее окно
-                    popup.dismiss()
-
-                    # Обновляем интерфейс гарнизона
-                    self.update_garrison()
-
-                    # Закрываем текущее окно выбора войск
-                    self.close_current_popup()  # <--- ЗАКРЫВАЕМ ОКНО show_troops_selection
-
-                else:
-                    # Показываем ошибку, если количество некорректно
-                    error_popup = Popup(title="Ошибка", content=Label(text="Некорректное количество"),
-                                        size_hint=(0.6, 0.4))
-                    error_popup.open()
-
-            except ValueError:
-                # Обработка случая, если ввод не является числом
-                error_popup = Popup(title="Ошибка", content=Label(text="Введите число"), size_hint=(0.6, 0.4))
-                error_popup.open()
-
-        confirm_button.bind(on_press=confirm_action)
-        cancel_button.bind(on_press=popup.dismiss)
-        button_layout.add_widget(confirm_button)
-        button_layout.add_widget(cancel_button)
-        layout.add_widget(button_layout)
-
-        popup.content = layout
-        popup.open()
 
     def show_warning_popup(self):
         layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
@@ -1093,14 +1065,14 @@ class FortressInfoPopup(Popup):
         except Exception as e:
             show_popup_message("Ошибка", f"Произошла ошибка: {e}")
 
-    def add_to_garrison_with_slider(self, unit, name_label):
+    def add_to_garrison_with_slider(self, unit_data, name_label):
         """
         Открывает окно с ползунком для выбора количества войск и добавляет их в гарнизон.
-        :param unit: Данные о юните (словарь с ключами 'unit_type', 'quantity', и другими).
+        :param unit_data: Данные о юните.
         :param name_label: Метка с названием юнита для изменения цвета.
         """
-        unit_type = unit["unit_type"]
-        available_count = unit["quantity"]
+        unit_type = unit_data["unit_type"]
+        available_count = unit_data["quantity"]
 
         # Создаем всплывающее окно
         popup = Popup(title=f"Добавление {unit_type}", size_hint=(0.6, 0.4))
@@ -1140,8 +1112,8 @@ class FortressInfoPopup(Popup):
             try:
                 selected_count = int(slider.value)
                 if 0 < selected_count <= available_count:
-                    # Передаем unit и количество в метод transfer_army_to_garrison
-                    self.transfer_army_to_garrison(unit, selected_count)
+                    # Добавляем юнит в гарнизон
+                    self.transfer_army_to_garrison(unit_data, selected_count)
 
                     # Закрываем текущее всплывающее окно
                     popup.dismiss()
@@ -1149,28 +1121,13 @@ class FortressInfoPopup(Popup):
                     # Обновляем интерфейс гарнизона
                     self.update_garrison()
 
-                    # Закрываем текущее окно выбора войск
-                    self.close_current_popup()  # <--- ЗАКРЫВАЕМ ОКНО show_troops_selection
-
                     # Изменяем цвет метки юнита на зеленый
                     name_label.color = (0, 1, 0, 1)  # Зеленый цвет
+                    name_label.canvas.ask_update()  # Принудительно обновляем интерфейс
                 else:
-                    # Показываем ошибку, если количество некорректно
-                    error_popup = Popup(
-                        title="Ошибка",
-                        content=Label(text="Некорректное количество"),
-                        size_hint=(0.6, 0.4)
-                    )
-                    error_popup.open()
-
+                    show_popup_message("Ошибка", "Некорректное количество.")
             except ValueError:
-                # Обработка случая, если значение слайдера некорректно
-                error_popup = Popup(
-                    title="Ошибка",
-                    content=Label(text="Введите корректное число"),
-                    size_hint=(0.6, 0.4)
-                )
-                error_popup.open()
+                show_popup_message("Ошибка", "Введите корректное число.")
 
         confirm_button.bind(on_press=confirm_action)
         cancel_button.bind(on_press=popup.dismiss)
