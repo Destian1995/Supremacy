@@ -103,9 +103,25 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
     for unit in defending_army:
         unit['initial_count'] = unit['unit_count']
 
-    # Сортируем армии по классам (от 1 до 4)
-    attacking_army.sort(key=lambda x: int(x['units_stats']['Класс юнита']))
-    defending_army.sort(key=lambda x: int(x['units_stats']['Класс юнита']))
+    # Вспомогательная функция для определения приоритета юнита
+    def get_unit_priority(unit):
+        stats = unit['units_stats']
+        attack = int(stats.get('Урон', 0))
+        defense = int(stats.get('Защита', 0))
+        health = int(stats.get('Живучесть', 0))
+
+        # Приоритет: если урон больше остальных параметров
+        if attack > defense and attack > health:
+            return 1  # Высший приоритет
+        return 0  # Низший приоритет
+
+    # Сортируем армии по классу и внутри класса по приоритету
+    attacking_army.sort(
+        key=lambda x: (int(x['units_stats']['Класс юнита']), -get_unit_priority(x))
+    )
+    defending_army.sort(
+        key=lambda x: (int(x['units_stats']['Класс юнита']), -get_unit_priority(x))
+    )
 
     # Бой между юнитами
     for attacking_unit in attacking_army:
