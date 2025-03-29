@@ -1,6 +1,3 @@
-import json
-import os
-import shutil
 
 from kivy.core.window import Window
 from kivy.graphics import Rectangle, Color
@@ -12,6 +9,8 @@ from kivy.uix.image import Image
 from kivy.uix.button import Button
 from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.slider import Slider
+
 from army import open_weapon_db_management
 from kivy.uix.image import Image as KivyImage
 from kivy.uix.textinput import TextInput
@@ -552,9 +551,13 @@ class FortressInfoPopup(Popup):
                 bold=True,
                 size_hint_y=None,
                 height=40,
-                color=(1, 1, 1, 1)
+                color=(1, 1, 1, 1)  # Черный текст
             )
             table_layout.add_widget(label)
+
+        # Инициализация списка для хранения выбранных юнитов
+        self.selected_group = []  # Группа для ввода войск
+        self.selected_units_set = set()  # Множество для отслеживания добавленных юнитов
 
         for city_id, unit_name, unit_count, unit_image in troops_data:
             # Город
@@ -563,7 +566,7 @@ class FortressInfoPopup(Popup):
                 font_size='14sp',
                 size_hint_y=None,
                 height=60,
-                color=(1, 1, 1, 1)
+                color=(1, 1, 1, 1)  # Черный текст
             )
             table_layout.add_widget(city_label)
 
@@ -573,7 +576,7 @@ class FortressInfoPopup(Popup):
                 font_size='14sp',
                 size_hint_y=None,
                 height=60,
-                color=(1, 1, 1, 1)
+                color=(1, 1, 1, 1)  # Черный текст
             )
             table_layout.add_widget(unit_label)
 
@@ -583,7 +586,7 @@ class FortressInfoPopup(Popup):
                 font_size='14sp',
                 size_hint_y=None,
                 height=60,
-                color=(1, 1, 1, 1)
+                color=(1, 1, 1, 1)  # Черный текст
             )
             table_layout.add_widget(count_label)
 
@@ -599,26 +602,170 @@ class FortressInfoPopup(Popup):
 
             # Кнопка действия
             action_button = Button(
-                text="Выбрать",
+                text="Добавить",
                 font_size='14sp',
                 size_hint_y=None,
                 height=40,
                 background_color=(0.6, 0.8, 0.6, 1)
             )
-            action_button.bind(on_press=lambda btn, data=(city_id, unit_name, unit_count): self.select_troops(data))
+            action_button.bind(on_press=lambda btn, data=(city_id, unit_name, unit_count, unit_image):
+            self.create_troop_group(data, btn, unit_label))
             table_layout.add_widget(action_button)
 
         scroll_view = ScrollView(size_hint=(1, 1))
         scroll_view.add_widget(table_layout)
         main_layout.add_widget(scroll_view)
 
+        # Кнопка "Отправить группу в город"
+        send_group_button = Button(
+            text="Отправить группу в город",
+            font_size='14sp',
+            size_hint_y=None,
+            height=50,
+            background_color=(0.6, 0.8, 0.6, 1),
+            disabled=True  # Кнопка изначально неактивна
+        )
+        send_group_button.bind(on_press=self.move_selected_group_to_city)
+        self.send_group_button = send_group_button  # Сохраняем ссылку на кнопку
+
         # Кнопка для закрытия окна
         close_button = Button(text="Закрыть", size_hint_y=None, height=50, background_color=(0.8, 0.8, 0.8, 1))
         close_button.bind(on_press=popup.dismiss)
-        main_layout.add_widget(close_button)
+
+        # Добавляем кнопки в макет
+        buttons_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=60, spacing=10)
+        buttons_layout.add_widget(send_group_button)
+        buttons_layout.add_widget(close_button)
+        main_layout.add_widget(buttons_layout)
 
         popup.content = main_layout
         popup.open()
+
+    def create_troop_group(self, troop_data, button, unit_label):
+        """
+        Создает окно для добавления юнитов в группу с использованием слайдера для выбора количества.
+        :param troop_data: Данные о юните (город, название, количество, изображение).
+        :param button: Кнопка "Добавить", которую нужно обновить.
+        :param unit_label: Метка с названием юнита для изменения цвета.
+        """
+        city_id, unit_name, unit_count, unit_image = troop_data
+
+        # Создаем всплывающее окно
+        popup = Popup(title=f"Добавление {unit_name} в группу", size_hint=(0.6, 0.5))
+        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+
+        # Информация о юните
+        info_label = Label(
+            text=f"{unit_name}\nДоступно: {format_number(unit_count)}",
+            font_size='14sp',
+            size_hint_y=None,
+            height=60,
+            color=(1, 1, 1, 1)  # Черный текст
+        )
+        layout.add_widget(info_label)
+
+        # Изображение юнита
+        image_container = BoxLayout(size_hint_y=None, height=80)
+        unit_image_widget = Image(
+            source=unit_image,
+            size_hint=(None, None),
+            size=(70, 70)
+        )
+        image_container.add_widget(unit_image_widget)
+        layout.add_widget(image_container)
+
+        # Слайдер для выбора количества
+        slider_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=10)
+        slider_label = Label(
+            text="Количество: 0",
+            font_size='14sp',
+            size_hint_x=None,
+            width=100,
+            color=(1, 1, 1, 1)
+        )
+        slider = Slider(min=0, max=unit_count, value=0, step=1)
+        slider.bind(value=lambda instance, value: setattr(slider_label, 'text', f"Количество: {int(value)}"))
+        slider_layout.add_widget(slider_label)
+        slider_layout.add_widget(slider)
+        layout.add_widget(slider_layout)
+
+        # Метка для ошибок
+        error_label = Label(
+            text="",
+            color=(1, 0, 0, 1),  # Красный цвет текста
+            size_hint_y=None,
+            height=30
+        )
+        layout.add_widget(error_label)
+
+        # Кнопки подтверждения и отмены
+        button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=10)
+        confirm_button = Button(text="Подтвердить", background_color=(0.6, 0.8, 0.6, 1))
+        cancel_button = Button(text="Отмена", background_color=(0.8, 0.6, 0.6, 1))
+
+        def confirm_action(btn):
+            selected_count = int(slider.value)
+            if 0 < selected_count <= unit_count:
+                # Добавляем юнит в группу
+                self.selected_group.append({
+                    "city_id": city_id,
+                    "unit_name": unit_name,
+                    "unit_count": selected_count,
+                    "unit_image": unit_image
+                })
+                self.selected_units_set.add(unit_name)  # Отмечаем юнит как добавленный
+                popup.dismiss()  # Закрываем окно
+                print(f"Добавлено в группу: {unit_name} x {selected_count}")
+
+                # Активируем кнопку "Отправить группу в город", если группа не пуста
+                if self.selected_group and self.send_group_button:
+                    self.send_group_button.disabled = False
+
+                # Изменяем цвет метки юнита на зеленый
+                unit_label.color = (0, 1, 0, 1)  # Зеленый цвет
+                button.text = "Добавлено"  # Изменяем текст кнопки
+                button.background_color = (0.6, 0.8, 0.6, 1)  # Изменяем цвет кнопки
+            else:
+                error_label.text = "Ошибка: некорректное количество."
+
+        confirm_button.bind(on_press=confirm_action)
+        cancel_button.bind(on_press=popup.dismiss)
+        button_layout.add_widget(confirm_button)
+        button_layout.add_widget(cancel_button)
+        layout.add_widget(button_layout)
+
+        popup.content = layout
+        popup.open()
+
+    def move_selected_group_to_city(self, instance=None):
+        """
+        Перемещает выбранную группу юнитов в город.
+        :param instance: Экземпляр кнопки (не используется).
+        """
+        if not self.selected_group:
+            show_popup_message("Ошибка", "Группа пуста. Добавьте юниты перед перемещением.")
+            return
+
+        try:
+            for unit in self.selected_group:
+                city_id = unit["city_id"]
+                unit_name = unit["unit_name"]
+                unit_count = unit["unit_count"]
+
+                # Выполняем перенос юнитов
+                self.transfer_troops_between_cities(
+                    source_fortress_name=city_id,
+                    destination_fortress_name=self.city_name,
+                    unit_name=unit_name,
+                    taken_count=unit_count
+                )
+
+            # Очищаем группу после перемещения
+            self.selected_group.clear()
+            show_popup_message("Успех", "Группа успешно перемещена в город.")
+            self.update_garrison()  # Обновляем интерфейс гарнизона
+        except Exception as e:
+            show_popup_message("Ошибка", f"Произошла ошибка при перемещении группы: {e}")
 
     def update_garrison(self):
         """
@@ -833,6 +980,9 @@ class FortressInfoPopup(Popup):
                     instance.bg_rect.pos = instance.pos
                     instance.bg_rect.size = instance.size
 
+            # Список для отслеживания добавленных юнитов
+            self.added_units = set()
+
             for unit in army_data:
                 unit_type, quantity, attack, defense, durability, unit_class, unit_image = unit
                 # Формируем данные о юните
@@ -917,7 +1067,8 @@ class FortressInfoPopup(Popup):
                     height=70,  # Уменьшаем высоту кнопки
                     background_color=(0.6, 0.8, 0.6, 1)
                 )
-                action_button.bind(on_press=partial(self.add_to_garrison, unit_data))
+                action_button.bind(
+                    on_press=lambda btn, data=unit_data, lbl=name_label: self.add_to_garrison_with_slider(data, lbl))
                 table_layout.add_widget(action_button)
 
             scroll_view = ScrollView(size_hint=(1, 1))
@@ -941,6 +1092,94 @@ class FortressInfoPopup(Popup):
             show_popup_message("Ошибка", f"Произошла ошибка при работе с базой данных(place_army): {e}")
         except Exception as e:
             show_popup_message("Ошибка", f"Произошла ошибка: {e}")
+
+    def add_to_garrison_with_slider(self, unit, name_label):
+        """
+        Открывает окно с ползунком для выбора количества войск и добавляет их в гарнизон.
+        :param unit: Данные о юните (словарь с ключами 'unit_type', 'quantity', и другими).
+        :param name_label: Метка с названием юнита для изменения цвета.
+        """
+        unit_type = unit["unit_type"]
+        available_count = unit["quantity"]
+
+        # Создаем всплывающее окно
+        popup = Popup(title=f"Добавление {unit_type}", size_hint=(0.6, 0.4))
+        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+
+        # Информация о юните
+        info_label = Label(
+            text=f"{unit_type}\nДоступно: {format_number(available_count)}",
+            font_size='14sp',
+            size_hint_y=None,
+            height=60,
+            color=(1, 1, 1, 1)
+        )
+        layout.add_widget(info_label)
+
+        # Ползунок для выбора количества
+        slider_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=10)
+        slider_label = Label(
+            text="Количество: 0",
+            font_size='14sp',
+            size_hint_x=None,
+            width=100,
+            color=(1, 1, 1, 1)
+        )
+        slider = Slider(min=0, max=available_count, value=0, step=1)
+        slider.bind(value=lambda instance, value: setattr(slider_label, 'text', f"Количество: {int(value)}"))
+        slider_layout.add_widget(slider_label)
+        slider_layout.add_widget(slider)
+        layout.add_widget(slider_layout)
+
+        # Кнопки подтверждения и отмены
+        button_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=10)
+        confirm_button = Button(text="Подтвердить", background_color=(0.6, 0.8, 0.6, 1))
+        cancel_button = Button(text="Отмена", background_color=(0.8, 0.6, 0.6, 1))
+
+        def confirm_action(btn):
+            try:
+                selected_count = int(slider.value)
+                if 0 < selected_count <= available_count:
+                    # Передаем unit и количество в метод transfer_army_to_garrison
+                    self.transfer_army_to_garrison(unit, selected_count)
+
+                    # Закрываем текущее всплывающее окно
+                    popup.dismiss()
+
+                    # Обновляем интерфейс гарнизона
+                    self.update_garrison()
+
+                    # Закрываем текущее окно выбора войск
+                    self.close_current_popup()  # <--- ЗАКРЫВАЕМ ОКНО show_troops_selection
+
+                    # Изменяем цвет метки юнита на зеленый
+                    name_label.color = (0, 1, 0, 1)  # Зеленый цвет
+                else:
+                    # Показываем ошибку, если количество некорректно
+                    error_popup = Popup(
+                        title="Ошибка",
+                        content=Label(text="Некорректное количество"),
+                        size_hint=(0.6, 0.4)
+                    )
+                    error_popup.open()
+
+            except ValueError:
+                # Обработка случая, если значение слайдера некорректно
+                error_popup = Popup(
+                    title="Ошибка",
+                    content=Label(text="Введите корректное число"),
+                    size_hint=(0.6, 0.4)
+                )
+                error_popup.open()
+
+        confirm_button.bind(on_press=confirm_action)
+        cancel_button.bind(on_press=popup.dismiss)
+        button_layout.add_widget(confirm_button)
+        button_layout.add_widget(cancel_button)
+        layout.add_widget(button_layout)
+
+        popup.content = layout
+        popup.open()
 
     def get_city_owner(self, fortress_name):
         try:
