@@ -12,6 +12,7 @@ from kivy.uix.image import Image
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.graphics import Color, RoundedRectangle
+from strike import strike_to_city
 
 import threading
 import strike
@@ -521,7 +522,6 @@ def animate_button(button):
 def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates_text='', path_to_army=''):
     if isinstance(coordinates_text, list):
         coordinates_text = ', '.join(map(str, coordinates_text))
-
     global current_weapon_management_popup
 
     # Основной макет
@@ -586,8 +586,14 @@ def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates
         # Обновляем количество выбранного оружия при нажатии на кнопку
         def on_weapon_select(instance, name=weapon_name):
             select_weapon(name, weapons, faction, army_cash)
+            global weapon_name_start_mission
+            weapon_name_start_mission = name
             weapon_quantity_input.text = str(available_quantity)  # Передаем количество в поле ввода
             print(f"Выбранное оружие: {name}, Количество: {available_quantity}")  # Отладочное сообщение
+
+            # Обновляем атрибуты кнопки "Запуск"
+            mission_button.selected_weapon = name
+            mission_button.selected_quantity = available_quantity
 
         weapon_button.bind(on_release=on_weapon_select)
         weapon_button.bind(on_press=lambda x: animate_button(x))
@@ -697,11 +703,14 @@ def open_weapon_db_management(faction, army_cash, city_name_text='', coordinates
         RoundedRectangle(pos=mission_button.pos, size=mission_button.size, radius=[10])
     mission_button.bind(pos=lambda *args: setattr(mission_button.canvas.before.children[-1], 'pos', mission_button.pos))
     mission_button.bind(size=lambda *args: setattr(mission_button.canvas.before.children[-1], 'size', mission_button.size))
+
+
+    # Вызов start_mission с передачей имени оружия и количества
     mission_button.bind(on_release=lambda x: start_mission(
+        faction,
         city_name_input.text,
-        coordinates_text,
-        weapon_quantity_input.text,
-        path_to_army
+        weapon_name_start_mission,  # Передаем имя оружия
+        weapon_quantity_input.text, # Передаем количество
     ))
     mission_button.bind(on_press=lambda x: animate_button(x))
 
@@ -1113,49 +1122,46 @@ def get_weapons(faction):
     return weapon_data
 
 
-def start_mission(faction, city_name, coordinates, selected_weapon_name, selected_quantity):
-    """Запускает миссию с выбранным оружием."""
-    conn = sqlite3.connect("game_data.db")
-    cursor = conn.cursor()
+def start_mission(faction, city_name, selected_weapon_name, quantity):
+    selected_quantity = int(quantity)
+    try:
+        with sqlite3.connect("game_data.db") as db_connection:
+            cursor = db_connection.cursor()
+            print('[DEBUG] ', f'Фракция: {faction}, Город: {city_name}, Оружие: {selected_weapon_name}, Количество: {selected_quantity}')
+            # Проверяем наличие оружия
+            cursor.execute('''
+                SELECT quantity, damage, koef
+                FROM weapons
+                WHERE faction = ? AND weapon_name = ?
+            ''', (faction, selected_weapon_name))
+            result = cursor.fetchone()
 
-    # Проверяем наличие оружия
-    cursor.execute('''
-        SELECT quantity, damage, koef
-        FROM weapons
-        WHERE faction = ? AND weapon_name = ?
-    ''', (faction, selected_weapon_name))
-    result = cursor.fetchone()
+            if not result:
+                print(f"Оружие {selected_weapon_name} не найдено.")
+                return
 
-    if not result:
-        print(f"Оружие {selected_weapon_name} не найдено.")
-        return
+            current_quantity, damage, koef = result
+            # Обновляем количество оружия
+            new_quantity = current_quantity - selected_quantity
+            cursor.execute('''
+                UPDATE weapons
+                SET quantity = ?
+                WHERE faction = ? AND weapon_name = ?
+            ''', (new_quantity, faction, selected_weapon_name))
+            db_connection.commit()
 
-    current_quantity, damage, koef = result
+            # Передаем данные в модуль strike
+            weapon_characteristics = {
+                "name": selected_weapon_name,
+                "count": selected_quantity,
+                "damage": damage,
+                "koef": koef
+            }
+            strike_to_city(city_name, weapon_characteristics, db_connection)
 
-    if selected_quantity > current_quantity:
-        print(
-            f"Недостаточно оружия {selected_weapon_name}. Доступно: {current_quantity}, необходимо: {selected_quantity}.")
-        return
+    except Exception as e:
+        print(f"Ошибка при выполнении миссии start_mission: {e}")
 
-    # Обновляем количество оружия
-    new_quantity = current_quantity - selected_quantity
-    cursor.execute('''
-        UPDATE weapons
-        SET quantity = ?
-        WHERE faction = ? AND weapon_name = ?
-    ''', (new_quantity, faction, selected_weapon_name))
-    conn.commit()
-
-    # Передаем данные в модуль strike
-    weapon_characteristics = {
-        "name": selected_weapon_name,
-        "count": selected_quantity,
-        "damage": damage,
-        "koef": koef
-    }
-    path_to_army = ''
-    strike.strike_to_city(city_name, weapon_characteristics, path_to_army)
-    print(f"Миссия запущена: {city_name}, {coordinates}")
 
 
 #------Базовая функция------------
