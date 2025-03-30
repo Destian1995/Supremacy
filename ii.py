@@ -1,830 +1,731 @@
-import random
-import os
 import sqlite3
-
-from kivy.uix.label import Label
-from kivy.uix.popup import Popup
+import random
 
 
 class AIController:
-    def __init__(self, faction):
+    def __init__(self, faction, db_path='game_data.db'):
         self.faction = faction
-        self.diplomacy_status = {}
-        self.economic_params = {}
-        self.cities = {}
-        self.all_cities = {}
-        self.buildings = {}
-        self.garrison = {}
-        self.army = {}
-        self.money = self.resources.get('Кроны', 0)
-        self.workers = self.resources.get('Рабочие', 0)
-        self.surie = self.resources.get('Сырье', 0)
-        self.population = self.resources.get('Население', 0)
-        self.hospitals = self.buildings.get('Больницы', 0)
-        self.factory = self.buildings.get('Фабрики', 0)
-        self.born_peoples = 0
-        self.db_connection = sqlite3.connect('game_data.db')
+        self.db_connection = sqlite3.connect(db_path)
         self.cursor = self.db_connection.cursor()
-        self.resources = {}
-        self.relations = {}
-        self.load_resources_from_db()
-        self.load_relations_from_db()
-        self.load_data_fractions()  # Это не трогаем.
+        self.resources = {"Кроны": 0, "Сырье": 0, "Рабочие": 0, "Население": 0}
+        self.garrison = self.load_garrison()
+        self.buildings = {}
+        self.turn_count = 0
+        self.hospitals = 0
+        self.factories = 0
+        self.taxes = 0
+        self.food_info = 0
+        self.work_peoples = 0
+        self.money_info = 0
+        self.born_peoples = 0
+        self.money_up = 0
+        self.taxes_info = 0
+        self.food_peoples = 0
+        self.tax_effects = 0
+        self.army = self.load_army()
+        self.cities = self.load_cities()
+        # Инициализация ресурсов по умолчанию
+        self.money = 2000
+        self.free_peoples = 0
+        self.raw_material = 0
+        self.population = 100
+        self.resources = {
+            'Кроны': self.money,
+            'Рабочие': self.free_peoples,
+            'Сырье': self.raw_material,
+            'Население': self.population
+        }
 
-    def load_all_data(self):
-        self.load_city_for_fractions()
-
-    def load_resources_from_db(self):
-        query = "SELECT resource_type, amount FROM resources WHERE faction = ?"
-        self.cursor.execute(query, (self.faction,))
-        for row in self.cursor.fetchall():
-            self.resources[row[0]] = row[1]
-
-    def load_relations_from_db(self):
-        query = """
-            SELECT faction2, relationship 
-            FROM relations 
-            WHERE faction1 = ?
+    # Методы загрузки данных из БД
+    def load_resources(self):
         """
-        self.cursor.execute(query, (self.faction,))
-        for row in self.cursor.fetchall():
-            self.relations[row[0]] = row[1]
-
-    def load_city_for_fractions(self):
-        """
-        Загружает данные о городах из БД для текущей фракции
+        Загружает текущие ресурсы фракции из таблицы resources.
         """
         try:
-            # SQL-запрос для получения данных о городах
-            query = """
-                SELECT id, name, coordinates 
-                FROM cities 
+            self.cursor.execute('''
+                SELECT resource_type, amount
+                FROM resources
                 WHERE faction = ?
+            ''', (self.faction,))
+            rows = self.cursor.fetchall()
+
+
+
+            # Обновление ресурсов на основе данных из базы данных
+            for resource_type, amount in rows:
+                if resource_type == "Кроны":
+                    self.money = amount
+                elif resource_type == "Рабочие":
+                    self.free_peoples = amount
+                elif resource_type == "Сырье":
+                    self.raw_material = amount
+                elif resource_type == "Население":
+                    self.population = amount
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке ресурсов: {e}")
+
+    def load_buildings(self):
+        """
+        Загружает данные о зданиях для текущей фракции из таблицы buildings.
+        """
+        try:
+            self.cursor.execute('''
+                SELECT city_name, building_type, count 
+                FROM buildings 
+                WHERE faction = ?
+            ''', (self.faction,))
+            rows = self.cursor.fetchall()
+
+            # Сброс текущих данных о зданиях
+            self.cities_buildings = {}
+            total_hospitals = 0
+            total_factories = 0
+
+            for row in rows:
+                city_name, building_type, count = row
+                if city_name not in self.cities_buildings:
+                    self.cities_buildings[city_name] = {"Больница": 0, "Фабрика": 0}
+
+                # Обновление данных для конкретного города
+                if building_type == "Больница":
+                    self.cities_buildings[city_name]["Больница"] += count
+                    total_hospitals += count
+                elif building_type == "Фабрика":
+                    self.cities_buildings[city_name]["Фабрика"] += count
+                    total_factories += count
+
+            # Обновление глобальных показателей
+            self.hospitals = total_hospitals
+            self.factories = total_factories
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке зданий: {e}")
+    def load_garrison(self):
+        """
+        Загружает гарнизон фракции из базы данных.
+        Использует JOIN с таблицей units для фильтрации по faction.
+        """
+        try:
+            # SQL-запрос с JOIN для получения гарнизона
+            query = """
+                SELECT g.city_id, g.unit_name, g.unit_count, u.faction
+                FROM garrisons g
+                JOIN units u ON g.unit_name = u.unit_name
+                WHERE u.faction = ?
             """
             self.cursor.execute(query, (self.faction,))
             rows = self.cursor.fetchall()
 
-            # Преобразуем результаты в нужный формат
-            self.all_cities = {
-                'cities': [
-                    {
-                        'id': row[0],
-                        'name': row[1],
-                        'coordinates': row[2]
-                    }
-                    for row in rows
-                ]
-            }
+            garrison = {}
+            for row in rows:
+                city_id, unit_name, count, faction = row
+                if faction != self.faction:
+                    continue  # Пропускаем юниты, не принадлежащие текущей фракции
 
-            print(f'Загружены города для фракции {self.faction}:', self.all_cities)
+                if city_id not in garrison:
+                    garrison[city_id] = []
+                garrison[city_id].append({
+                    "unit_name": unit_name,
+                    "unit_count": count
+                })
+
+            print(f"Гарнизон для фракции {self.faction} успешно загружен: {garrison}")
+            return garrison
 
         except Exception as e:
-            print(f"Ошибка при загрузке городов для фракции {self.faction}: {e}")
+            print(f"Ошибка при загрузке гарнизона для фракции {self.faction}: {e}")
+            return {}
 
-    def load_data_fractions(self):
-        self.buildings = self.load_data()
-        self.garrison = self.load_data()
-        self.resources = self.load_data()
-        self.army = self.load_data()
-        self.cities = self.load_data()
-
-    def unqiue_fraction_tax_rate(self):
-        rates = {
-            "Хиперион": 0.02,
-            "Этерия": 0.012,
-            "Халидон": 0.01,
-            "Аркадия": 0.03,
-            "Селестия": 0.015
-        }
-        tax_rate = rates.get(self.faction, 0)
-        self.economic_params = {self.faction: {"tax_rate": tax_rate}}
-        return self.economic_params
-
-    def get_hospital_count(self):
-        """Получить общее количество больниц в зданиях."""
-        hospital_count = 0
-        for city, data in self.buildings.items():
-            hospital_count += data.get("Здания", {}).get("Больница", 0)
-        return hospital_count
-
-    def get_factory_count(self):
-        """Получить общее количество фабрик в зданиях."""
-        factory_count = 0
-        for city, data in self.buildings.items():
-            factory_count += data.get("Здания", {}).get("Фабрика", 0)
-        return factory_count
-
-    def build_buildings(self):
-        """Построить экономические объекты"""
-
-        def update_buildings(city, hospital_incr, factory_incr, coordinates):
-            """Обновление данных о зданиях и координатах в указанном городе"""
-            try:
-                with open(self.buildings_path, 'r', encoding='utf-8') as file:
-                    buildings_data = json.load(file)
-            except (FileNotFoundError, json.JSONDecodeError):
-                buildings_data = {}
-
-            if city not in buildings_data:
-                buildings_data[city] = {
-                    "Здания": {"Больница": 0, "Фабрика": 0},
-                    "Координаты": coordinates,
+    def load_army(self):
+        query = """
+            SELECT unit_name, cost_money, attack, defense, durability, unit_class 
+            FROM units 
+            WHERE faction = ?
+        """
+        self.cursor.execute(query, (self.faction,))
+        return {
+            row[0]: {
+                "cost": row[1],
+                "stats": {
+                    "Атака": row[2],
+                    "Защита": row[3],
+                    "Прочность": row[4],
+                    "Класс": row[5]
                 }
-
-            buildings_data[city]["Здания"]["Больница"] += hospital_incr
-            buildings_data[city]["Здания"]["Фабрика"] += factory_incr
-
-            with open(self.buildings_path, 'w', encoding='utf-8') as file:
-                json.dump(buildings_data, file, ensure_ascii=False, indent=4)
-
-        def get_city_coordinates(city_name):
-            """Получить координаты города по его названию"""
-            for city in self.all_cities['cities']:
-                if city['name'].strip().lower() == city_name.strip().lower():
-                    print(f"Город {city_name} найден в all_cities.")
-                    return city['coordinates']
-            print(f"Город {city_name} не найден в all_cities.")
-            return None
-
-        def build_resources(cost, hospital_incr, factory_incr):
-            """Основная логика строительства"""
-            self.resources['Кроны'] -= cost
-            self.factory += factory_incr
-            self.hospitals += hospital_incr
-
-            with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
-                diplomaties = json.load(file)
-            if self.faction in diplomaties:
-                cities = diplomaties[self.faction].get('города', [])
-                if not cities:
-                    print("Нет доступных городов для фракции:", self.faction)
-                    return
-
-                chosen_city = random.choice(cities)
-                city_coordinates = get_city_coordinates(chosen_city)
-
-                if city_coordinates is None:
-                    print(f"Координаты для города {chosen_city} не найдены.")
-                    return
-
-                update_buildings(chosen_city, hospital_incr, factory_incr, city_coordinates)
-                print(f"Построены здания в городе {chosen_city} фракции {self.faction}.")
-                print(f'переданные координаты {city_coordinates}')
-            else:
-                print("Фракция не найдена в конфигурации:", self.faction)
-
-        if self.resources['Кроны'] >= 50000:
-            build_resources(cost=35000, hospital_incr=50, factory_incr=100)
-        elif self.resources['Кроны'] >= 1000:
-            build_resources(cost=700, hospital_incr=1, factory_incr=2)
-
-    def trade_resource(self):
-        print(f"ИИ {self.faction}: проверка торговли -> Сырье: {self.resources['Сырье']}, Кроны: {self.resources['Кроны']}")
-        if self.resources['Сырье'] >= 13000:
-            self.resources['Сырье'] -= 10000
-            self.resources['Кроны'] += 25000
-            print(f"ИИ {self.faction}: торговля выполнена -> -10,000 сырья, +25,000 крон.")
-        else:
-            print(f"ИИ {self.faction}: недостаточно сырье для торговли.")
-
-    def update_resources(self):
-        """Обновление ресурсов для ИИ."""
-        faction_coefficients = {
-            'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
-                        'food_loss': 1.4},
-            'Селестия': {'free_peoples_gain': 170, 'free_peoples_loss': 20, 'money_loss': 200, 'food_gain': 540,
-                         'food_loss': 1.1},
-            'Хиперион': {'free_peoples_gain': 210, 'free_peoples_loss': 40, 'money_loss': 200, 'food_gain': 530,
-                         'food_loss': 0.9},
-            'Этерия': {'free_peoples_gain': 240, 'free_peoples_loss': 60, 'money_loss': 300, 'food_gain': 500,
-                       'food_loss': 0.5},
-            'Халидон': {'free_peoples_gain': 230, 'free_peoples_loss': 50, 'money_loss': 300, 'food_gain': 500,
-                        'food_loss': 0.4},
+            } for row in self.cursor.fetchall()
         }
 
-        coeffs = faction_coefficients.get(self.faction)
-        if not coeffs:
-            raise ValueError(f"Фракция '{self.faction}' не найдена.")
+    def load_cities(self):
+        query = """
+            SELECT id, name 
+            FROM cities 
+            WHERE faction = ?
+        """
+        self.cursor.execute(query, (self.faction,))
+        return {row[0]: row[1] for row in self.cursor.fetchall()}
 
-        # Инициализируем значения по умолчанию
-        self.resources.setdefault('Рабочие', 0)
-        self.resources.setdefault('Кроны', 0)
-        self.resources.setdefault('Сырье', 0)
-        self.resources.setdefault('Население', 0)
-
-        tax_rate = 0.35  # Базовая налоговая ставка (35%)
-        self.born_peoples = int(self.hospitals * 500)
-        self.workers = int(self.factory * 200)
-
-        # Расчет прироста населения
-        clear_up_peoples = self.born_peoples - self.workers
-        self.resources['Рабочие'] += clear_up_peoples
-
-        # Налоги: доход от населения с учетом ставки
-        tax_income = int(tax_rate * self.resources['Население'])
-        self.resources['Кроны'] += tax_income - self.hospitals * coeffs['money_loss']
-
-        # Производство и потребление Сырье
-        food_production = int(self.factory * 1000)
-        food_consumption = int(self.resources['Население'] * coeffs['food_loss'])
-        self.resources['Сырье'] += food_production - food_consumption
-
-        # Обновление населения
-        if self.resources['Сырье'] > 0:
-            self.resources['Население'] += clear_up_peoples
-        else:
-            # Убыль населения из-за нехватки Сырье
-            if self.resources['Население'] > 100:
-                loss = int(self.resources['Население'] * 0.45)
-            else:
-                loss = min(self.resources['Население'], 50)
-            self.resources['Население'] -= loss
-            self.resources['Рабочие'] = max(0, self.resources['Рабочие'] - loss)
-
-        self.check_trade()
-        self.load_and_add_resources()
-
-        # Обеспечение положительных значений ресурсов
-        self.resources = {key: max(0, int(value)) for key, value in self.resources.items()}
-
-        # Сохранение ресурсов
-        self.save_resources()
-        print(f"ИИ {self.faction}: ресурсы обновлены -> {self.resources}")
-
-        # Другие обновления
-        self.up_resourcess()
-
-
-    def up_resourcess(self):
-        self.money = self.resources['Кроны']
-        self.surie = self.resources['Сырье']
-        self.population = self.resources['Население']
-        self.workers = self.resources['Рабочие']
-        print('Общее число зданий:', self.hospitals, self.factory, 'фракции:', self.faction)
-
-    def save_resources(self):
-        """Записывает текущее состояние ресурсов в файл."""
+    # Методы сохранения данных в БД
+    def save_resources_to_db(self):
+        """
+        Сохраняет текущие ресурсы фракции в таблицу resources.
+        """
         try:
-            with open(self.resources_path, 'w', encoding='utf-8') as file:
-                json.dump(self.resources, file, ensure_ascii=False, indent=4)
-        except Exception as e:
+            for resource_type, amount in self.resources.items():
+                # Сначала проверяем, существует ли запись
+                self.cursor.execute('''
+                    SELECT amount
+                    FROM resources
+                    WHERE faction = ? AND resource_type = ?
+                ''', (self.faction, resource_type))
+                existing_record = self.cursor.fetchone()
+
+                if existing_record:
+                    # Обновляем существующую запись
+                    self.cursor.execute('''
+                        UPDATE resources
+                        SET amount = ?
+                        WHERE faction = ? AND resource_type = ?
+                    ''', (amount, self.faction, resource_type))
+                else:
+                    # Создаем новую запись
+                    self.cursor.execute('''
+                        INSERT INTO resources (faction, resource_type, amount)
+                        VALUES (?, ?, ?)
+                    ''', (self.faction, resource_type, amount))
+
+            # Сохраняем изменения
+            self.db_connection.commit()
+        except sqlite3.Error as e:
             print(f"Ошибка при сохранении ресурсов: {e}")
 
-    def diplomacy_status_update(self):
-        # Загрузка данных из файла
-        with open('files/config/status/diplomaties.json', 'r', encoding='utf-8') as file:
-            data = json.load(file)
-
-        # Проверка наличия текущей фракции в данных и обновление отношений
-        if self.faction in data:
-            self.diplomacy_status = data[self.faction]["отношения"]
-        else:
-            print(f"Фракция {self.faction} не найдена в файле diplomaties.json.")
-            self.diplomacy_status = {}
-
-    def build_army(self):
-        # Проверка наличия доступных юнитов в армии
-        if not self.army:
-            print(f"ИИ {self.faction}: отсутствуют доступные юниты для найма.")
-            return False
-
-        # Проверка на минимальное количество ресурсов для найма
-        if self.resources.get('Кроны', 0) < 30000 and self.resources.get('Рабочие', 0) < 2000:
-            print('Не хватает ресурсов')
-            return False
-
-        # Определение оптимального юнита по защите и возможному количеству найма
-        best_unit = max(
-            self.army.items(),
-            key=lambda unit: (
-                    min(
-                        self.resources['Кроны'] // unit[1]['cost'][0],  # Максимально доступное количество по Кронам
-                        self.resources['Рабочие'] // unit[1]['cost'][1]  # Максимально доступное количество по Рабочим
-                    ) * unit[1]['stats']['Защита']  # Умножаем на защиту юнита
-            )
-        )
-
-        unit_name, unit_data = best_unit
-        unit_cost_crowns, unit_cost_workers = unit_data['cost']
-
-        # Рассчитываем максимальное количество юнитов для найма
-        max_units = min(
-            self.resources['Кроны'] // unit_cost_crowns,
-            self.resources['Рабочие'] // unit_cost_workers
-        )
-
-        if max_units == 0:
-            print(f"ИИ {self.faction}: недостаточно средств для найма {unit_name}.")
-            return False
-
-        # Списание ресурсов
-        total_crowns = unit_cost_crowns * max_units
-        total_workers = unit_cost_workers * max_units
-        self.resources['Кроны'] -= total_crowns
-        self.resources['Рабочие'] -= total_workers
-
-        # Проверка наличия зданий для выбора города
-        if not self.buildings:
-            print(f"ИИ {self.faction}: нет данных о зданиях.")
-            return False
-
-        # Определяем город с наибольшим количеством зданий
-        target_city = max(
-            self.buildings.items(),
-            key=lambda city: sum(city[1]['Здания'].values())
-        )[0]
-
-        # Получаем координаты города из словаря self.all_cities
-        city_coordinates = self.buildings.get(target_city, {}).get("Координаты")
-        if city_coordinates is None:
-            print(f"ИИ {self.faction}: Не найдены координаты для города {target_city}.")
-            return False
-
-        # Масштабируем характеристики юнита на количество
-        scaled_stats = {
-            stat: value * max_units if isinstance(value, (int, float)) else value
-            for stat, value in unit_data["stats"].items()
-        }
-
-        # Формируем запись юнита
-        unit_record = {
-            "unit_image": unit_data["image"],
-            "unit_name": unit_name,
-            "unit_count": max_units,
-            "units_stats": scaled_stats
-        }
-
-        # Загрузка текущих данных гарнизона
-        garrison_data = self.load_data(self.garrison_path)
-
-        # Проверяем, есть ли город в данных гарнизона
-        if target_city in garrison_data:
-            city_garrison = garrison_data[target_city][0]
-            existing_unit = next(
-                (unit for unit in city_garrison["units"] if unit["unit_name"] == unit_name),
-                None
-            )
-            if existing_unit:
-                # Если юнит уже есть, увеличиваем его количество и характеристики
-                existing_count = existing_unit["unit_count"]
-                new_count = existing_count + max_units
-                # Обновление характеристик с учетом нового количества
-                for stat, value in scaled_stats.items():
-                    if stat == "Класс юнита":
-                        # Для "Класс юнита" значение не изменяется
-                        continue
-                    existing_value = existing_unit["units_stats"].get(stat, 0)
-                    existing_unit["units_stats"][stat] = existing_value + value
-                # Обновляем общее количество юнитов
-                existing_unit["unit_count"] = new_count
-            else:
-                # Если юнит не найден, добавляем новый
-                city_garrison["units"].append(unit_record)
-        else:
-            # Если города нет, создаем новую запись
-            garrison_data[target_city] = [
-                {
-                    "coordinates": city_coordinates,
-                    "units": [unit_record]
-                }
-            ]
-
-        # Сохранение обновленных данных гарнизона
-        self.save_data(self.garrison_path, garrison_data)
-        # Сохранение обновленных данных ресурсов
-        self.save_data(self.resources_path, self.resources)
-        print(f"ИИ {self.faction}: нанято {max_units} юнитов '{unit_name}' и отправлено в город {target_city}.")
-        return True
-
-    @staticmethod
-    def save_data(file_path, data):
+    def save_buildings(self):
         """
-        Сохраняет данные в указанный JSON-файл.
+        Сохраняет данные о зданиях в базу данных.
+        Удаляет старые записи для текущей фракции и добавляет новые.
         """
         try:
-            with open(file_path, 'w', encoding='utf-8') as file:
-                json.dump(data, file, ensure_ascii=False, indent=4)
-            print(f"Данные успешно сохранены в {file_path}.")
-        except Exception as e:
-            print(f"Ошибка сохранения данных в {file_path}: {e}")
+            # Удаляем старые записи для текущей фракции
+            self.cursor.execute("DELETE FROM buildings WHERE faction = ?", (self.faction,))
 
-    def calculate_profit(self, resource):
-        """Рассчитывает чистую прибыль ресурса."""
-        if resource == 'Кроны':
-            return self.resources['Кроны'] - (self.hospitals * 100)
-        elif resource == 'Сырье':
-            production = self.factory * 1000
-            consumption = self.resources['Население'] * 1.2
-            return production - consumption
-        elif resource == 'Рабочие':
-            return self.resources['Рабочие'] - (self.hospitals * 30)
-        else:
-            raise ValueError(f"Неизвестный ресурс: {resource}")
+            # Вставляем новые записи для каждого города и типа здания
+            for city_name, data in self.buildings.items():
+                for building_type, count in data["Здания"].items():
+                    if count > 0:  # Сохраняем только те здания, количество которых больше 0
+                        self.cursor.execute("""
+                            INSERT INTO buildings (faction, city_name, building_type, count)
+                            VALUES (?, ?, ?, ?)
+                        """, (self.faction, city_name, building_type, count))
 
-    def check_relations(self):
-        """Проверяет отношения с другими ИИ."""
-        relation_folder = "files/config/status/dipforce/relations.json"
+            # Сохраняем изменения в базе данных
+            self.db_connection.commit()
+            print("Данные о зданиях успешно сохранены в БД.")
+        except sqlite3.Error as e:
+            print(f"Ошибка при сохранении данных о зданиях: {e}")
 
+    def save_buildings_to_db(self):
+        """
+        Сохраняет текущие значения больниц и фабрик в базу данных.
+        """
         try:
-            with open(relation_folder, 'r', encoding='utf-8') as relation_file:
-                content = relation_file.read().strip()
-                if not content:
-                    print(f"Файл {relation_folder} пуст.")
-                    return
+            # Удаляем старые записи для текущей фракции
+            self.cursor.execute("""
+                DELETE FROM buildings
+                WHERE faction = ?
+            """, (self.faction,))
 
-                relation_data = json.loads(content)
+            # Вставляем новые записи
+            for city_name, data in self.buildings.items():
+                hospital_count = data["Здания"]["Больница"]
+                factory_count = data["Здания"]["Фабрика"]
 
-                # Проверяем, есть ли данные о текущей фракции
-                if self.faction in relation_data.get("relations", {}):
-                    self.relations = relation_data["relations"][self.faction]
-                else:
-                    print(f"Данные о фракции {self.faction} отсутствуют в файле.")
+                if hospital_count > 0:
+                    self.cursor.execute("""
+                        INSERT INTO buildings (faction, city_name, building_type, count)
+                        VALUES (?, ?, ?, ?)
+                    """, (self.faction, city_name, "Больница", hospital_count))
 
-        except FileNotFoundError:
-            print(f"Файл {relation_folder} не найден.")
-        except json.JSONDecodeError:
-            print(f"Ошибка при декодировании JSON в файле {relation_folder}.")
-        print(f'Отношения:{self.relations}')
+                if factory_count > 0:
+                    self.cursor.execute("""
+                        INSERT INTO buildings (faction, city_name, building_type, count)
+                        VALUES (?, ?, ?, ?)
+                    """, (self.faction, city_name, "Фабрика", factory_count))
 
-    def show_popup(self, title, message):
-        """Создает и отображает всплывающее окно с сообщением."""
-        popup = Popup(title=title, size_hint=(0.8, 0.4))
-        popup.content = Label(text=message, font_size=16)
-        popup.open()
+            # Сохраняем изменения
+            self.db_connection.commit()
+            print("Данные о зданиях успешно сохранены в БД.")
+        except sqlite3.Error as e:
+            print(f"Ошибка при сохранении данных о зданиях: {e}")
 
-    def check_trade(self):
-        self.check_relations()
-        """Проверяет выгодность торгового соглашения."""
-        trade_folder = "files/config/status/trade_dogovor"
-        trade_file_path = transform_filename(os.path.join(trade_folder, f"{self.faction}.json")) # Не трогать эту строчку
-
-        # Проверяем, существует ли файл
-        if not os.path.exists(trade_file_path):
-            print("Ошибка", f"Файл договора {trade_file_path} не найден.")
-            return
-
+    def save_garrison(self):
+        """
+        Сохраняет гарнизон в базу данных.
+        Добавляет или обновляет записи для каждого города, ориентируясь на city_id.
+        """
         try:
-            with open(trade_file_path, 'r', encoding='utf-8') as trade_file:
-                content = trade_file.read().strip()
-                if not content:
-                    print("Ошибка", f"Файл {trade_file_path} пуст.")
-                    return
+            # Удаляем старые записи для текущей фракции
+            self.cursor.execute("DELETE FROM garrisons WHERE faction = ?", (self.faction,))
 
-                trade_data = json.loads(content)
+            # Для каждого города обновляем или добавляем записи гарнизона
+            for city_id, units in self.garrison.items():
+                for unit in units:
+                    # Проверяем, существует ли уже запись для данного city_id и unit_name
+                    self.cursor.execute("""
+                        SELECT unit_count
+                        FROM garrisons
+                        WHERE city_id = ? AND unit_name = ?
+                    """, (city_id, unit['unit_name']))
+                    existing_record = self.cursor.fetchone()
 
-                # Получаем данные из файла
-                target_faction = trade_data.get("initiator")
-                initiator_summ_resource = float(trade_data.get("initiator_summ_resource", 0))
-                target_summ_resource = float(trade_data.get("target_summ_resource", 0))
-                initiator_type_resource = trade_data.get("initiator_type_resource")
+                    if existing_record:
+                        # Если запись существует, обновляем количество юнитов
+                        new_count = existing_record[0] + unit['unit_count']
+                        self.cursor.execute("""
+                            UPDATE garrisons
+                            SET unit_count = ?
+                            WHERE city_id = ? AND unit_name = ?
+                        """, (new_count, city_id, unit['unit_name']))
+                    else:
+                        # Если записи нет, добавляем новую
+                        self.cursor.execute("""
+                            INSERT INTO garrisons (city_id, unit_name, unit_count, unit_image)
+                            VALUES (?, ?, ?, ?)
+                        """, (
+                            city_id,
+                            unit['unit_name'],
+                            unit['unit_count'],
+                            self.get_unit_image(unit['unit_name'])
+                        ))
 
-                # Проверяем, есть ли данные о целевой фракции в отношениях
-                if target_faction not in self.relations:
-                    print(f'Список отношений {self.faction}:', self.relations)
-                    print("Ошибка", f"Данные о фракции {target_faction} отсутствуют в отношениях.")
-                    return
+            # Сохраняем изменения в базе данных
+            self.db_connection.commit()
+            print("Гарнизон успешно сохранен в БД.")
+        except sqlite3.Error as e:
+            print(f"Ошибка при сохранении гарнизона: {e}")
 
-                # Получаем уровень отношений с целевой фракцией
-                relation_level = self.relations[target_faction]
-
-                # Определяем коэффициент на основе уровня отношений
-                if relation_level < 15:
-                    self.show_popup(f"Отказ от {self.faction}", "Как Вы себе представляете сделку между нами? \n Да мы плевать хотели на Ваше предложение!")
-                    self.return_resource_to_player(target_faction, initiator_type_resource, initiator_summ_resource)
-                    # Очищаем выполненные сделки из торгового файла
-                    with open(trade_file_path, 'w', encoding='utf-8') as file:
-                        file.write('')
-                    return
-                elif 15 <= relation_level < 25:
-                    coefficient = 0.08
-                elif 25 <= relation_level < 35:
-                    coefficient = 0.3
-                elif 35 <= relation_level < 50:
-                    coefficient = 0.8
-                elif 50 <= relation_level < 60:
-                    coefficient = 1.0
-                elif 60 <= relation_level < 75:
-                    coefficient = 1.4
-                elif 75 <= relation_level < 90:
-                    coefficient = 2.0
-                elif 90 <= relation_level <= 100:
-                    coefficient = 2.9
-                else:
-                    return
-
-                # Проверяем соотношение сделки
-                trade_ratio = target_summ_resource / initiator_summ_resource
-
-                if trade_ratio > 3.0:
-                    self.show_popup(f"Отказ от {self.faction}", "Вы слишком многого от нас хотите, сбавьте требования!")
-                    self.return_resource_to_player(target_faction, initiator_type_resource, initiator_summ_resource)
-                    # Очищаем выполненные сделки из торгового файла
-                    with open(trade_file_path, 'w', encoding='utf-8') as file:
-                        file.write('')
-                    return
-
-                if trade_ratio <= coefficient:
-                    self.trade_resources()  # Вызываем функцию для выполнения сделки
-                else:
-                    self.show_popup(f"Отказ от {self.faction}", f"Для Вас у нас другие условия по сделкам.\nСбавьте требования или ищите другого поставщика.")
-                    self.return_resource_to_player(target_faction, initiator_type_resource, initiator_summ_resource)
-                    # Очищаем выполненные сделки из торгового файла
-                    with open(trade_file_path, 'w', encoding='utf-8') as file:
-                        file.write('')
-        except Exception as e:
-            print("Ошибка", f"Ошибка при обработке файла {trade_file_path}: {e}")
-
-
-
-    def trade_resources(self):
-        """ИИ обновляет ресурсы с учетом торговых договоров и всегда записывает ресурсы в файл другой стороны сделки."""
-        trade_folder = "files/config/status/trade_dogovor"
-        trade_file_path = transform_filename(os.path.join(trade_folder, f"{self.faction}.json"))
-
-        if os.path.exists(trade_file_path):
-            try:
-                with open(trade_file_path, 'r', encoding='utf-8') as file:
-                    content = file.read().strip()
-                    if not content:
-                        print(f"Файл {trade_file_path} пуст.")
-                        return
-                    trade_data = json.loads(content)
-
-                if isinstance(trade_data, dict):
-                    trade_data = [trade_data]  # Превращаем в список, если это объект
-
-                completed_trades = []  # Список завершенных сделок
-
-                for trade in trade_data:
-                    initiator_type_resource = trade["initiator_type_resource"]
-                    initiator_summ_resource = int(trade["initiator_summ_resource"])
-                    target_type_resource = trade["target_type_resource"]
-                    target_summ_resource = int(trade["target_summ_resource"])
-
-                    if trade["initiator"] == self.faction:
-                        # ИИ инициатор сделки (отдает ресурс и получает ресурс от target)
-                        if initiator_type_resource == "Сырье" and self.surie < initiator_summ_resource:
-                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
-                            continue
-                        if initiator_type_resource == "Кроны" and self.money < initiator_summ_resource:
-                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
-                            continue
-                        if initiator_type_resource == "Рабочие" and self.workers < initiator_summ_resource:
-                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
-                            continue
-
-                        # Вычитаем ресурс у ИИ
-                        if initiator_type_resource == "Сырье":
-                            self.resources['Сырье'] -= initiator_summ_resource
-                        elif initiator_type_resource == "Кроны":
-                            self.resources['Кроны'] -= initiator_summ_resource
-                        elif initiator_type_resource == "Рабочие":
-                            self.resources['Рабочие'] -= initiator_summ_resource
-
-                        # Записываем переданный ресурс в файл получателя
-                        opponent_faction = transform_filename(trade["target_faction"])
-                        ally_resource_file = transform_filename(
-                            f"files/config/status/trade_dogovor/resources/{opponent_faction}.json")
-                        ally_data = {}
-
-                        if os.path.exists(ally_resource_file):
-                            with open(ally_resource_file, 'r', encoding='utf-8') as ally_file:
-                                content = ally_file.read().strip()
-                                if content:
-                                    ally_data = json.loads(content)
-
-                        ally_data[initiator_type_resource] = ally_data.get(initiator_type_resource,
-                                                                           0) + initiator_summ_resource
-
-                    elif trade["target_faction"] == self.faction:
-                        # ИИ получатель сделки (получает ресурс и отдает свой)
-                        if target_type_resource == "Сырье" and self.surie < target_summ_resource:
-                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
-                            self.show_popup(f"У {self.faction} не хватает ресурсов", f"Напишите нам позже с этим предложением, у нас пока нет этих ресурсов.\nСпасибо за понимание!")
-                            continue
-                        if target_type_resource == "Кроны" and self.money < target_summ_resource:
-                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
-                            self.show_popup(f"У {self.faction} не хватает ресурсов", f"Напишите нам позже с этим предложением, у нас пока нет этих ресурсов.\nСпасибо за понимание!")
-                            continue
-                        if target_type_resource == "Рабочие" and self.workers < target_summ_resource:
-                            self.return_resource_to_player(trade, initiator_type_resource, initiator_summ_resource)
-                            self.show_popup(f"У {self.faction} не хватает ресурсов", f"Напишите нам позже с этим предложением, у нас пока нет этих ресурсов.\nСпасибо за понимание!")
-                            continue
-
-                        # ИИ получает ресурс
-                        if initiator_type_resource == "Сырье":
-                            self.resources['Сырье'] += initiator_summ_resource
-                        elif initiator_type_resource == "Кроны":
-                            self.resources['Кроны'] += initiator_summ_resource
-                        elif initiator_type_resource == "Рабочие":
-                            self.resources['Рабочие'] += initiator_summ_resource
-
-                        # ИИ отдает свой ресурс (отдает взамен)
-                        if target_type_resource == "Сырье":
-                            self.resources['Сырье'] -= target_summ_resource
-                        elif target_type_resource == "Кроны":
-                            self.resources['Кроны'] -= target_summ_resource
-                        elif target_type_resource == "Рабочие":
-                            self.resources['Рабочие'] -= target_summ_resource
-
-                        # Записываем переданный ресурс в файл инициатора (отправляем свой ресурс обратно)
-                        opponent_faction = transform_filename(trade["initiator"])
-                        ally_resource_file = transform_filename(
-                            f"files/config/status/trade_dogovor/resources/{opponent_faction}.json")
-                        ally_data = {}
-
-                        if os.path.exists(ally_resource_file):
-                            with open(ally_resource_file, 'r', encoding='utf-8') as ally_file:
-                                content = ally_file.read().strip()
-                                if content:
-                                    ally_data = json.loads(content)
-
-                        self.show_popup(f"Согласие на сделку от {self.faction}", f"По рукам.\nВысылаю поставку, скоро прибудет.")
-                        ally_data[target_type_resource] = ally_data.get(target_type_resource, 0) + target_summ_resource
-
-                    # Записываем обновленный файл ресурсов союзника
-                    with open(ally_resource_file, 'w', encoding='utf-8') as ally_file:
-                        json.dump(ally_data, ally_file, ensure_ascii=False, indent=4)
-
-                    completed_trades.append(trade)  # Сделка завершена
-
-                # Очищаем выполненные сделки из торгового файла
-                with open(trade_file_path, 'w', encoding='utf-8') as file:
-                    json.dump([t for t in trade_data if t not in completed_trades], file, ensure_ascii=False, indent=4)
-
-                self.save_resources()  # Сохраняем обновленные ресурсы ИИ
-
-            except json.JSONDecodeError:
-                print(f"Ошибка: файл {trade_file_path} содержит некорректный JSON.")
-            except Exception as e:
-                print(f"Ошибка при обработке торговых соглашений ИИ: {e}")
-        else:
-            print(f"Файл торговых соглашений для фракции {self.faction} не найден.")
-
-    def return_resource_to_player(self, trade, resource_type, resource_amount):
-        """Возвращает ресурс игроку, если у ИИ недостаточно ресурсов для выполнения сделки."""
-        # Определяем имя оппонента
-        if isinstance(trade, dict):
-            opponent_faction = trade["initiator"]
-        elif isinstance(trade, str):
-            opponent_faction = trade
-        else:
-            raise ValueError("Параметр 'trade' должен быть либо словарем, либо строкой.")
-
-        # Формируем путь к файлу ресурсов
-        ally_resource_file = transform_filename(
-            f"files/config/status/trade_dogovor/resources/{opponent_faction}.json"
-        )
-        print(f'DEBUG: Путь к файлу ресурсов: {ally_resource_file}')
-
-        # Загружаем данные о ресурсах
-        ally_data = {}
-        if os.path.exists(ally_resource_file):
-            with open(ally_resource_file, 'r', encoding='utf-8') as ally_file:
-                content = ally_file.read().strip()
-                if content:
-                    ally_data = json.loads(content)
-
-        # Обновляем количество ресурсов
-        ally_data[resource_type] = ally_data.get(resource_type, 0) + resource_amount
-        print(f"DEBUG: Возвращаем {resource_amount} {resource_type} игроку {opponent_faction}.")
-        print(f"DEBUG: Обновленные данные: {ally_data}")
-
-        # Сохраняем обновленные данные
-        with open(ally_resource_file, 'w', encoding='utf-8') as ally_file:
-            json.dump(ally_data, ally_file, ensure_ascii=False, indent=4)
-
-        print(f"Ресурс {resource_type} в количестве {resource_amount} возвращен игроку {opponent_faction}.")
-
-    def load_and_add_resources(self):
-
+    def manage_buildings(self):
         try:
-            # Проверяем, существует ли файл
-            if not os.path.exists(self.resources_file):
-                print(f"Файл {self.resources_file} не найден. Пропуск.")
+            crowns = self.resources['Кроны']
+            building_budget = int(crowns * 0.9)
+
+            # Проверяем, достаточно ли бюджета
+            if building_budget < 500:
+                print("Недостаточно средств для строительства.")
                 return
 
-            # Чтение данных из файла
-            with open(self.resources_file, 'r', encoding='utf-8') as file:
-                content = file.read().strip()
+            # Строим здания пакетами
+            while building_budget >= 1200:
+                if not self.build_in_city('Больница', 2):
+                    break
+                building_budget -= 600
 
-                if not content:
-                    print(f"Файл {self.resources_file} пустой. Пропуск.")
-                    return
+                if not self.build_in_city('Фабрика', 3):
+                    break
+                building_budget -= 600
 
-                # Парсим JSON из содержимого файла
-                loaded_resources = json.loads(content)
+            # Строим оставшиеся здания
+            while building_budget >= 200:
+                if building_budget >= 300:
+                    if not self.build_in_city('Больница', 1):
+                        break
+                    building_budget -= 300
+                elif building_budget >= 200:
+                    if not self.build_in_city('Фабрика', 1):
+                        break
+                    building_budget -= 200
 
-            # Проверяем, что ресурсы являются словарем
-            if not isinstance(loaded_resources, dict):
-                raise ValueError(f"Формат данных в файле {self.resources_file} некорректен. Ожидался словарь.")
+            # Сохраняем данные
+            self.save_all_data()
 
-            # Добавляем ресурсы из файла к текущим
-            for key, value in loaded_resources.items():
-                if key in self.resources and isinstance(value, (int, float)):
-                    self.resources[key] += value
-                else:
-                    print(f"Ресурс '{key}' не найден в текущем списке или имеет некорректное значение.")
-
-            print(f"Ресурсы из файла {self.resources_file} успешно добавлены.")
-            print(f"Обновленные ресурсы: {self.resources}")
-
-        except json.JSONDecodeError:
-            print(f"Ошибка: Файл {self.resources_file} содержит некорректный JSON.")
         except Exception as e:
-            print(f"Произошла ошибка при обработке файла {self.resources_file}: {e}")
+            print(f"Ошибка в manage_buildings: {e}")
 
-    def manage_army(self):
-        """Управление армией ИИ"""
-        self.build_army()
+    def build_in_city(self, building_type, count):
+        """
+        Строительство зданий в городе.
+        Первый ход: строит 2 больницы и 3 фабрики в предопределенных городах.
+        Последующие ходы: строит здания в случайных городах.
+        """
+        cost = 300 if building_type == 'Больница' else 200
+        total_cost = cost * count
 
-    def manage_relations(self):
-        """Управление отношениями только для фракций, заключивших дипломатическое соглашение"""
-        my_fraction = translation_dict.get(self.faction)
-        faction_dir_path = os.path.join(self.relations_path, my_fraction)
+        # Проверяем, достаточно ли крон для строительства
+        if self.resources['Кроны'] < total_cost:
+            print("Недостаточно средств для строительства.")
+            return False
 
-        if not os.path.exists(faction_dir_path):
-            print(f"Путь {faction_dir_path} не существует.")
+        # Определяем город для строительства
+        preferred_cities = {
+            "Аркадия": ["Аргенвилль"],
+            "Селестия": ["Миреллия"],
+            "Хиперион": ["Ауренбург", "Элдирия"],
+            "Халидон": ["Эркан"],
+            "Этерия": ["Фэйху"]
+        }
+
+        target_city = None
+        if not hasattr(self, "turn_count"):
+            self.turn_count = 0  # Инициализация счетчика ходов
+
+        if self.turn_count == 0:  # Первый ход
+            cities_for_faction = preferred_cities.get(self.faction, [])
+            if cities_for_faction:
+                # Для Хипериона чередуем города между Ауренбургом и Элдирией
+                if self.faction == "Хиперион":
+                    city_index = (self.hospitals + self.factories) % len(cities_for_faction)
+                    target_city = cities_for_faction[city_index]
+                else:
+                    target_city = cities_for_faction[0]  # Для остальных фракций берем первый город
+        else:
+            # На последующих ходах выбираем случайный город
+            import random
+            target_city = random.choice(list(self.cities.values()))
+
+        # Увеличиваем количество зданий в выбранном городе
+        self.buildings.setdefault(target_city, {"Здания": {"Больница": 0, "Фабрика": 0}})
+        self.buildings[target_city]["Здания"][building_type] += count
+
+        # Обновляем глобальные переменные
+        if building_type == 'Больница':
+            self.hospitals += count
+        elif building_type == 'Фабрика':
+            self.factories += count
+
+        # Списываем кроны
+        self.resources['Кроны'] -= total_cost
+
+        print(f"Построено {count} {building_type} в городе {target_city}")
+
+        # Увеличиваем счетчик ходов после первого цикла строительства
+        if self.turn_count == 0 and self.hospitals + self.factories >= 5:
+            self.turn_count += 1
+
+        return True
+
+    def sell_resources(self):
+        """
+        Продажа сырья на рынке.
+        Продается 70% сырья, если его больше 10000.
+        """
+        if self.resources['Сырье'] > 10000:
+            amount_to_sell = int(((self.resources['Сырье'])/10000) * 0.7)  # Продаем 70% сырья
+            earned_crowns = int(amount_to_sell * self.raw_material_price)
+
+            # Обновляем ресурсы
+            self.resources['Сырье'] -= amount_to_sell
+            self.resources['Кроны'] += earned_crowns
+
+            print(f"Продано {amount_to_sell} сырья за {earned_crowns} крон.")
+            return True  # Продажа успешна
+        else:
+            print("Недостаточно сырья для продажи.")
+            return False  # Продажа не удалась
+
+    def hire_army(self):
+        """
+        Найм армии.
+        Добавляет новые юниты в гарнизон через метод save_garrison.
+        """
+        crowns = self.resources['Кроны']
+
+        if crowns <= 0:
+            print("Недостаточно средств для найма армии.")
             return
 
-        relations_data = self.load_relations()
+        best_unit = None
+        max_units = 0
 
-        if self.faction not in relations_data["relations"]:
-            print(f"Отношения для фракции {self.faction} не найдены.")
-            return
+        # Находим лучший юнит для найма
+        for unit_name, unit_data in self.army.items():
+            unit_cost = unit_data['cost']
+            possible_units = crowns // unit_cost
+            if possible_units > max_units:
+                max_units = possible_units
+                best_unit = (unit_name, unit_data)
 
-        # Перебираем файлы в директории, обрабатываем только тех, с кем заключены соглашения
-        for filename in os.listdir(faction_dir_path):
-            if filename.endswith(".json"):
-                faction_name_en = filename.replace('.json', '')
-                faction_name_ru = reverse_translation_dict.get(faction_name_en, faction_name_en)
+        if best_unit:
+            unit_name, unit_data = best_unit
+            total_cost = max_units * unit_data['cost']
 
-                # Проверяем, есть ли дипломатическое соглашение
-                if faction_name_ru in relations_data["relations"][self.faction]:
-                    current_value_self = relations_data["relations"][self.faction][faction_name_ru]
-                    current_value_other = relations_data["relations"][faction_name_ru][self.faction]
+            # Списываем ресурсы
+            self.resources['Кроны'] -= total_cost
 
-                    relations_data["relations"][self.faction][faction_name_ru] = min(current_value_self + 7, 100)
-                    relations_data["relations"][faction_name_ru][self.faction] = min(current_value_other + 7, 100)
+            # Находим город с наибольшим количеством зданий
+            target_city = max(self.buildings.items(), key=lambda city: sum(city[1]['Здания'].values()))[0]
+            city_id = [id for id, name in self.cities.items() if name == target_city][0]
 
-                # Удаляем обработанный файл (чтобы это изменение было одноразовым)
-                os.remove(os.path.join(faction_dir_path, filename))
+            # Добавляем юниты в гарнизон через метод save_garrison
+            new_garrison_entry = {
+                city_id: [{"unit_name": unit_name, "unit_count": max_units}]
+            }
+            self.garrison.update(new_garrison_entry)
+            self.save_garrison()
 
-        # Сохраняем обновленные данные
-        self.save_relations(relations_data)
+            print(f"Нанято {max_units} юнитов '{unit_name}' за {total_cost} крон в городе {target_city}")
+        else:
+            print("Недостаточно средств для найма армии.")
 
-    def load_relations(self):
-        """Загружаем текущие отношения из файла relations.json"""
+    def calculate_tax_income(self):
+        """
+        Рассчитывает налоговый доход на основе населения.
+        """
+        tax_rate = 0.34  # Базовая налоговая ставка (34%)
+        return int(self.resources['Население'] * tax_rate)
+
+    def update_buildings_from_db(self):
+        """
+        Загружает данные о количестве больниц и фабрик из базы данных.
+        """
         try:
-            with open(self.relations_file, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except FileNotFoundError:
-            print("Файл relations.json не найден. Создаем новый.")
-            return {"relations": {}}
+            query = """
+                SELECT building_type, SUM(count)
+                FROM buildings
+                WHERE faction = ?
+                GROUP BY building_type
+            """
+            self.cursor.execute(query, (self.faction,))
+            rows = self.cursor.fetchall()
 
-    def save_relations(self, relations_data):
-        """Сохраняем обновленные отношения в файл relations.json"""
+            # Обновляем количество зданий
+            self.hospitals = next((count for b_type, count in rows if b_type == "Больница"), 0)
+            self.factories = next((count for b_type, count in rows if b_type == "Фабрика"), 0)
+
+            print(f"Загружены здания: Больницы={self.hospitals}, Фабрики={self.factories}")
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке данных о зданиях: {e}")
+
+    def generate_raw_material_price(self):
+        """
+        Генерирует новую цену на сырье.
+        """
+        # Простая реализация: случайная цена в диапазоне от 2.0 до 3.0
+        self.raw_material_price = round(random.uniform(1200, 41250), 2200)
+        print(f"Новая цена на сырье: {self.raw_material_price}")
+
+    def update_trade_resources_from_db(self):
+        """
+        Обновляет ресурсы на основе торговых соглашений из базы данных.
+        Учитывает текущую фракцию как инициатора или целевую фракцию.
+        """
         try:
-            with open(self.relations_file, "w", encoding="utf-8") as f:
-                json.dump(relations_data, f, ensure_ascii=False, indent=4)
-        except PermissionError:
-            print("Ошибка доступа к файлу relations.json. Проверьте права доступа.")
+            # Запрос для получения всех торговых соглашений, где текущая фракция участвует
+            query = """
+                SELECT initiator, target_faction, initiator_type_resource, target_type_resource,
+                       initiator_summ_resource, target_summ_resource
+                FROM trade_agreements
+                WHERE initiator = ? OR target_faction = ?
+            """
+            self.cursor.execute(query, (self.faction, self.faction))
+            rows = self.cursor.fetchall()
+
+            for row in rows:
+                initiator, target_faction, initiator_type_resource, target_type_resource, \
+                    initiator_summ_resource, target_summ_resource = row
+
+                # Если текущая фракция является инициатором сделки
+                if initiator == self.faction:
+                    # Отнимаем ресурс, который отдает инициатор
+                    if initiator_type_resource in self.resources:
+                        self.resources[initiator_type_resource] -= initiator_summ_resource
+
+                    # Добавляем ресурс, который получает инициатор
+                    if target_type_resource in self.resources:
+                        self.resources[target_type_resource] += target_summ_resource
+
+                # Если текущая фракция является целевой фракцией
+                elif target_faction == self.faction:
+                    # Отнимаем ресурс, который отдает целевая фракция
+                    if target_type_resource in self.resources:
+                        self.resources[target_type_resource] -= target_summ_resource
+
+                    # Добавляем ресурс, который получает целевая фракция
+                    if initiator_type_resource in self.resources:
+                        self.resources[initiator_type_resource] += initiator_summ_resource
+
+            print(f"Ресурсы из торговых соглашений обновлены: {self.resources}")
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении ресурсов из торговых соглашений: {e}")
+
+    def load_resources_from_db(self):
+        """
+        Загружает текущие значения ресурсов из базы данных.
+        Обновляет глобальные переменные self.money, self.free_peoples,
+        self.raw_material, self.population и словарь self.resources.
+        """
+        try:
+            query = "SELECT resource_type, amount FROM resources WHERE faction = ?"
+            self.cursor.execute(query, (self.faction,))
+            rows = self.cursor.fetchall()
+
+            # Обновление ресурсов на основе данных из базы данных
+            for row in rows:
+                resource_type, amount = row
+                if resource_type == "Кроны":
+                    self.money = amount
+                elif resource_type == "Рабочие":
+                    self.free_peoples = amount
+                elif resource_type == "Сырье":
+                    self.raw_material = amount
+                elif resource_type == "Население":
+                    self.population = amount
+
+            # Обновление словаря self.resources
+            self.resources = {
+                'Кроны': self.money,
+                'Рабочие': self.free_peoples,
+                'Сырье': self.raw_material,
+                'Население': self.population
+            }
+
+            print(f"Ресурсы успешно загружены из БД: {self.resources}")
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке ресурсов из БД: {e}")
 
 
-    def attack_enemy(self):
-        """Атака на соседнюю фракцию"""
-        pass
 
-    def defend_territory(self):
-        """Защита территории"""
-        #print(f"{self.faction} готовится к защите.")
+    def update_resources(self):
+        """
+        Обновление текущих ресурсов с учетом данных из базы данных.
+        Все расчеты выполняются на основе таблиц в базе данных.
+        """
+        try:
+            self.update_buildings_from_db()
 
-    def manage_politics(self):
-        """Управление дипломатией ИИ"""
-        pass
+            # Генерируем новую цену на сырье
+            self.generate_raw_material_price()
 
-    def form_alliance(self, target):
-        """Создание альянса"""
-        pass
+            # Обновляем ресурсы на основе торговых соглашений из таблицы trade_agreements
+            self.update_trade_resources_from_db()
 
-    def negotiate_peace(self, target):
-        """Переговоры о мире"""
-        pass
+            # Коэффициенты для каждой фракции
+            faction_coefficients = {
+                'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
+                            'food_loss': 1.4},
+                'Селестия': {'free_peoples_gain': 170, 'free_peoples_loss': 20, 'money_loss': 200, 'food_gain': 540,
+                             'food_loss': 1.1},
+                'Хиперион': {'free_peoples_gain': 210, 'free_peoples_loss': 40, 'money_loss': 200, 'food_gain': 530,
+                             'food_loss': 0.9},
+                'Этерия': {'free_peoples_gain': 240, 'free_peoples_loss': 60, 'money_loss': 300, 'food_gain': 500,
+                           'food_loss': 0.5},
+                'Халидон': {'free_peoples_gain': 230, 'free_peoples_loss': 50, 'money_loss': 300, 'food_gain': 500,
+                            'food_loss': 0.4},
+            }
 
-    def betray_ally(self, target):
-        """Предательство альянса"""
-        pass
+            # Получение коэффициентов для текущей фракции
+            faction = self.faction
+            if faction not in faction_coefficients:
+                raise ValueError(f"Фракция '{faction}' не найдена.")
+            coeffs = faction_coefficients[faction]
 
+            # Обновление ресурсов с учетом коэффициентов
+            self.born_peoples = int(self.hospitals * 500)
+            self.work_peoples = int(self.factories * 200)
+            self.clear_up_peoples = self.born_peoples - self.work_peoples + self.tax_effects
+
+            # Загружаем текущие значения ресурсов из базы данных
+            self.load_resources_from_db()
+
+            # Выполняем расчеты
+            self.free_peoples += self.clear_up_peoples
+            self.money += int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
+            self.money_info = int(self.hospitals * coeffs['money_loss'])
+            self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
+            self.taxes_info = int(self.calculate_tax_income())
+
+            # Учитываем, что одна фабрика может прокормить 1000 людей
+            self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
+            self.food_info = int((self.factories * 1000) - (self.population * coeffs['food_loss']))
+            self.food_peoples = int(self.population * coeffs['food_loss'])
+
+            # Проверяем, будет ли население увеличиваться
+            if self.raw_material > 0:
+                self.population += int(self.clear_up_peoples)  # Увеличиваем население только если есть Сырье
+            else:
+                # Логика убыли населения при недостатке Сырья
+                if self.population > 100:
+                    loss = int(self.population * 0.45)  # 45% от населения
+                    self.population -= loss
+                else:
+                    loss = min(self.population, 50)  # Обнуление по 50, но не ниже 0
+                    self.population -= loss
+                self.free_peoples = 0  # Все рабочие обнуляются, так как Сырья нет
+
+            # Проверка, чтобы ресурсы не опускались ниже 0
+            self.resources.update({
+                "Кроны": max(int(self.money), 0),
+                "Рабочие": max(int(self.free_peoples), 0),
+                "Сырье": max(int(self.raw_material), 0),
+                "Население": max(int(self.population), 0)
+            })
+
+            # Сохраняем обновленные ресурсы в базу данных
+            self.save_resources_to_db()
+
+            print(f"Ресурсы обновлены: {self.resources}, Больницы: {self.hospitals}, Фабрики: {self.factories}")
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении ресурсов: {e}")
+
+    def save_all_data(self):
+        try:
+            self.save_resources_to_db()
+            self.save_buildings()
+            self.save_garrison()
+            print("Все данные успешно сохранены в БД")
+        except Exception as e:
+            print(f"Ошибка при сохранении данных: {e}")
+
+    def get_unit_image(self, unit_name):
+        """
+        Получает путь к изображению юнита из базы данных.
+
+        Args:
+            unit_name (str): Название юнита
+
+        Returns:
+            str: Путь к изображению юнита или пустая строка, если не найдено
+        """
+        try:
+            query = """
+                SELECT image_path 
+                FROM units 
+                WHERE faction = ? AND unit_name = ?
+            """
+            self.cursor.execute(query, (self.faction, unit_name))
+            result = self.cursor.fetchone()
+            if result:
+                return result[0]  # Возвращаем путь к изображению
+            else:
+                print(f"Предупреждение: Изображение для юнита '{unit_name}' не найдено")
+                return ""
+        except Exception as e:
+            print(f"Ошибка при получении изображения юнита '{unit_name}': {e}")
+            return ""
+
+    # Основная логика хода ИИ
     def make_turn(self):
-        """Обработка хода ИИ фракции"""
-        #print(f"ИИ {self.faction} делает ход...")
-        self.update_resources()
-        self.manage_relations()
-        self.load_all_data()
-        self.load_data_fractions()
-        # Экономические действия
-        self.build_buildings()
-        # Военные действия
-        self.manage_army()
-        # Дипломатические действия
-        self.manage_politics()
+        """
+        Основная логика хода ИИ фракции.
+        """
+        try:
+            # 1. Обновляем ресурсы из базы данных
+            self.update_resources()
+
+            # 2. Загружаем данные о зданиях
+            self.update_buildings_from_db()
+
+            # 3. Управление строительством (90% крон на строительство)
+            self.manage_buildings()
+
+            # 4. Продажа сырья (70% сырья, если его больше 10000)
+            resources_sold = self.sell_resources()
+
+            # 5. Найм армии (на оставшиеся деньги после строительства и продажи сырья)
+            if resources_sold:
+                self.hire_army()
+
+            # 6. Сохраняем все изменения в базу данных
+            self.save_all_data()
+
+        except Exception as e:
+            print(f"Ошибка при выполнении хода: {e}")

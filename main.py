@@ -10,7 +10,6 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.textinput import TextInput
 from kivy.graphics import Rectangle, Color
 from kivy.core.text import Label as CoreLabel
-
 import random
 from game_process import GameScreen
 from ui import *
@@ -135,15 +134,6 @@ def clear_tables(conn):
         print(f"Ошибка при очистке таблиц: {e}")
         conn.rollback()  # Откат изменений в случае ошибки
 
-
-def housekeeping():
-    wal_file = "game_data.db-wal"
-    shm_file = "game_data.db-shm"
-
-    if os.path.exists(wal_file):
-        os.remove(wal_file)
-    if os.path.exists(shm_file):
-        os.remove(shm_file)
 
 
 def delete_dipforce_files():

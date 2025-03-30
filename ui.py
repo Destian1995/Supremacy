@@ -740,16 +740,29 @@ class FortressInfoPopup(Popup):
                         self.send_group_button.disabled = False
 
                     # Удаляем юнит из таблицы
-                    if unit_name in self.table_widgets:
-                        widgets = self.table_widgets[unit_name]
+                    unique_id = f"{city_id}_{unit_name}"
+                    if unique_id in self.table_widgets:
+                        widgets = self.table_widgets[unique_id]
                         table_layout = city_label.parent  # Получаем родительский контейнер
-                        table_layout.remove_widget(widgets["city_label"])
-                        table_layout.remove_widget(widgets["unit_label"])
-                        table_layout.remove_widget(widgets["count_label"])
-                        table_layout.remove_widget(widgets["image_container"])
-                        table_layout.remove_widget(widgets["action_button"])
-                        del self.table_widgets[unit_name]  # Удаляем запись из словаря
 
+                        # Проверяем, что table_layout существует и виджеты находятся в нем
+                        if table_layout and all(
+                                widget in table_layout.children for widget in [
+                                    widgets["city_label"],
+                                    widgets["unit_label"],
+                                    widgets["count_label"],
+                                    widgets["image_container"],
+                                    widgets["action_button"]
+                                ]
+                        ):
+                            table_layout.remove_widget(widgets["city_label"])
+                            table_layout.remove_widget(widgets["unit_label"])
+                            table_layout.remove_widget(widgets["count_label"])
+                            table_layout.remove_widget(widgets["image_container"])
+                            table_layout.remove_widget(widgets["action_button"])
+                            del self.table_widgets[unique_id]  # Удаляем запись из словаря
+                        else:
+                            print("Ошибка: Некоторые виджеты отсутствуют в table_layout.")
                 else:
                     error_label.text = "Ошибка: некорректное количество."
             except ValueError:
@@ -1338,7 +1351,6 @@ class FortressInfoPopup(Popup):
             print(f"Ошибка при проверке враждебности: {e}")
             return False
 
-
     def transfer_army_to_garrison(self, selected_unit, taken_count):
         """
         Переносит данные о войсках из таблицы armies в таблицу garrisons.
@@ -1437,7 +1449,6 @@ class FortressInfoPopup(Popup):
             print(f"Произошла ошибка при работе с базой данных(transfer_army_to_garrison): {e}")
         except Exception as e:
             print(f"Произошла ошибка при переносе данных: {e}")
-
 
     def capture_city(self, fortress_name, new_owner, source_city):
         try:

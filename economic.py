@@ -265,22 +265,6 @@ class Faction:
         Обновляет данные о зданиях для текущей фракции из базы данных.
         """
         self.load_buildings()  # Перезагружаем данные из базы данных
-        self.recalculate_resources()  # Пересчитываем ресурсы
-
-    def recalculate_resources(self):
-        """
-        Пересчитывает влияние зданий на ресурсы.
-        """
-        # Влияние больниц (например, потребление денег)
-        self.money_info = -self.hospitals * 500
-
-        # Влияние фабрик (например, производство сырья)
-        self.food_info = self.factories * 1000 - self.population * 1.4
-        self.free_peoples = max(0, self.population - self.factories * 1000)
-
-        # Другие показатели
-        self.clear_up_peoples = self.population - self.free_peoples
-        self.money_up = self.taxes_info + self.money_info
 
     def cash_build(self, money):
         """Списывает деньги, если их хватает, и возвращает True, иначе False."""
