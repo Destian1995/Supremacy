@@ -218,7 +218,7 @@ class GameScreen(Screen):
         self.add_widget(self.resource_box)
 
         # Инициализация ИИ для остальных фракций
-        self.init_ai_controllers()
+        #self.init_ai_controllers()
 
     def update_cash(self, dt):
         """Обновление текущего капитала фракции через каждые 1 секунду."""
@@ -307,8 +307,8 @@ class GameScreen(Screen):
                     file.write("True")
 
         # Выполнение хода для всех ИИ
-        for ai_controller in self.ai_controllers.values():
-            ai_controller.make_turn()
+        #for ai_controller in self.ai_controllers.values():
+           # ai_controller.make_turn()
 
         # Логирование или обновление интерфейса после хода
         print(f"Ход {self.turn_counter} завершён")

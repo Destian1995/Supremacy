@@ -789,7 +789,6 @@ class FortressInfoPopup(Popup):
 
             # Очищаем группу после перемещения
             self.selected_group.clear()
-            show_popup_message("Успех", "Группа успешно перемещена в город.")
             self.update_garrison()  # Обновляем интерфейс гарнизона
         except Exception as e:
             show_popup_message("Ошибка", f"Произошла ошибка при перемещении группы: {e}")
@@ -1157,7 +1156,7 @@ class FortressInfoPopup(Popup):
 
     def transfer_troops_between_cities(self, source_fortress_name, destination_fortress_name, unit_name, taken_count):
         """
-        Переносит войска из одного города в другой с проверкой принадлежности.
+        Переносит войска из одного города в другой с проверкой расстояния по координатам.
         :param source_fortress_name: Название исходного города/крепости.
         :param destination_fortress_name: Название целевого города/крепости.
         :param unit_name: Название юнита.
@@ -1180,16 +1179,31 @@ class FortressInfoPopup(Popup):
                 show_popup_message("Ошибка", "Вы не можете перемещать войска из чужого города.")
                 return
 
+            # Получаем координаты городов
+            source_coords = self.get_city_coordinates(source_fortress_name)
+            destination_coords = self.get_city_coordinates(destination_fortress_name)
+
+            # Вычисляем разницу между координатами
+            x_diff = abs(source_coords[0] - destination_coords[0])
+            y_diff = abs(source_coords[1] - destination_coords[1])
+            total_diff = x_diff + y_diff
+
             # Проверяем статус города назначения
             if destination_owner == current_player_kingdom:
                 # Город назначения — свой
                 self.move_troops(source_fortress_name, destination_fortress_name, unit_name, taken_count)
             elif self.is_ally(current_player_kingdom, destination_owner):
                 # Город назначения — союзный
-                self.move_troops(source_fortress_name, destination_fortress_name, unit_name, taken_count)
+                if total_diff < 300:
+                    self.move_troops(source_fortress_name, destination_fortress_name, unit_name, taken_count)
+                else:
+                    show_popup_message("Логистика не выдержит", "Слишком далеко. Найдите ближайший населенный пункт")
             elif self.is_enemy(current_player_kingdom, destination_owner):
-                # Город назначения — вражеский, запускаем сражение
-                self.start_battle(source_fortress_name, destination_fortress_name, unit_name, taken_count)
+                # Город назначения — вражеский
+                if total_diff < 300:
+                    self.start_battle(source_fortress_name, destination_fortress_name, unit_name, taken_count)
+                else:
+                    show_popup_message("Логистика не выдержит", "Слишком далеко. Найдите ближайший населенный пункт")
             else:
                 # Город назначения — нейтральный, нельзя передавать войска
                 show_popup_message("Ошибка", "Нельзя нападать на нейтральный город.")
@@ -1198,6 +1212,22 @@ class FortressInfoPopup(Popup):
             show_popup_message("Ошибка", f"Произошла ошибка при работе с базой данных(transfer): {e}")
         except Exception as e:
             show_popup_message("Ошибка", f"Произошла ошибка при переносе войск: {e}")
+
+    def get_city_coordinates(self, city_name):
+        """
+        Возвращает координаты указанного города.
+        :param city_name: Название города.
+        :return: Кортеж (x, y) с координатами города.
+        """
+        cursor = self.cursor
+        cursor.execute("SELECT coordinates FROM cities WHERE name = ?", (city_name,))
+        result = cursor.fetchone()
+        if result:
+            # Преобразуем строку "[x, y]" в кортеж (x, y)
+            coords_str = result[0].strip('[]')
+            x, y = map(int, coords_str.split(','))
+            return x, y
+        raise ValueError(f"Город '{city_name}' не найден в базе данных.")
 
     def move_troops(self, source_fortress_name, destination_fortress_name, unit_name, taken_count):
         """
