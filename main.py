@@ -8,6 +8,8 @@ from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
 from kivy.uix.widget import Widget
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.textinput import TextInput
+from kivy.graphics import Rectangle, Color
+from kivy.core.text import Label as CoreLabel
 
 import random
 from game_process import GameScreen
@@ -204,6 +206,9 @@ class HallOfFameWidget(FloatLayout):
         app.root.add_widget(MenuWidget())
 
 
+
+
+
 class MapWidget(Widget):
     def __init__(self, selected_kingdom=None, player_kingdom=None, **kwargs):
         super(MapWidget, self).__init__(**kwargs)
@@ -285,6 +290,20 @@ class MapWidget(Widget):
 
                 # Рисуем изображение крепости
                 Rectangle(source=image_path, pos=(drawn_x, drawn_y), size=(40, 40))
+
+                # Добавляем название города под значком
+                label = CoreLabel(text=fortress_name, font_size=12, color=(0, 0, 0, 1))
+                label.refresh()
+                text_texture = label.texture
+                text_width, text_height = text_texture.size
+
+                # Вычисляем позицию текста (центрируем его под значком)
+                text_x = drawn_x + (40 - text_width) / 2  # Центрируем по ширине
+                text_y = drawn_y - text_height - 5  # Размещаем ниже значка
+
+                # Рисуем текст
+                Color(1, 1, 1, 1)  # Белый цвет текста
+                Rectangle(texture=text_texture, pos=(text_x, text_y), size=(text_width, text_height))
 
     def check_fortress_click(self, touch):
         # Проверяем, была ли нажата крепость

@@ -1187,7 +1187,7 @@ class FortressInfoPopup(Popup):
             x_diff = abs(source_coords[0] - destination_coords[0])
             y_diff = abs(source_coords[1] - destination_coords[1])
             total_diff = x_diff + y_diff
-
+            print('total_diff:', total_diff)
             # Проверяем статус города назначения
             if destination_owner == current_player_kingdom:
                 # Город назначения — свой
@@ -1200,7 +1200,7 @@ class FortressInfoPopup(Popup):
                     show_popup_message("Логистика не выдержит", "Слишком далеко. Найдите ближайший населенный пункт")
             elif self.is_enemy(current_player_kingdom, destination_owner):
                 # Город назначения — вражеский
-                if total_diff < 300:
+                if total_diff < 250:
                     self.start_battle(source_fortress_name, destination_fortress_name, unit_name, taken_count)
                 else:
                     show_popup_message("Логистика не выдержит", "Слишком далеко. Найдите ближайший населенный пункт")
