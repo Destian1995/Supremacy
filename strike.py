@@ -116,6 +116,8 @@ def strike_to_city(city_name, weapon_characteristics, db_connection):
     """
     Наносит удар по городу с использованием характеристик оружия.
     """
+
+    global air_defense_coefficient
     cursor = db_connection.cursor()
 
     # Получаем данные об армии города (юниты и их количество)
@@ -125,7 +127,6 @@ def strike_to_city(city_name, weapon_characteristics, db_connection):
         WHERE city_id = ?
     ''', (city_name,))
     army_units = cursor.fetchall()
-
     if not army_units:
         print(f"Армия города '{city_name}' пуста. Урон наносится по инфраструктуре.")
         strike_to_infrastructure(city_name, weapon_characteristics, db_connection)
@@ -151,31 +152,63 @@ def strike_to_city(city_name, weapon_characteristics, db_connection):
 
     # Вычисляем общую силу армии (защита + живучесть) * количество юнитов
     total_strength = sum(
-        (data['defense'] + data['durability']) * data['count']
+        ((data['defense'] + data['durability']) * 10 * data['count'])
         for data in unit_data.values()
     )
 
-    # Наносим урон
-    weapon_damage = weapon_characteristics['damage'] * weapon_characteristics['count']
-    air_defense_coefficient = weapon_characteristics.get('koef', 1)
-    effective_weapon_damage = weapon_damage * air_defense_coefficient
+    # Загружаем коэффициент преодоления ПВО из таблицы weapons_stats
+    weapon_name = weapon_characteristics['name']
+    cursor.execute('''
+        SELECT koef
+        FROM weapons_stats
+        WHERE weapon_name = ?
+    ''', (weapon_name,))
+    result = cursor.fetchone()
+    if result:
+        air_defense_coefficient = result[0]
+
+    else:
+        print(f"Коэффициент для оружия '{weapon_name}' не найден")
+    print(f"Коэффициент для оружия '{weapon_name}': {air_defense_coefficient}")
+    # Расчет урона от оружия
+    weapon_damage = weapon_characteristics['damage']
+    weapon_count = weapon_characteristics['count']
+    effective_weapon_damage = (weapon_damage * weapon_count * air_defense_coefficient) * (1 + weapon_count / 100)
 
     print(f"Эффективный урон от оружия: {effective_weapon_damage}")
     print(f"Общая защита армии: {total_strength}")
 
+    # Проверка условия x < y
+    if total_strength >= effective_weapon_damage:
+        print("Урон полностью заблокирован армией.")
+        show_all_missiles_shot_down_report(weapon_characteristics['count'])
+        return
+    damage = effective_weapon_damage/100
+    z = damage - total_strength
+    if z > total_strength / 10:
+        f = z - total_strength
+        w = (f * 100) / total_strength
+        if w < 7:
+            print("Урон блокирован на 100%.")
+            show_all_missiles_shot_down_report(weapon_characteristics['count'])
+            return
+        else:
+            r = effective_weapon_damage
+            print(f"Нанесение {r} урона.")
+            effective_weapon_damage = r
+    else:
+        print("Урон частично блокирован.")
+
+    # Применение урона к юнитам
     damage_info = []
     destroyed_units_count = 0
-
     for unit_name, data in unit_data.items():
         unit_count = data['count']
-        unit_strength = (data['defense'] + data['durability']) * unit_count
-
+        unit_strength = ((data['defense'] + data['durability'] * 10) * unit_count)
         # Процент вклада юнита в общую силу
         unit_percent = unit_strength / total_strength
         damage_to_unit = effective_weapon_damage * unit_percent
-
         remaining_strength = unit_strength - damage_to_unit
-
         if remaining_strength <= 0:
             destroyed_units_count += unit_count
             damage_info.append({
@@ -188,7 +221,7 @@ def strike_to_city(city_name, weapon_characteristics, db_connection):
                 WHERE city_id = ? AND unit_name = ?
             ''', (city_name, unit_name))
         else:
-            remaining_units = remaining_strength // (data['defense'] + data['durability'])
+            remaining_units = remaining_strength // ((data['defense'] + data['durability'] * 10))
             destroyed_count_for_unit = unit_count - int(remaining_units)
             destroyed_units_count += destroyed_count_for_unit
             damage_info.append({
@@ -210,6 +243,21 @@ def strike_to_city(city_name, weapon_characteristics, db_connection):
         strike_to_infrastructure(city_name, {'damage': remaining_damage}, db_connection)
 
     show_damage_info(damage_info, destroyed_units_count)
+
+
+def show_all_missiles_shot_down_report(missile_count):
+    """
+    Отображает отчет о том, что все ракеты были сбиты.
+    """
+    content = BoxLayout(orientation='vertical')
+    message = f"Все выпущенные {missile_count} единиц были успешно сбиты системой ПВО.\n"
+    label = Label(text=message, size_hint_y=None, height=200)
+    close_button = Button(text="Закрыть", size_hint_y=None, height=50)
+    close_button.bind(on_release=lambda instance: popup.dismiss())
+    content.add_widget(label)
+    content.add_widget(close_button)
+    popup = Popup(title="Результат удара", content=content, size_hint=(0.7, 0.7))
+    popup.open()
 
 
 # Функция расчета урона по инфраструктуре

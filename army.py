@@ -1006,7 +1006,7 @@ def select_weapon(weapon_name, weapons, faction, army_cash):
         color=(0.9, 0.9, 0.9, 1)
     ))
     info_layout.add_widget(Label(
-        text=f"[b]Стоимость:[/b] {weapon_info.get('cost', [0, 0])[0]} Крон, {weapon_info.get('cost', [0, 0])[1]} Рабочих",
+        text=f"[b]Стоимость:[/b] \n {weapon_info.get('cost', [0, 0])[0]} Крон,  \n {weapon_info.get('cost', [0, 0])[1]} Рабочих",
         markup=True,
         color=(0.9, 0.9, 0.9, 1)
     ))
