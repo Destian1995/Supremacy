@@ -101,6 +101,7 @@ class AIController:
 
         except sqlite3.Error as e:
             print(f"Ошибка при загрузке зданий: {e}")
+
     def load_garrison(self):
         """
         Загружает гарнизон фракции из базы данных.
@@ -116,23 +117,19 @@ class AIController:
             """
             self.cursor.execute(query, (self.faction,))
             rows = self.cursor.fetchall()
-
             garrison = {}
             for row in rows:
-                city_id, unit_name, count, faction = row
+                city_name, unit_name, count, faction = row
                 if faction != self.faction:
                     continue  # Пропускаем юниты, не принадлежащие текущей фракции
-
-                if city_id not in garrison:
-                    garrison[city_id] = []
-                garrison[city_id].append({
+                if city_name not in garrison:
+                    garrison[city_name] = []
+                garrison[city_name].append({
                     "unit_name": unit_name,
                     "unit_count": count
                 })
-
             print(f"Гарнизон для фракции {self.faction} успешно загружен: {garrison}")
             return garrison
-
         except Exception as e:
             print(f"Ошибка при загрузке гарнизона для фракции {self.faction}: {e}")
             return {}
@@ -157,13 +154,35 @@ class AIController:
         }
 
     def load_cities(self):
-        query = """
-            SELECT id, name 
-            FROM cities 
-            WHERE faction = ?
         """
-        self.cursor.execute(query, (self.faction,))
-        return {row[0]: row[1] for row in self.cursor.fetchall()}
+        Загружает список городов для текущей фракции из таблицы cities.
+        Выводит отладочную информацию о загруженных городах.
+        """
+        try:
+            # SQL-запрос для получения списка городов
+            query = """
+                SELECT id, name 
+                FROM cities 
+                WHERE faction = ?
+            """
+            self.cursor.execute(query, (self.faction,))
+            rows = self.cursor.fetchall()
+
+            # Преобразуем результат в словарь {id: name}
+            cities = {row[0]: row[1] for row in rows}
+
+            # Отладочный вывод: информация о загруженных городах
+            print(f"Загружены города для фракции '{self.faction}':")
+            if cities:
+                for city_id, city_name in cities.items():
+                    print(f"  ID: {city_id}, Название: {city_name}")
+            else:
+                print("  Города не найдены.")
+
+            return cities
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке городов для фракции '{self.faction}': {e}")
+            return {}
 
     # Методы сохранения данных в БД
     def save_resources_to_db(self):
@@ -260,42 +279,44 @@ class AIController:
     def save_garrison(self):
         """
         Сохраняет гарнизон в базу данных.
-        Добавляет или обновляет записи для каждого города, ориентируясь на city_id.
+        Обновляет существующие записи или создает новые, если их нет, ориентируясь на city_name и unit_name.
         """
         try:
-            # Удаляем старые записи для текущей фракции
-            self.cursor.execute("DELETE FROM garrisons WHERE faction = ?", (self.faction,))
-
             # Для каждого города обновляем или добавляем записи гарнизона
-            for city_id, units in self.garrison.items():
+            for city_name, units in self.garrison.items():
+                print(f"Обработка гарнизона для города {city_name}: {units}")
                 for unit in units:
-                    # Проверяем, существует ли уже запись для данного city_id и unit_name
+                    unit_name = unit['unit_name']
+                    unit_count = unit['unit_count']
+                    unit_image = self.get_unit_image(unit_name)
+                    print(f"  Обработка юнита: {unit_name}, Количество: {unit_count}, Изображение: {unit_image}")
+
+                    # Проверяем, существует ли уже запись для данного city_name и unit_name
                     self.cursor.execute("""
                         SELECT unit_count
                         FROM garrisons
                         WHERE city_id = ? AND unit_name = ?
-                    """, (city_id, unit['unit_name']))
+                    """, (city_name, unit_name))
                     existing_record = self.cursor.fetchone()
 
                     if existing_record:
                         # Если запись существует, обновляем количество юнитов
-                        new_count = existing_record[0] + unit['unit_count']
+                        new_count = existing_record[0] + unit_count
+                        print(
+                            f"  Обновление записи: city_id={city_name}, unit_name={unit_name}, новое количество={new_count}")
                         self.cursor.execute("""
                             UPDATE garrisons
                             SET unit_count = ?
                             WHERE city_id = ? AND unit_name = ?
-                        """, (new_count, city_id, unit['unit_name']))
+                        """, (new_count, city_name, unit_name))
                     else:
                         # Если записи нет, добавляем новую
+                        print(
+                            f"  Добавление новой записи: city_id={city_name}, unit_name={unit_name}, unit_count={unit_count}")
                         self.cursor.execute("""
                             INSERT INTO garrisons (city_id, unit_name, unit_count, unit_image)
                             VALUES (?, ?, ?, ?)
-                        """, (
-                            city_id,
-                            unit['unit_name'],
-                            unit['unit_count'],
-                            self.get_unit_image(unit['unit_name'])
-                        ))
+                        """, (city_name, unit_name, unit_count, unit_image))
 
             # Сохраняем изменения в базе данных
             self.db_connection.commit()
@@ -428,6 +449,9 @@ class AIController:
         """
         crowns = self.resources['Кроны']
 
+        # Отладочный вывод: текущие кроны
+        print(f"Текущие кроны: {crowns}")
+
         if crowns <= 0:
             print("Недостаточно средств для найма армии.")
             return
@@ -443,27 +467,29 @@ class AIController:
                 max_units = possible_units
                 best_unit = (unit_name, unit_data)
 
-        if best_unit:
-            unit_name, unit_data = best_unit
-            total_cost = max_units * unit_data['cost']
-
-            # Списываем ресурсы
-            self.resources['Кроны'] -= total_cost
-
-            # Находим город с наибольшим количеством зданий
-            target_city = max(self.buildings.items(), key=lambda city: sum(city[1]['Здания'].values()))[0]
-            city_id = [id for id, name in self.cities.items() if name == target_city][0]
-
-            # Добавляем юниты в гарнизон через метод save_garrison
-            new_garrison_entry = {
-                city_id: [{"unit_name": unit_name, "unit_count": max_units}]
-            }
-            self.garrison.update(new_garrison_entry)
-            self.save_garrison()
-
-            print(f"Нанято {max_units} юнитов '{unit_name}' за {total_cost} крон в городе {target_city}")
-        else:
+        if not best_unit:
             print("Недостаточно средств для найма армии.")
+            return
+
+        unit_name, unit_data = best_unit
+        total_cost = max_units * unit_data['cost']
+
+        # Списываем ресурсы
+        self.resources['Кроны'] -= total_cost
+
+        # Находим город с наибольшим количеством зданий
+        target_city = max(self.buildings.items(), key=lambda city: sum(city[1]['Здания'].values()))[0]
+        print(f"Выбран город для найма: {target_city}.")
+
+        # Добавляем юниты в гарнизон через метод save_garrison
+        new_garrison_entry = {
+            target_city: [{"unit_name": unit_name, "unit_count": max_units}]
+        }
+        self.garrison.update(new_garrison_entry)
+        print("Гарнизон после найма армии:", self.garrison)
+
+        self.save_garrison()
+        print(f"Нанято {max_units} юнитов '{unit_name}' за {total_cost} крон в городе {target_city}.")
 
     def calculate_tax_income(self):
         """
