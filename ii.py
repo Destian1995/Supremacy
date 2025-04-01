@@ -5,6 +5,7 @@ import random
 class AIController:
     def __init__(self, faction, db_path='game_data.db'):
         self.faction = faction
+        self.turn = 0
         self.db_connection = sqlite3.connect(db_path)
         self.cursor = self.db_connection.cursor()
         self.resources = {"Кроны": 0, "Сырье": 0, "Рабочие": 0, "Население": 0}
@@ -136,19 +137,22 @@ class AIController:
 
     def load_army(self):
         query = """
-            SELECT unit_name, cost_money, attack, defense, durability, unit_class 
+            SELECT unit_name, cost_money, cost_time, attack, defense, durability, unit_class 
             FROM units 
             WHERE faction = ?
         """
         self.cursor.execute(query, (self.faction,))
         return {
-            row[0]: {
-                "cost": row[1],
-                "stats": {
-                    "Атака": row[2],
-                    "Защита": row[3],
-                    "Прочность": row[4],
-                    "Класс": row[5]
+            row[0]: {  # unit_name
+                "cost": {  # Стоимость юнита
+                    "money": row[1],  # cost_money
+                    "time": row[2]  # cost_time
+                },
+                "stats": {  # Характеристики юнита
+                    "Атака": row[3],
+                    "Защита": row[4],
+                    "Прочность": row[5],
+                    "Класс": row[6]
                 }
             } for row in self.cursor.fetchall()
         }
@@ -327,33 +331,27 @@ class AIController:
     def manage_buildings(self):
         try:
             crowns = self.resources['Кроны']
+
+            # Бюджет на строительство (90% от текущих крон)
             building_budget = int(crowns * 0.9)
 
-            # Проверяем, достаточно ли бюджета
+            # Проверяем, достаточно ли средств для начала строительства
             if building_budget < 500:
                 print("Недостаточно средств для строительства.")
                 return
 
-            # Строим здания пакетами
-            while building_budget >= 1200:
-                if not self.build_in_city('Больница', 2):
-                    break
-                building_budget -= 600
+            # Вычисляем, сколько зданий каждого типа можно построить
+            result_buildings = building_budget // 500  # Количество пакетов по 500 крон
+            hospitals_to_build = result_buildings
+            factories_to_build = result_buildings
 
-                if not self.build_in_city('Фабрика', 3):
-                    break
-                building_budget -= 600
+            # Строим все больницы сразу
+            if hospitals_to_build > 0:
+                self.build_in_city('Больница', hospitals_to_build)
 
-            # Строим оставшиеся здания
-            while building_budget >= 200:
-                if building_budget >= 300:
-                    if not self.build_in_city('Больница', 1):
-                        break
-                    building_budget -= 300
-                elif building_budget >= 200:
-                    if not self.build_in_city('Фабрика', 1):
-                        break
-                    building_budget -= 200
+            # Строим все фабрики сразу
+            if factories_to_build > 0:
+                self.build_in_city('Фабрика', factories_to_build)
 
             # Сохраняем данные
             self.save_all_data()
@@ -364,8 +362,6 @@ class AIController:
     def build_in_city(self, building_type, count):
         """
         Строительство зданий в городе.
-        Первый ход: строит 2 больницы и 3 фабрики в предопределенных городах.
-        Последующие ходы: строит здания в случайных городах.
         """
         cost = 300 if building_type == 'Больница' else 200
         total_cost = cost * count
@@ -448,48 +444,142 @@ class AIController:
         Добавляет новые юниты в гарнизон через метод save_garrison.
         """
         crowns = self.resources['Кроны']
+        works = self.resources['Рабочие']
 
-        # Отладочный вывод: текущие кроны
-        print(f"Текущие кроны: {crowns}")
+        # Отладочный вывод: текущие ресурсы
+        print(f"Текущие кроны: {crowns}, Текущие рабочие: {works}")
 
-        if crowns <= 0:
+        if crowns <= 0 or works <= 0:
             print("Недостаточно средств для найма армии.")
             return
 
-        best_unit = None
-        max_units = 0
+        # Определение стадии игры
+        early_game = self.turn < 15  # Первые 15 ходов — ранняя игра
+        mid_game = 15 <= self.turn <= 100  # Средняя игра (15–100 ходы)
+        late_game = self.turn > 100  # Поздняя игра (после 100 хода)
 
-        # Находим лучший юнит для найма
+        # Распределение ресурсов в зависимости от стадии игры
+        resource_allocation = {
+            "attack": 0.3,  # 30% на атаку
+            "defense": 0.7  # 70% на защиту
+        }
+        if mid_game:
+            resource_allocation = {
+                "attack": 0.4,  # 40% на атаку
+                "defense": 0.6  # 60% на защиту
+            }
+        elif late_game:
+            resource_allocation = {
+                "attack": 0.20,  # 20% на атаку
+                "defense": 0.6,  # 60% на защиту
+                "middle": 0.10,  # 10% на универсальных юнитов
+                "hard_attack": 0.10  # 10% на супер ударных юнитов
+            }
+
+        # Списки для найма юнитов по категориям
+        hired_units = {
+            "attack": {"unit_name": None, "max_units": 0, "best_efficiency": 0},
+            "defense": {"unit_name": None, "max_units": 0, "best_efficiency": 0},
+            "middle": {"unit_name": None, "max_units": 0, "best_efficiency": 0},
+            "hard_attack": {"unit_name": None, "max_units": 0, "best_efficiency": 0}  # Новая категория
+        }
+
+        # Проходим по всем доступным юнитам
         for unit_name, unit_data in self.army.items():
-            unit_cost = unit_data['cost']
-            possible_units = crowns // unit_cost
-            if possible_units > max_units:
-                max_units = possible_units
-                best_unit = (unit_name, unit_data)
+            cost_money = unit_data['cost']['money']
+            cost_time = unit_data['cost']['time']
+            attack = unit_data['stats']['Атака']
+            defense = unit_data['stats']['Защита']
+            durability = unit_data['stats']['Прочность']
 
-        if not best_unit:
+            # Считаем, сколько юнитов можно нанять
+            units_by_money = crowns // cost_money
+            units_by_works = works // cost_time
+            affordable_units = min(units_by_money, units_by_works)
+
+            if affordable_units <= 0:
+                continue  # Пропускаем юниты, которых нельзя нанять
+
+            # Рассчитываем эффективность юнита для разных категорий
+            efficiency_attack = attack / (cost_money + cost_time)
+            efficiency_defense = (defense + durability) / (cost_money + cost_time)
+            efficiency_middle = (attack + defense + durability) / (cost_money + cost_time)
+
+            # Выбираем лучшие юниты для каждой категории
+            if efficiency_attack > hired_units["attack"]["best_efficiency"]:
+                hired_units["attack"] = {
+                    "unit_name": unit_name,
+                    "max_units": affordable_units,
+                    "best_efficiency": efficiency_attack
+                }
+            if efficiency_defense > hired_units["defense"]["best_efficiency"]:
+                hired_units["defense"] = {
+                    "unit_name": unit_name,
+                    "max_units": affordable_units,
+                    "best_efficiency": efficiency_defense
+                }
+            if late_game and efficiency_middle > hired_units["middle"]["best_efficiency"]:
+                hired_units["middle"] = {
+                    "unit_name": unit_name,
+                    "max_units": affordable_units,
+                    "best_efficiency": efficiency_middle
+                }
+
+            # Для поздней игры выбираем юниты с максимальной атакой
+            if late_game and attack > hired_units["hard_attack"]["best_efficiency"]:
+                hired_units["hard_attack"] = {
+                    "unit_name": unit_name,
+                    "max_units": affordable_units,
+                    "best_efficiency": attack  # Учитываем только атаку
+                }
+
+        # Расчет количества юнитов для найма в зависимости от распределения ресурсов
+        total_units = {}
+        for category, allocation in resource_allocation.items():
+            if hired_units[category]["unit_name"]:
+                max_units = int(hired_units[category]["max_units"] * allocation)
+                if max_units > 0:
+                    total_units[category] = {
+                        "unit_name": hired_units[category]["unit_name"],
+                        "max_units": max_units
+                    }
+
+        # Если нет подходящих юнитов
+        if not total_units:
             print("Недостаточно средств для найма армии.")
             return
 
-        unit_name, unit_data = best_unit
-        total_cost = max_units * unit_data['cost']
-
-        # Списываем ресурсы
-        self.resources['Кроны'] -= total_cost
-
-        # Находим город с наибольшим количеством зданий
-        target_city = max(self.buildings.items(), key=lambda city: sum(city[1]['Здания'].values()))[0]
+        # Найм юнитов и списание ресурсов
+        target_city = max(
+            self.buildings.items(),
+            key=lambda city: sum(city[1]['Здания'].values())
+        )[0]
         print(f"Выбран город для найма: {target_city}.")
 
-        # Добавляем юниты в гарнизон через метод save_garrison
-        new_garrison_entry = {
-            target_city: [{"unit_name": unit_name, "unit_count": max_units}]
-        }
-        self.garrison.update(new_garrison_entry)
-        print("Гарнизон после найма армии:", self.garrison)
+        new_garrison_entry = {target_city: []}
+        for category, unit_info in total_units.items():
+            unit_name = unit_info["unit_name"]
+            max_units = unit_info["max_units"]
+            unit_data = self.army[unit_name]
+            cost_money = unit_data['cost']['money']
+            cost_time = unit_data['cost']['time']
 
+            # Списываем ресурсы
+            total_cost_money = max_units * cost_money
+            total_cost_time = max_units * cost_time
+            self.resources['Кроны'] -= total_cost_money
+            self.resources['Рабочие'] -= total_cost_time
+
+            # Добавляем юниты в гарнизон
+            new_garrison_entry[target_city].append({"unit_name": unit_name, "unit_count": max_units})
+            print(
+                f"Нанято {max_units} юнитов '{unit_name}' за {total_cost_money} крон и {total_cost_time} рабочих в городе {target_city}."
+            )
+
+        # Обновляем гарнизон
+        self.garrison.update(new_garrison_entry)
         self.save_garrison()
-        print(f"Нанято {max_units} юнитов '{unit_name}' за {total_cost} крон в городе {target_city}.")
+        print("Гарнизон после найма армии:", self.garrison)
 
     def calculate_tax_income(self):
         """
@@ -752,6 +842,6 @@ class AIController:
 
             # 6. Сохраняем все изменения в базу данных
             self.save_all_data()
-
+            self.turn += 1
         except Exception as e:
             print(f"Ошибка при выполнении хода: {e}")

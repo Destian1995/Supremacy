@@ -141,26 +141,20 @@ class GameScreen(Screen):
         super(GameScreen, self).__init__(**kwargs)
         self.selected_faction = selected_faction
         self.cities = cities
-
         # Инициализация GameStateManager
         self.game_state_manager = GameStateManager()
         self.game_state_manager.initialize(selected_faction)
-
         # Доступ к объектам через менеджер состояния
         self.faction = self.game_state_manager.faction
         self.conn = self.game_state_manager.conn
         self.cursor = self.game_state_manager.cursor
         self.turn_counter = self.game_state_manager.turn_counter
-
         # Инициализация AI-контроллеров
         self.ai_controllers = {}
-
         # Инициализация EventManager
         self.event_manager = EventManager(self.selected_faction, self)
-
         # Инициализация UI
         self.init_ui()
-
         # Запускаем обновление ресурсов каждую 1 секунду
         Clock.schedule_interval(self.update_cash, 1)
 
@@ -177,7 +171,6 @@ class GameScreen(Screen):
 
         # Боковая панель с кнопками режимов
         self.mode_panel = BoxLayout(orientation='vertical', size_hint=(0.2, 1), pos_hint={'x': -0.06, 'y': 0})
-
         # Кнопки режимов
         btn_economy = ImageButton(source='files/status/economy.jpg', size_hint_y=None, height=50, width=50,
                                   on_press=self.switch_to_economy)
@@ -192,7 +185,6 @@ class GameScreen(Screen):
             width=40,
             on_press=self.show_advisor
         )
-
         self.mode_panel.add_widget(btn_advisor)
         self.mode_panel.add_widget(btn_economy)
         self.mode_panel.add_widget(btn_army)
@@ -213,12 +205,61 @@ class GameScreen(Screen):
         )
         self.add_widget(end_turn_button)
 
+        # Добавляем метку для отображения текущего хода
+        self.turn_label = Label(
+            text=f"Текущий ход: {self.turn_counter}",
+            font_size='18sp',
+            size_hint=(None, None),
+            size=(190, 30),
+            pos_hint={'right': 1, 'top': 0.93},  # Размещаем под кнопкой "Завершить ход"
+            color=(0, 0, 0, 1)  # Черный цвет текста
+        )
+        self.add_widget(self.turn_label)
+
         # Добавление ResourceBox в верхний правый угол
         self.resource_box = ResourceBox(resource_manager=self.faction)
         self.add_widget(self.resource_box)
 
         # Инициализация ИИ для остальных фракций
         self.init_ai_controllers()
+
+    def process_turn(self, instance=None):
+        """Обработка хода игрока и ИИ"""
+        # Увеличиваем счетчик ходов
+        self.turn_counter += 1
+
+        # Обновляем метку с текущим ходом
+        self.turn_label.text = f"Текущий ход: {self.turn_counter}"
+
+        # Сохраняем текущее значение хода в таблицу turn
+        self.save_turn(self.selected_faction, self.turn_counter)
+        # Сохраняем историю ходов в таблицу turn_save
+        self.save_turn_history(self.selected_faction, self.turn_counter)
+
+        # Обновляем ресурсы игрока
+        self.faction.update_resources()
+        self.resource_box.update_resources()
+
+        # Путь к каталогу с файлами
+        attack_in_city_dir = r'files\config\attack_in_city'
+        # Проставляем 'True' во всех файлах в каталоге после нападения
+        for filename in os.listdir(attack_in_city_dir):
+            if filename.endswith('_check.txt'):
+                file_path = os.path.join(attack_in_city_dir, filename)
+                with open(file_path, 'w', encoding='utf-8') as file:
+                    file.write("True")
+
+        # Выполнение хода для всех ИИ
+        for ai_controller in self.ai_controllers.values():
+            ai_controller.make_turn()
+
+        # Логирование или обновление интерфейса после хода
+        print(f"Ход {self.turn_counter} завершён")
+
+        # Проверяем, нужно ли запустить событие
+        if self.turn_counter % 3 == 0:
+            print("Генерация события...")
+            self.event_manager.generate_event()
 
     def update_cash(self, dt):
         """Обновление текущего капитала фракции через каждые 1 секунду."""
@@ -282,41 +323,6 @@ class GameScreen(Screen):
         ''', (faction, turn_count))
         self.conn.commit()
 
-    def process_turn(self, instance=None):
-        """Обработка хода игрока и ИИ"""
-        # Увеличиваем счетчик ходов
-        self.turn_counter += 1
-
-        # Сохраняем текущее значение хода в таблицу turn
-        self.save_turn(self.selected_faction, self.turn_counter)
-
-        # Сохраняем историю ходов в таблицу turn_save
-        self.save_turn_history(self.selected_faction, self.turn_counter)
-
-        # Обновляем ресурсы игрока
-        self.faction.update_resources()
-        self.resource_box.update_resources()
-
-        # Путь к каталогу с файлами
-        attack_in_city_dir = r'files\config\attack_in_city'
-        # Проставляем 'True' во всех файлах в каталоге после нападения
-        for filename in os.listdir(attack_in_city_dir):
-            if filename.endswith('_check.txt'):
-                file_path = os.path.join(attack_in_city_dir, filename)
-                with open(file_path, 'w', encoding='utf-8') as file:
-                    file.write("True")
-
-        # Выполнение хода для всех ИИ
-        for ai_controller in self.ai_controllers.values():
-            ai_controller.make_turn()
-
-        # Логирование или обновление интерфейса после хода
-        print(f"Ход {self.turn_counter} завершён")
-
-        # Проверяем, нужно ли запустить событие
-        if self.turn_counter % 3 == 0:
-            print("Генерация события...")
-            self.event_manager.generate_event()
 
     def reset_game(self):
         """Сброс игры (например, при новой игре)."""
