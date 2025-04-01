@@ -443,6 +443,8 @@ class AIController:
         Найм армии.
         Добавляет новые юниты в гарнизон через метод save_garrison.
         """
+        global resource_allocation
+
         crowns = self.resources['Кроны']
         works = self.resources['Рабочие']
 
