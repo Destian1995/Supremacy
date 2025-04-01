@@ -454,15 +454,16 @@ class AIController:
             return
 
         # Определение стадии игры
-        early_game = self.turn < 15  # Первые 15 ходов — ранняя игра
-        mid_game = 15 <= self.turn <= 100  # Средняя игра (15–100 ходы)
-        late_game = self.turn > 100  # Поздняя игра (после 100 хода)
+        early_game = self.turn < 17  # ранняя игра
+        mid_game = 17 <= self.turn <= 40  # Средняя игра
+        late_game = self.turn > 40  # Поздняя игра
 
         # Распределение ресурсов в зависимости от стадии игры
-        resource_allocation = {
-            "attack": 0.3,  # 30% на атаку
-            "defense": 0.7  # 70% на защиту
-        }
+        if early_game:
+            resource_allocation = {
+                "attack": 0.8,  # 80% на атаку
+                "defense": 0.2  # 20% на защиту
+            }
         if mid_game:
             resource_allocation = {
                 "attack": 0.4,  # 40% на атаку
