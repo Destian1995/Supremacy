@@ -10,6 +10,7 @@ class AIController:
         self.cursor = self.db_connection.cursor()
         self.resources = {"Кроны": 0, "Сырье": 0, "Рабочие": 0, "Население": 0}
         self.garrison = self.load_garrison()
+        self.relations = self.load_relations()
         self.buildings = {}
         self.turn_count = 0
         self.hospitals = 0
@@ -102,6 +103,28 @@ class AIController:
 
         except sqlite3.Error as e:
             print(f"Ошибка при загрузке зданий: {e}")
+
+    def load_relations(self):
+        """
+        Загружает отношения текущей фракции с остальными из базы данных.
+        Возвращает словарь, где ключи — названия фракций, а значения — уровни отношений.
+        """
+        try:
+            # Выполняем запрос к таблице relations
+            self.cursor.execute('''
+                SELECT faction2, relationship
+                FROM relations
+                WHERE faction1 = ?
+            ''', (self.faction,))
+            rows = self.cursor.fetchall()
+
+            # Преобразуем результат в словарь
+            relations = {faction2: relationship for faction2, relationship in rows}
+            return relations
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке отношений: {e}")
+            return {}
 
     def load_garrison(self):
         """
@@ -699,8 +722,6 @@ class AIController:
             print(f"Ресурсы успешно загружены из БД: {self.resources}")
         except sqlite3.Error as e:
             print(f"Ошибка при загрузке ресурсов из БД: {e}")
-
-
 
     def update_resources(self):
         """

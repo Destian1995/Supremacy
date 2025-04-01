@@ -1,4 +1,5 @@
 import os
+import sqlite3
 
 from kivy.animation import Animation
 from kivy.uix.gridlayout import GridLayout
@@ -68,6 +69,17 @@ def calculate_font_size():
     scale_factor = Window.height / base_height  # Коэффициент масштабирования
     return max(8, int(default_font_size * scale_factor))  # Минимальный размер шрифта — 8
 
+def show_warning(message, color=(1, 0, 0, 1)):
+    warning_popup = Popup(
+        title="Внимание",
+        content=Label(
+            text=message,
+            color=color,
+            font_size=font_size
+        ),
+        size_hint=(0.5, 0.3)
+    )
+    warning_popup.open()
 
 # Кастомная кнопка с анимациями и эффектами
 class StyledButton(ButtonBehavior, BoxLayout):
@@ -239,7 +251,7 @@ def show_trade_agreement_form(faction, game_area):
     input_height = font_size * 2.5  # Увеличиваем высоту полей ввода (в 2.5 раза от размера шрифта)
     padding = font_size // 2  # Отступы
     spacing = font_size // 4  # Промежутки между элементами
-
+    conn = sqlite3.connect('game_data.db')
     # Список всех фракций
     all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
     available_factions = [f for f in all_factions if f != faction]
@@ -354,61 +366,97 @@ def show_trade_agreement_form(faction, game_area):
     )
 
     def generate_agreement(instance):
-        """Формирование текста соглашения"""
-        faction_selected = factions_spinner.text
-        our_resource_selected = our_resource_spinner.text
-        their_resource_selected = their_resource_spinner.text
-        our_percentage = our_percentage_input.text
-        their_percentage = their_percentage_input.text
+        errors = []
 
-        if faction_selected == "С какой фракцией?":
-            agreement_summary.text = "Пожалуйста, выберите фракцию для соглашения."
+        # Проверка выбора фракции
+        if factions_spinner.text == "С какой фракцией?":
+            errors.append("Выберите фракцию")
+
+        # Проверка выбора ресурсов
+        if our_resource_spinner.text == "Наш ресурс":
+            errors.append("Выберите наш ресурс")
+        if their_resource_spinner.text == "Их ресурс":
+            errors.append("Выберите их ресурс")
+
+        # Проверка вводимых сумм
+        try:
+            our_amount = int(our_percentage_input.text)
+            their_amount = int(their_percentage_input.text)
+
+            if our_amount <= 0:
+                errors.append("Наша сумма должна быть > 0")
+            if their_amount <= 0:
+                errors.append("Их сумма должна быть > 0")
+        except ValueError:
+            errors.append("Введите корректные числа")
+
+        if errors:
+            agreement_summary.text = "\n".join(errors)
             return
 
-        if our_resource_selected == "Наш ресурс" or their_resource_selected == "Их ресурс":
-            agreement_summary.text = "Пожалуйста, выберите ресурсы для обмена."
-            return
-
-        if not our_percentage.isdigit() or not their_percentage.isdigit():
-            agreement_summary.text = "Укажите желаемую сумму."
-            return
-
+        # Если нет ошибок, формируем соглашение
         agreement_summary.text = (
-            f"Торговое соглашение с фракцией {faction_selected}.\n"
+            f"Торговое соглашение с фракцией {factions_spinner.text}.\n"
             f"Инициатор: {faction}.\n"
-            f"Наш ресурс: {our_resource_selected}.\n"
-            f"Их ресурс: {their_resource_selected}.\n"
-            f"Мы отправляем союзнику: {our_percentage} единиц.\n"
-            f"Мы получаем от союзника: {their_percentage} единиц."
+            f"Наш ресурс: {our_resource_spinner.text} ({our_amount}).\n"
+            f"Их ресурс: {their_resource_spinner.text} ({their_amount})."
         )
         send_button.opacity = 1
 
     def send_agreement(instance):
-        """Отправка условий договора в файл"""
         faction_selected = factions_spinner.text
+
+        # Проверка выбранной фракции
         if faction_selected == "С какой фракцией?":
+            show_warning("Пожалуйста, выберите фракцию!")
             return
 
-        agreement_data = {
-            "initiator": faction,
-            "target_faction": faction_selected,
-            "initiator_type_resource": our_resource_spinner.text,
-            "target_type_resource": their_resource_spinner.text,
-            "initiator_summ_resource": our_percentage_input.text,
-            "target_summ_resource": their_percentage_input.text
-        }
+        # Проверка числовых значений
+        try:
+            our_amount = int(our_percentage_input.text)
+            their_amount = int(their_percentage_input.text)
 
-        filename_friend = transform_filename(f'files/config/status/trade_dogovor/{faction_selected}.json')
-        filename_i_am = transform_filename(f'files/config/status/trade_dogovor/{faction}.json')
+            if our_amount <= 0 or their_amount <= 0:
+                raise ValueError()
+        except ValueError:
+            show_warning("Введите корректные положительные числа!")
+            return
 
-        with open(filename_friend, 'w', encoding='utf-8') as file:
-            json.dump(agreement_data, file, ensure_ascii=False, indent=4)
-        with open(filename_i_am, 'w', encoding='utf-8') as file:
-            json.dump(agreement_data, file, ensure_ascii=False, indent=4)
+        # Проверяем существующее соглашение
+        if check_existing_agreement(faction, faction_selected):
+            show_warning("Соглашение уже существует!")
+            return
 
-        agreement_summary.text = (f"Условия договора отправлены фракции {faction_selected}. \n"
-                                  f"Если его примут поставки придут через 1 ход")
+        try:
+            conn = sqlite3.connect('game_data.db')
+            cursor = conn.cursor()
 
+            cursor.execute("""
+                INSERT INTO trade_agreements 
+                (initiator, target_faction, initiator_type_resource, 
+                 target_type_resource, initiator_summ_resource, target_summ_resource)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                faction,
+                faction_selected,
+                our_resource_spinner.text,
+                their_resource_spinner.text,
+                our_amount,
+                their_amount
+            ))
+
+            conn.commit()
+            agreement_summary.text = (
+                f"Условия договора отправлены фракции {faction_selected}.\n"
+                f"Если его примут поставки придут через 1 ход"
+            )
+
+        except sqlite3.Error as e:
+            show_warning(f"Ошибка базы данных: {e}")
+
+        finally:
+            if conn:
+                conn.close()
     generate_button.bind(on_press=generate_agreement)
     send_button.bind(on_press=send_agreement)
     button_layout.add_widget(generate_button)
@@ -432,6 +480,21 @@ def show_trade_agreement_form(faction, game_area):
     )
     popup.open()
 
+
+def check_existing_agreement(initiator, target):
+    conn = sqlite3.connect('game_data.db')
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT * FROM trade_agreements 
+        WHERE (initiator = ? AND target_faction = ?)
+           OR (initiator = ? AND target_faction = ?)
+    """, (initiator, target, target, initiator))
+
+    result = cursor.fetchone()
+    conn.close()
+
+    return result is not None
 
 # Обработчик изменения размера окна
 def on_window_resize(instance, width, height):
