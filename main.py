@@ -117,7 +117,8 @@ def clear_tables(conn):
         "trade_agreements",
         "weapons",
         "turn",
-        "armies"
+        "armies",
+        "political_systems"
     ]
 
     cursor = conn.cursor()

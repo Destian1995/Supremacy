@@ -842,6 +842,156 @@ class AIController:
             print(f"Ошибка при получении изображения юнита '{unit_name}': {e}")
             return ""
 
+    def process_trade_agreements(self):
+        """
+        Обрабатывает торговые соглашения для текущей фракции.
+        Если текущая фракция является target_faction, анализирует сделку и принимает решение.
+        """
+        try:
+            # Загружаем текущие отношения с другими фракциями
+            self.relations = self.load_relations()
+
+            # Запрос для получения всех торговых соглашений, где текущая фракция является целевой
+            query = """
+                SELECT id, initiator, target_faction, initiator_type_resource, target_type_resource,
+                       initiator_summ_resource, target_summ_resource
+                FROM trade_agreements
+                WHERE target_faction = ?
+            """
+            self.cursor.execute(query, (self.faction,))
+            rows = self.cursor.fetchall()
+
+            for row in rows:
+                trade_id, initiator, target_faction, initiator_type_resource, target_type_resource, \
+                    initiator_summ_resource, target_summ_resource = row
+
+                # Проверяем уровень отношений с инициатором сделки
+                relation_level = self.relations.get(initiator, 0)
+
+                # Определяем коэффициент на основе уровня отношений
+                if relation_level < 15:
+                    print(f"Отказ от сделки с {initiator}. Низкий уровень отношений ({relation_level}).")
+                    self.return_resource_to_player(initiator, initiator_type_resource, initiator_summ_resource)
+                    self.remove_trade_agreement(trade_id)
+                    continue
+                elif 15 <= relation_level < 25:
+                    coefficient = 0.09
+                elif 25 <= relation_level < 35:
+                    coefficient = 0.2
+                elif 35 <= relation_level < 50:
+                    coefficient = 0.8
+                elif 50 <= relation_level < 60:
+                    coefficient = 1.0
+                elif 60 <= relation_level < 75:
+                    coefficient = 1.4
+                elif 75 <= relation_level < 90:
+                    coefficient = 2.0
+                elif 90 <= relation_level <= 100:
+                    coefficient = 3.1
+                else:
+                    return
+
+                # Рассчитываем соотношение обмена ресурсов
+                resource_ratio = target_summ_resource / initiator_summ_resource
+
+                # Проверяем, выгодна ли сделка
+                if resource_ratio < coefficient:
+                    print(
+                        f"Отказ от сделки с {initiator}. Не выгодное соотношение ({resource_ratio:.2f} < {coefficient:.2f}).")
+                    self.return_resource_to_player(initiator, initiator_type_resource, initiator_summ_resource)
+                    self.remove_trade_agreement(trade_id)
+                    continue
+
+                # Если сделка выгодна, выполняем обмен ресурсами
+                print(
+                    f"Принята сделка с {initiator}. Соотношение: {resource_ratio:.2f}, Коэффициент: {coefficient:.2f}.")
+                self.execute_trade(initiator, target_faction, initiator_type_resource, target_type_resource,
+                                   initiator_summ_resource, target_summ_resource)
+                self.remove_trade_agreement(trade_id)
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при обработке торговых соглашений: {e}")
+
+    def return_resource_to_player(self, initiator, resource_type, amount):
+        """
+        Возвращает ресурсы инициатору сделки в случае отказа.
+        """
+        try:
+            self.cursor.execute("""
+                UPDATE resources
+                SET amount = amount + ?
+                WHERE faction = ? AND resource_type = ?
+            """, (amount, initiator, resource_type))
+            self.db_connection.commit()
+            print(f"Возвращено {amount} {resource_type} фракции {initiator}.")
+        except sqlite3.Error as e:
+            print(f"Ошибка при возврате ресурсов: {e}")
+
+    def remove_trade_agreement(self, trade_id):
+        """
+        Удаляет торговое соглашение из базы данных.
+        """
+        try:
+            self.cursor.execute("""
+                DELETE FROM trade_agreements
+                WHERE id = ?
+            """, (trade_id,))
+            self.db_connection.commit()
+            print(f"Торговое соглашение ID={trade_id} удалено.")
+        except sqlite3.Error as e:
+            print(f"Ошибка при удалении торгового соглашения: {e}")
+
+    def execute_trade(self, initiator, target_faction, initiator_type_resource, target_type_resource,
+                      initiator_summ_resource, target_summ_resource):
+        """
+        Выполняет обмен ресурсами между фракциями.
+        """
+        try:
+            # Отнимаем ресурсы у инициатора
+            self.cursor.execute("""
+                UPDATE resources
+                SET amount = amount - ?
+                WHERE faction = ? AND resource_type = ?
+            """, (initiator_summ_resource, initiator, initiator_type_resource))
+
+            # Добавляем ресурсы целевой фракции
+            self.cursor.execute("""
+                UPDATE resources
+                SET amount = amount + ?
+                WHERE faction = ? AND resource_type = ?
+            """, (target_summ_resource, target_faction, target_type_resource))
+
+            # Добавляем ресурсы целевой фракции инициатору
+            self.cursor.execute("""
+                UPDATE resources
+                SET amount = amount + ?
+                WHERE faction = ? AND resource_type = ?
+            """, (initiator_summ_resource, target_faction, initiator_type_resource))
+
+            # Отнимаем ресурсы у целевой фракции
+            self.cursor.execute("""
+                UPDATE resources
+                SET amount = amount - ?
+                WHERE faction = ? AND resource_type = ?
+            """, (target_summ_resource, initiator, target_type_resource))
+
+            self.db_connection.commit()
+            print(f"Обмен ресурсами выполнен: {initiator} <-> {target_faction}.")
+        except sqlite3.Error as e:
+            print(f"Ошибка при выполнении обмена ресурсами: {e}")
+
+    def load_political_system(self):
+        """
+        Загружает текущую политическую систему фракции из базы данных.
+        """
+        try:
+            query = "SELECT system FROM political_systems WHERE faction = ?"
+            self.cursor.execute(query, (self.faction,))
+            result = self.cursor.fetchone()
+            return result[0] if result else "Капитализм"  # По умолчанию "Капитализм"
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке политической системы: {e}")
+            return "Капитализм"
     # Основная логика хода ИИ
     def make_turn(self):
         """
@@ -851,21 +1001,94 @@ class AIController:
             # 1. Обновляем ресурсы из базы данных
             self.update_resources()
 
-            # 2. Загружаем данные о зданиях
+            # 2. Применяем бонусы от политической системы
+            self.apply_political_system_bonus()
+
+            # 3. Изменяем отношения на основе политической системы
+            self.update_relations_based_on_political_system()
+
+            # 4. Загружаем данные о зданиях
             self.update_buildings_from_db()
 
-            # 3. Управление строительством (90% крон на строительство)
+            # 5. Управление строительством (90% крон на строительство)
             self.manage_buildings()
 
-            # 4. Продажа сырья (70% сырья, если его больше 10000)
+            # 6. Продажа сырья (70% сырья, если его больше 10000)
             resources_sold = self.sell_resources()
 
-            # 5. Найм армии (на оставшиеся деньги после строительства и продажи сырья)
+            # 7. Найм армии (на оставшиеся деньги после строительства и продажи сырья)
             if resources_sold:
                 self.hire_army()
 
-            # 6. Сохраняем все изменения в базу данных
+            # 8. Сохраняем все изменения в базу данных
             self.save_all_data()
+
+            # Увеличиваем счетчик ходов
             self.turn += 1
         except Exception as e:
             print(f"Ошибка при выполнении хода: {e}")
+
+    def apply_political_system_bonus(self):
+        """
+        Применяет бонусы от политической системы.
+        """
+        system = self.load_political_system()
+        if system == "Капитализм":
+            crowns_bonus = int(self.money_up * 0.15)
+            self.resources['Кроны'] = int(self.resources.get('Кроны', 0)) + crowns_bonus
+            print(f"Бонус от капитализма: +{crowns_bonus} Крон")
+        elif system == "Коммунизм":
+            raw_material_bonus = int(self.food_info * 0.15)
+            self.resources['Сырье'] = int(self.resources.get('Сырье', 0)) + raw_material_bonus
+            print(f"Бонус от коммунизма: +{raw_material_bonus} Сырья")
+
+    def update_relations_based_on_political_system(self):
+        """
+        Изменяет отношения на основе политической системы каждые 4 хода.
+        """
+        if self.turn % 4 != 0:
+            return
+
+        current_system = self.load_political_system()
+        all_factions = self.load_relations()
+
+        for faction, relation_level in all_factions.items():
+            other_system = self.load_political_system_for_faction(faction)
+
+            # Преобразуем relation_level в число
+            relation_level = int(relation_level)
+
+            if current_system == other_system:
+                new_relation = min(relation_level + 2, 100)
+            else:
+                new_relation = max(relation_level - 2, 0)
+
+            self.update_relation_in_db(faction, new_relation)
+
+    def load_political_system_for_faction(self, faction):
+        """
+        Загружает политическую систему указанной фракции.
+        """
+        try:
+            query = "SELECT system FROM political_systems WHERE faction = ?"
+            self.cursor.execute(query, (faction,))
+            result = self.cursor.fetchone()
+            return result[0] if result else "Капитализм"  # По умолчанию "Капитализм"
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке политической системы для фракции {faction}: {e}")
+            return "Капитализм"
+
+    def update_relation_in_db(self, faction, new_relation):
+        """
+        Обновляет уровень отношений в базе данных.
+        """
+        try:
+            query = """
+                UPDATE relations
+                SET relationship = ?
+                WHERE faction1 = ? AND faction2 = ?
+            """
+            self.cursor.execute(query, (new_relation, self.faction, faction))
+            self.db_connection.commit()
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении отношений для фракции {faction}: {e}")

@@ -109,6 +109,7 @@ class Faction:
         self.food_peoples = 0
         self.tax_effects = 0
         self.clear_up_peoples = 0
+        self.turn = 0
         self.last_turn_loaded = -1  # Последний загруженный номер хода
         self.raw_material_price_history = []  # История цен на еду
         self.current_tax_rate = 0  # Начальная ставка налога — по умолчанию 0%
@@ -570,7 +571,7 @@ class Faction:
         """
         try:
             for resource_type, amount in self.resources.items():
-                # Сначала проверяем, существует ли запись
+                # Проверяем, существует ли запись
                 self.cursor.execute('''
                     SELECT amount
                     FROM resources
@@ -592,10 +593,10 @@ class Faction:
                         VALUES (?, ?, ?)
                     ''', (self.faction, resource_type, amount))
 
-            # Сохраняем изменения
             self.conn.commit()
+            print("Ресурсы успешно сохранены в базу данных.")
         except sqlite3.Error as e:
-            print(f"Ошибка при сохранении ресурсов: {e}")
+            print(f"Ошибка при сохранении ресурсов в базу данных: {e}")
 
     def update_ally_resources_from_db(self):
         """
@@ -647,6 +648,117 @@ class Faction:
         except sqlite3.Error as e:
             print(f"Ошибка при обновлении ресурсов от союзников: {e}")
 
+    def load_relations(self):
+        """
+        Загружает текущие отношения из таблицы relations в базе данных.
+        Возвращает словарь, где ключи — названия фракций, а значения — уровни отношений.
+        """
+        try:
+            self.cursor.execute('''
+                SELECT faction2, relationship
+                FROM relations
+                WHERE faction1 = ?
+            ''', (self.faction,))
+            rows = self.cursor.fetchall()
+
+            # Преобразуем результат в словарь, преобразуя значения в числа
+            relations = {faction2: int(relationship) for faction2, relationship in rows}
+            return relations
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке отношений из таблицы relations: {e}")
+            return {}
+
+    def load_political_system(self):
+        """
+        Загружает текущую политическую систему фракции из базы данных.
+        """
+        try:
+            query = "SELECT system FROM political_systems WHERE faction = ?"
+            self.cursor.execute(query, (self.faction,))
+            result = self.cursor.fetchone()
+            return result[0] if result else "Капитализм"  # По умолчанию "Капитализм"
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке политической системы: {e}")
+            return "Капитализм"
+
+    def apply_player_bonuses(self):
+        """
+        Применяет бонусы игроку на основе его политической системы.
+        Также изменяет отношения с другими фракциями каждые 4 хода.
+        """
+        try:
+            # Применяем бонусы к ресурсам
+            system = self.load_political_system()
+            if system == "Капитализм":
+                # +15% Крон от общего прироста
+                crowns_bonus = int(self.money_up * 0.15)
+                self.money += crowns_bonus
+            elif system == "Коммунизм":
+                # +15% Сырья от общего прироста
+                raw_material_bonus = int(self.food_info * 0.15)
+                self.raw_material += raw_material_bonus
+
+            # Изменяем отношения с другими фракциями каждые 4 хода
+            if self.turn % 4 == 0:
+                print("Выполняем обновление отношений...")
+                self.update_relations_based_on_political_system()
+
+        except Exception as e:
+            print(f"Ошибка при применении бонусов игроку: {e}")
+
+    def load_political_system_for_faction(self, faction):
+        """
+        Загружает политическую систему указанной фракции.
+        """
+        try:
+            query = "SELECT system FROM political_systems WHERE faction = ?"
+            self.cursor.execute(query, (faction,))
+            result = self.cursor.fetchone()
+            return result[0] if result else "Капитализм"  # По умолчанию "Капитализм"
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке политической системы для фракции {faction}: {e}")
+            return "Капитализм"
+
+    def update_relations_based_on_political_system(self):
+        """
+        Изменяет отношения на основе политической системы каждые 4 хода.
+        """
+        current_system = self.load_political_system()
+        all_factions = self.load_relations()
+
+        for faction, relation_level in all_factions.items():
+            other_system = self.load_political_system_for_faction(faction)
+
+            if current_system == other_system:
+                # Улучшаем отношения на +2%
+                new_relation = min(relation_level + 2, 100)
+                print(f"Улучшение отношений с {faction}: {relation_level} -> {new_relation}")
+            else:
+                # Ухудшаем отношения на -2%
+                new_relation = max(relation_level - 2, 0)
+                print(f"Ухудшение отношений с {faction}: {relation_level} -> {new_relation}")
+
+            # Обновляем уровень отношений в базе данных
+            self.update_relation_in_db(faction, new_relation)
+
+    def update_relation_in_db(self, faction, new_relation):
+        """
+        Обновляет уровень отношений в базе данных.
+        """
+        try:
+            print(f"Обновляем отношения для {faction}: новое значение = {new_relation}")
+            query = """
+                UPDATE relations
+                SET relationship = ?
+                WHERE faction1 = ? AND faction2 = ?
+            """
+            self.cursor.execute(query, (new_relation, self.faction, faction))
+            self.conn.commit()
+            print(f"Отношения успешно обновлены для {faction}.")
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении отношений для фракции {faction}: {e}")
+
     def update_resources(self):
         """
         Обновление текущих ресурсов с учетом данных из базы данных.
@@ -654,6 +766,7 @@ class Faction:
         """
         try:
             # Обновляем данные о зданиях из таблицы buildings
+            self.turn += 1
             self.update_buildings()
             self.update_buildings_from_db()
 
@@ -663,7 +776,7 @@ class Faction:
             # Обновляем ресурсы от союзников из таблицы trade_agreements
             self.update_ally_resources_from_db()
 
-            # Обновляем ресурсы на основе торговых соглашений из таблицы trade_agreements
+            # Обновляем ресурсы на основе торговых соглашений
             self.update_trade_resources_from_db()
 
             # Коэффициенты для каждой фракции
@@ -726,7 +839,8 @@ class Faction:
                 "Сырье": max(int(self.raw_material), 0),
                 "Население": max(int(self.population), 0)
             })
-
+            # Применяем бонусы игроку
+            self.apply_player_bonuses()
             # Сохраняем обновленные ресурсы в базу данных
             self.save_resources_to_db()
 
