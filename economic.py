@@ -253,7 +253,7 @@ class Faction:
             self.cities_buildings[city] = {'Больница': 0, 'Фабрика': 0}
         self.cities_buildings[city]['Фабрика'] += quantity  # Обновляем локальные данные
         save_building_change(self.faction, city, "Фабрика", quantity)  # Передаем изменение
-        self.update_buildings()  # Пересчитываем общие показатели
+        self.load_buildings()  # Пересчитываем общие показатели
 
     def build_hospital(self, city, quantity=1):
         """Увеличить количество больниц в указанном городе на заданное количество."""
@@ -261,13 +261,8 @@ class Faction:
             self.cities_buildings[city] = {'Больница': 0, 'Фабрика': 0}
         self.cities_buildings[city]['Больница'] += quantity
         save_building_change(self.faction, city, "Больница", quantity)
-        self.update_buildings()  # Пересчитываем общие показатели
+        self.load_buildings()  # Пересчитываем общие показатели
 
-    def update_buildings(self):
-        """
-        Обновляет данные о зданиях для текущей фракции из базы данных.
-        """
-        self.load_buildings()  # Перезагружаем данные из базы данных
 
     def cash_build(self, money):
         """Списывает деньги, если их хватает, и возвращает True, иначе False."""
@@ -407,30 +402,6 @@ class Faction:
         self.save_resources_to_db()
         return self.resources
 
-    def update_buildings_from_db(self):
-        """
-        Обновляет количество зданий для каждого города фракции из таблицы buildings.
-        """
-        try:
-            self.cursor.execute('''
-                SELECT city_name, hospital_count, factory_count 
-                FROM buildings 
-                WHERE faction = ?
-            ''', (self.faction,))
-            rows = self.cursor.fetchall()
-            for row in rows:
-                city_name, hospital_count, factory_count = row
-                self.cities_buildings[city_name] = {
-                    "Больница": hospital_count,
-                    "Фабрика": factory_count
-                }
-            # Пересчитываем общие показатели
-            self.hospitals = sum(city["Больница"] for city in self.cities_buildings.values())
-            self.factories = sum(city["Фабрика"] for city in self.cities_buildings.values())
-        except sqlite3.Error as e:
-            print(f"Ошибка при загрузке данных о зданиях: {e}")
-
-
     def check_resource_availability(self, resource_type, required_amount):
         """
         Проверяет, достаточно ли у фракции ресурсов для выполнения сделки.
@@ -458,79 +429,83 @@ class Faction:
         :param amount: Изменение количества ресурсов (положительное или отрицательное).
         """
         if resource_type == "Сырье":
-            self.raw_material += amount
+            self.resources['Сырье'] += amount
         elif resource_type == "Кроны":
-            self.money += amount
+            self.resources['Кроны'] += amount
         elif resource_type == "Население":
-            self.population += amount
+            self.resources['Население'] += amount
         elif resource_type == "Рабочие":
-            self.free_peoples += amount
+            self.resources['Рабочие'] += amount
         else:
             raise ValueError(f"Неизвестный тип ресурса: {resource_type}")
+
 
     def update_trade_resources_from_db(self):
         """
         Обновляет ресурсы с учетом торговых соглашений из таблицы trade_agreements.
+        Удаляет сделки с agree = 0 и обрабатывает сделки с agree = 1.
         """
         try:
-            # Загружаем текущие ресурсы фракции
-            self.load_resources_from_db()
-
-            # Извлекаем торговые соглашения для текущей фракции
+            # Удаляем все сделки с agree = 0
             self.cursor.execute('''
-                SELECT initiator_faction, target_faction, initiator_type_resource, 
+                DELETE FROM trade_agreements 
+                WHERE initiator = ? AND agree = 0
+            ''', (self.faction,))
+            print("Сделки с agree = 0 удалены.")
+
+            # Извлекаем торговые соглашения с agree = 1 для текущей фракции
+            self.cursor.execute('''
+                SELECT id, initiator, target_faction, initiator_type_resource, 
                        initiator_summ_resource, target_type_resource, target_summ_resource
                 FROM trade_agreements 
-                WHERE initiator_faction = ? OR target_faction = ?
-            ''', (self.faction, self.faction))
+                WHERE initiator = ? AND agree = 1
+            ''', (self.faction,))
             rows = self.cursor.fetchall()
 
             completed_trades = []  # Список завершенных сделок
 
             for row in rows:
-                initiator_faction, target_faction, initiator_type_resource, \
+                trade_id, initiator, target_faction, initiator_type_resource, \
                     initiator_summ_resource, target_type_resource, target_summ_resource = row
 
-                # Проверяем, является ли текущая фракция инициатором сделки
-                if initiator_faction == self.faction:
-                    # Игрок — инициатор сделки (отдает ресурс и получает ресурс от target)
+                # Если текущая фракция является инициатором сделки
+                if initiator == self.faction:
+                    # Проверяем наличие ресурсов для выполнения сделки
                     if not self.check_resource_availability(initiator_type_resource, initiator_summ_resource):
+                        print(f"Недостаточно ресурсов для выполнения сделки ID={trade_id}.")
                         continue  # Пропускаем сделку, если недостаточно ресурсов
 
-                    # Вычитаем ресурс у инициатора
+                    # Отнимаем ресурс, который отдает инициатор
                     self.update_resource_deals(initiator_type_resource, -initiator_summ_resource)
 
-                    # Получаем ресурс от target
+                    # Добавляем ресурс, который получает инициатор
                     self.update_resource_deals(target_type_resource, target_summ_resource)
 
-                # Проверяем, является ли текущая фракция получателем сделки
+                # Если текущая фракция является целевой фракцией
                 elif target_faction == self.faction:
-                    # Игрок — получатель сделки (получает ресурс и отдает свой)
+                    # Проверяем наличие ресурсов для выполнения сделки
                     if not self.check_resource_availability(target_type_resource, target_summ_resource):
+                        print(f"Недостаточно ресурсов для выполнения сделки ID={trade_id}.")
                         continue  # Пропускаем сделку, если недостаточно ресурсов
 
-                    # Получаем ресурс от инициатора
-                    self.update_resource_deals(initiator_type_resource, initiator_summ_resource)
-
-                    # Отдаем ресурс инициатору
+                    # Отнимаем ресурс, который отдает целевая фракция
                     self.update_resource_deals(target_type_resource, -target_summ_resource)
 
+                    # Добавляем ресурс, который получает целевая фракция
+                    self.update_resource_deals(initiator_type_resource, initiator_summ_resource)
+
                 # Добавляем сделку в список завершенных
-                completed_trades.append(row)
+                completed_trades.append(trade_id)
 
             # Удаляем завершенные сделки из таблицы trade_agreements
-            for trade in completed_trades:
+            for trade_id in completed_trades:
                 self.cursor.execute('''
                     DELETE FROM trade_agreements 
-                    WHERE initiator_faction = ? AND target_faction = ? AND 
-                          initiator_type_resource = ? AND initiator_summ_resource = ? AND 
-                          target_type_resource = ? AND target_summ_resource = ?
-                ''', trade)
+                    WHERE id = ?
+                ''', (trade_id,))
+                print(f"Сделка ID={trade_id} удалена после завершения.")
 
-            # Сохраняем обновленные ресурсы в таблицу resources
             self.save_resources_to_db()
-
-            print("Торговые соглашения обработаны и ресурсы обновлены.")
 
         except sqlite3.Error as e:
             print(f"Ошибка при обновлении ресурсов на основе торговых соглашений: {e}")
@@ -605,10 +580,10 @@ class Faction:
         """
         try:
             self.cursor.execute('''
-                SELECT initiator_faction, target_faction, initiator_type_resource, 
+                SELECT initiator, target_faction, initiator_type_resource, 
                        initiator_summ_resource, target_type_resource, target_summ_resource
                 FROM trade_agreements 
-                WHERE initiator_faction = ? OR target_faction = ?
+                WHERE initiator = ? OR target_faction = ?
             ''', (self.faction, self.faction))
             rows = self.cursor.fetchall()
             for row in rows:
@@ -806,99 +781,91 @@ class Faction:
         Обновление текущих ресурсов с учетом данных из базы данных.
         Все расчеты выполняются на основе таблиц в базе данных.
         """
-        try:
-            # Используем контекстный менеджер для управления соединением
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
+        print('-----------------ХОДИТ ИГРОК-----------', self.faction.upper)
+        # Обновляем данные о зданиях из таблицы buildings
+        self.turn += 1
 
-                # Обновляем данные о зданиях из таблицы buildings
-                self.turn += 1
-                self.update_buildings()
-                self.update_buildings_from_db()
+        self.load_buildings()
 
-                # Генерируем новую цену на сырье
-                self.generate_raw_material_price()
+        # Генерируем новую цену на сырье
+        self.generate_raw_material_price()
 
-                # Обновляем ресурсы от союзников из таблицы trade_agreements
-                self.update_ally_resources_from_db()
+        # Обновляем ресурсы на основе торговых соглашений
+        self.update_trade_resources_from_db()
 
-                # Обновляем ресурсы на основе торговых соглашений
-                self.update_trade_resources_from_db()
+        # Коэффициенты для каждой фракции
+        faction_coefficients = {
+            'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
+                        'food_loss': 1.4},
+            'Селестия': {'free_peoples_gain': 170, 'free_peoples_loss': 20, 'money_loss': 200, 'food_gain': 540,
+                         'food_loss': 1.1},
+            'Хиперион': {'free_peoples_gain': 210, 'free_peoples_loss': 40, 'money_loss': 200, 'food_gain': 530,
+                         'food_loss': 0.9},
+            'Этерия': {'free_peoples_gain': 240, 'free_peoples_loss': 60, 'money_loss': 300, 'food_gain': 500,
+                       'food_loss': 0.5},
+            'Халидон': {'free_peoples_gain': 230, 'free_peoples_loss': 50, 'money_loss': 300, 'food_gain': 500,
+                        'food_loss': 0.4},
+        }
 
+        # Получение коэффициентов для текущей фракции
+        faction = self.faction
+        if faction not in faction_coefficients:
+            raise ValueError(f"Фракция '{faction}' не найдена.")
+        coeffs = faction_coefficients[faction]
 
-                # Коэффициенты для каждой фракции
-                faction_coefficients = {
-                    'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
-                                'food_loss': 1.4},
-                    'Селестия': {'free_peoples_gain': 170, 'free_peoples_loss': 20, 'money_loss': 200, 'food_gain': 540,
-                                 'food_loss': 1.1},
-                    'Хиперион': {'free_peoples_gain': 210, 'free_peoples_loss': 40, 'money_loss': 200, 'food_gain': 530,
-                                 'food_loss': 0.9},
-                    'Этерия': {'free_peoples_gain': 240, 'free_peoples_loss': 60, 'money_loss': 300, 'food_gain': 500,
-                               'food_loss': 0.5},
-                    'Халидон': {'free_peoples_gain': 230, 'free_peoples_loss': 50, 'money_loss': 300, 'food_gain': 500,
-                                'food_loss': 0.4},
-                }
+        # Обновление ресурсов с учетом коэффициентов
+        self.born_peoples = int(self.hospitals * 500)
+        self.work_peoples = int(self.factories * 200)
+        self.clear_up_peoples = self.born_peoples - self.work_peoples + self.tax_effects
 
-                # Получение коэффициентов для текущей фракции
-                faction = self.faction
-                if faction not in faction_coefficients:
-                    raise ValueError(f"Фракция '{faction}' не найдена.")
-                coeffs = faction_coefficients[faction]
+        # Загружаем текущие значения ресурсов из базы данных
+        self.load_resources_from_db()
 
-                # Обновление ресурсов с учетом коэффициентов
-                self.born_peoples = int(self.hospitals * 500)
-                self.work_peoples = int(self.factories * 200)
-                self.clear_up_peoples = self.born_peoples - self.work_peoples + self.tax_effects
+        # Выполняем расчеты
+        self.free_peoples += self.clear_up_peoples
+        self.money += int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
+        self.money_info = int(self.hospitals * coeffs['money_loss'])
+        self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
+        self.taxes_info = int(self.calculate_tax_income())
 
-                # Загружаем текущие значения ресурсов из базы данных
-                self.load_resources_from_db()
+        # Учитываем, что одна фабрика может прокормить 1000 людей
+        self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
+        self.food_info = (
+                int((self.factories * 1000) - (self.population * coeffs['food_loss'])) - self.total_consumption)
+        self.food_peoples = int(self.population * coeffs['food_loss'])
 
-                # Выполняем расчеты
-                self.free_peoples += self.clear_up_peoples
-                self.money += int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
-                self.money_info = int(self.hospitals * coeffs['money_loss'])
-                self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
-                self.taxes_info = int(self.calculate_tax_income())
+        # Проверяем, будет ли население увеличиваться
+        if self.raw_material > 0:
+            self.population += int(self.clear_up_peoples)  # Увеличиваем население только если есть Сырье
+        else:
+            # Логика убыли населения при недостатке Сырья
+            if self.population > 100:
+                loss = int(self.population * 0.45)  # 45% от населения
+                self.population -= loss
+            else:
+                loss = min(self.population, 50)  # Обнуление по 50, но не ниже 0
+                self.population -= loss
+            self.free_peoples = 0  # Все рабочие обнуляются, так как Сырья нет
 
-                # Учитываем, что одна фабрика может прокормить 1000 людей
-                self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
-                self.food_info = (int((self.factories * 1000) - (self.population * coeffs['food_loss'])) - self.total_consumption)
-                self.food_peoples = int(self.population * coeffs['food_loss'])
+        # Проверка, чтобы ресурсы не опускались ниже 0
+        self.resources.update({
+            "Кроны": max(int(self.money), 0),
+            "Рабочие": max(int(self.free_peoples), 0),
+            "Сырье": max(int(self.raw_material), 0),
+            "Население": max(int(self.population), 0)
+        })
 
-                # Проверяем, будет ли население увеличиваться
-                if self.raw_material > 0:
-                    self.population += int(self.clear_up_peoples)  # Увеличиваем население только если есть Сырье
-                else:
-                    # Логика убыли населения при недостатке Сырья
-                    if self.population > 100:
-                        loss = int(self.population * 0.45)  # 45% от населения
-                        self.population -= loss
-                    else:
-                        loss = min(self.population, 50)  # Обнуление по 50, но не ниже 0
-                        self.population -= loss
-                    self.free_peoples = 0  # Все рабочие обнуляются, так как Сырья нет
+        # Применяем бонусы игроку
+        self.apply_player_bonuses()
 
-                # Проверка, чтобы ресурсы не опускались ниже 0
-                self.resources.update({
-                    "Кроны": max(int(self.money), 0),
-                    "Рабочие": max(int(self.free_peoples), 0),
-                    "Сырье": max(int(self.raw_material), 0),
-                    "Население": max(int(self.population), 0)
-                })
-                # Применяем бонусы игроку
-                self.apply_player_bonuses()
+        # Списываем потребление войсками
+        self.calculate_and_deduct_consumption()
 
-                # Списываем потребление войсками
-                self.calculate_and_deduct_consumption()
+        # Сохраняем обновленные ресурсы в базу данных
+        self.save_resources_to_db()
 
-                # Сохраняем обновленные ресурсы в базу данных
-                self.save_resources_to_db()
+        print(f"Ресурсы обновлены: {self.resources}, Больницы: {self.hospitals}, Фабрики: {self.factories}")
 
-                print(f"Ресурсы обновлены: {self.resources}, Больницы: {self.hospitals}, Фабрики: {self.factories}")
-
-        except sqlite3.Error as e:
-            print(f"Ошибка при обновлении ресурсов: {e}")
 
     def get_resource_now(self, resource_type):
         """
@@ -909,7 +876,6 @@ class Faction:
         return self.resources.get(resource_type, 0)
 
     def update_resource_now(self, resource_type, new_amount):
-        print("Ресурсы которые прилетели:", resource_type, new_amount)
         if resource_type == 'Кроны':
             self.money = new_amount
         elif resource_type == 'Рабочие':
@@ -966,17 +932,17 @@ class Faction:
             if row:
                 current_turn = row[0]  # Текущий номер хода
             else:
-                current_turn = 0  # Если записей нет, начинаем с нуля
+                current_turn = 1  # Если записей нет, начинаем с нуля
         except sqlite3.Error as e:
             print(f"Ошибка при загрузке номера хода: {e}")
-            current_turn = 0  # В случае ошибки устанавливаем значение по умолчанию
+            current_turn = 1  # В случае ошибки устанавливаем значение по умолчанию
 
         # Проверка, был ли уже загружен текущий ход
         if current_turn == self.last_turn_loaded:
             return  # Цена уже сгенерирована для этого хода
 
         # Генерация новой цены
-        if current_turn == 0:  # Если это первый ход
+        if current_turn == 1:  # Если это первый ход
             self.current_raw_material_price = random.randint(800, 87000)
             self.raw_material_price_history.append(self.current_raw_material_price)
         else:
@@ -1098,6 +1064,7 @@ def build_structure(building, city, faction, quantity, on_complete):
     # Выполняем функцию завершения постройки
     if on_complete:
         Clock.schedule_once(on_complete, 0.5)  # Задержка 0.5 секунды для отображения сообщений
+
 
 def open_build_popup(faction):
     def rebuild_popup(*args):
@@ -1303,6 +1270,7 @@ def open_build_popup(faction):
     build_popup.content = main_layout
     build_popup.open()
 
+
 #---------------------------------------------------------------
 
 
@@ -1494,6 +1462,7 @@ def handle_trade(game_instance, action, quantity, trade_popup):
         show_message("Ошибка", str(e))
     trade_popup.dismiss()  # Закрываем попап после операции
 
+
 #-----------------------------------
 def open_tax_popup(faction):
     # Создаем попап с анимированной тенью и градиентным фоном
@@ -1508,7 +1477,6 @@ def open_tax_popup(faction):
     )
 
     main_layout = FloatLayout()
-
 
     # Получаем начальное значение налога из объекта faction
     current_tax_rate = (
@@ -1607,7 +1575,7 @@ def start_economy_mode(faction, game_area):
         size_hint=(1, 0.1),
         pos_hint={'x': 0, 'y': 0},
         spacing=10,  # Расстояние между кнопками
-        padding=10   # Отступы внутри layout
+        padding=10  # Отступы внутри layout
     )
 
     # Функция для создания стильных кнопок
@@ -1618,9 +1586,9 @@ def start_economy_mode(faction, game_area):
             size_hint_y=None,
             height=50,
             background_color=(0, 0, 0, 0),  # Прозрачный фон
-            color=(1, 1, 1, 1),             # Цвет текста (белый)
-            font_size=16,                   # Размер шрифта
-            bold=True                       # Жирный текст
+            color=(1, 1, 1, 1),  # Цвет текста (белый)
+            font_size=16,  # Размер шрифта
+            bold=True  # Жирный текст
         )
 
         # Добавляем кастомный фон с помощью Canvas

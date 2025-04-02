@@ -312,7 +312,6 @@ class AIController:
         try:
             # Для каждого города обновляем или добавляем записи гарнизона
             for city_name, units in self.garrison.items():
-                print(f"Обработка гарнизона для города {city_name}: {units}")
                 for unit in units:
                     unit_name = unit['unit_name']
                     unit_count = unit['unit_count']
@@ -330,8 +329,6 @@ class AIController:
                     if existing_record:
                         # Если запись существует, обновляем количество юнитов
                         new_count = existing_record[0] + unit_count
-                        print(
-                            f"  Обновление записи: city_id={city_name}, unit_name={unit_name}, новое количество={new_count}")
                         self.cursor.execute("""
                             UPDATE garrisons
                             SET unit_count = ?
@@ -339,8 +336,6 @@ class AIController:
                         """, (new_count, city_name, unit_name))
                     else:
                         # Если записи нет, добавляем новую
-                        print(
-                            f"  Добавление новой записи: city_id={city_name}, unit_name={unit_name}, unit_count={unit_count}")
                         self.cursor.execute("""
                             INSERT INTO garrisons (city_id, unit_name, unit_count, unit_image)
                             VALUES (?, ?, ?, ?)
@@ -692,14 +687,19 @@ class AIController:
         Учитывает текущую фракцию как инициатора или целевую фракцию.
         """
         try:
+            # Убедитесь, что self.faction — это строка (или одиночное значение)
+            if isinstance(self.faction, (list, tuple)):
+                raise ValueError("self.faction должен быть строкой, а не коллекцией.")
+
             # Запрос для получения всех торговых соглашений, где текущая фракция участвует
             query = """
                 SELECT initiator, target_faction, initiator_type_resource, target_type_resource,
                        initiator_summ_resource, target_summ_resource
                 FROM trade_agreements
-                WHERE initiator = ? OR target_faction = ?
+                WHERE target_faction = ?
             """
-            self.cursor.execute(query, (self.faction, self.faction))
+            # Передаем self.faction как одиночное значение
+            self.cursor.execute(query, (self.faction,))
             rows = self.cursor.fetchall()
 
             for row in rows:
@@ -729,6 +729,8 @@ class AIController:
             print(f"Ресурсы из торговых соглашений обновлены: {self.resources}")
         except sqlite3.Error as e:
             print(f"Ошибка при обновлении ресурсов из торговых соглашений: {e}")
+        except ValueError as ve:
+            print(f"Ошибка в данных: {ve}")
 
     def load_resources_from_db(self):
         """
@@ -911,15 +913,27 @@ class AIController:
                     initiator_summ_resource, target_summ_resource = row
 
                 # Проверяем уровень отношений с инициатором сделки
-                relation_level = self.relations.get(initiator, 0)
+                relation_level = int(self.relations.get(initiator, 0))
 
                 # Определяем коэффициент на основе уровня отношений
                 if relation_level < 15:
                     print(f"Отказ от сделки с {initiator}. Низкий уровень отношений ({relation_level}).")
-                    self.return_resource_to_player(initiator, initiator_type_resource, initiator_summ_resource)
-                    self.remove_trade_agreement(trade_id)
+                    self.update_agreement_status(trade_id, False)  # Проставляем agree = false
                     continue
-                elif 15 <= relation_level < 25:
+
+                # Проверяем наличие ресурсов у целевой фракции
+                has_enough_resources = self.resources.get(target_type_resource, 0) >= target_summ_resource
+
+                if not has_enough_resources:
+                    print(f"Отказ от сделки с {initiator}. Недостаточно ресурсов для выполнения сделки.")
+                    self.update_agreement_status(trade_id, False)  # Проставляем agree = false
+                    continue
+
+                # Рассчитываем соотношение обмена ресурсов
+                resource_ratio = target_summ_resource / initiator_summ_resource
+
+                # Определяем коэффициент выгодности сделки на основе отношений
+                if relation_level < 25:
                     coefficient = 0.09
                 elif 25 <= relation_level < 35:
                     coefficient = 0.2
@@ -934,28 +948,44 @@ class AIController:
                 elif 90 <= relation_level <= 100:
                     coefficient = 3.1
                 else:
-                    return
-
-                # Рассчитываем соотношение обмена ресурсов
-                resource_ratio = target_summ_resource / initiator_summ_resource
+                    coefficient = 0.0
 
                 # Проверяем, выгодна ли сделка
-                if resource_ratio < coefficient:
+                if resource_ratio > coefficient:
                     print(
-                        f"Отказ от сделки с {initiator}. Не выгодное соотношение ({resource_ratio:.2f} < {coefficient:.2f}).")
-                    self.return_resource_to_player(initiator, initiator_type_resource, initiator_summ_resource)
-                    self.remove_trade_agreement(trade_id)
+                        f"Отказ от сделки с {initiator}. Не выгодное соотношение ({resource_ratio:.2f} < {coefficient:.2f})."
+                    )
+                    self.update_agreement_status(trade_id, False)  # Проставляем agree = false
                     continue
 
                 # Если сделка выгодна, выполняем обмен ресурсами
                 print(
-                    f"Принята сделка с {initiator}. Соотношение: {resource_ratio:.2f}, Коэффициент: {coefficient:.2f}.")
+                    f"Принята сделка с {initiator}. Соотношение: {resource_ratio:.2f}, Коэффициент: {coefficient:.2f}."
+                )
                 self.execute_trade(initiator, target_faction, initiator_type_resource, target_type_resource,
                                    initiator_summ_resource, target_summ_resource)
-                self.remove_trade_agreement(trade_id)
+                self.update_agreement_status(trade_id, True)  # Проставляем agree = true
 
         except sqlite3.Error as e:
             print(f"Ошибка при обработке торговых соглашений: {e}")
+
+    def update_agreement_status(self, trade_id, status):
+        """
+        Обновляет значение agree в таблице trade_agreements.
+        :param trade_id: ID торгового соглашения
+        :param status: True или False
+        """
+        try:
+            query = """
+                UPDATE trade_agreements
+                SET agree = ?
+                WHERE id = ?
+            """
+            self.cursor.execute(query, (status, trade_id))
+            self.db_connection.commit()
+            print(f"Статус сделки ID={trade_id} обновлен: agree={status}")
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении статуса сделки: {e}")
 
     def return_resource_to_player(self, initiator, resource_type, amount):
         """
@@ -1045,34 +1075,39 @@ class AIController:
         """
         Основная логика хода ИИ фракции.
         """
+        print(f'---------ХОДИТ ФРАКЦИЯ: {self.faction}-------------------')
         try:
             # 1. Обновляем ресурсы из базы данных
             self.update_resources()
 
-            # 2. Применяем бонусы от политической системы
+            # 2. Читаем торговые соглашения
+            self.process_trade_agreements()
+
+            # 3. Применяем бонусы от политической системы
             self.apply_political_system_bonus()
 
-            # 3. Изменяем отношения на основе политической системы
+            # 4. Изменяем отношения на основе политической системы
             self.update_relations_based_on_political_system()
 
-            # 4. Загружаем данные о зданиях
+            # 5. Загружаем данные о зданиях
             self.update_buildings_from_db()
 
-            # 5. Управление строительством (90% крон на строительство)
+            # 6. Управление строительством (90% крон на строительство)
             self.manage_buildings()
 
-            # 6. Продажа сырья (70% сырья, если его больше 10000)
+            # 7. Продажа сырья (70% сырья, если его больше 10000)
             resources_sold = self.sell_resources()
 
-            # 7. Найм армии (на оставшиеся деньги после строительства и продажи сырья)
+            # 8. Найм армии (на оставшиеся деньги после строительства и продажи сырья)
             if resources_sold:
                 self.hire_army()
 
-            # 8. Сохраняем все изменения в базу данных
+            # 9. Сохраняем все изменения в базу данных
             self.save_all_data()
 
             # Увеличиваем счетчик ходов
             self.turn += 1
+            print(f'-----------КОНЕЦ {self.turn} ХОДА----------------  ФРАКЦИИ', self.faction)
         except Exception as e:
             print(f"Ошибка при выполнении хода: {e}")
 

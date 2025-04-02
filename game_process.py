@@ -47,7 +47,7 @@ class GameStateManager:
         self.game_area = None  # Центральная область игры
         self.conn = None  # Соединение с базой данных
         self.cursor = None  # Курсор для работы с БД
-        self.turn_counter = 0  # Счетчик ходов
+        self.turn_counter = 1  # Счетчик ходов
 
     def initialize(self, selected_faction, db_path="game_data.db"):
         """Инициализация объектов игры."""
@@ -65,7 +65,7 @@ class GameStateManager:
                 WHERE faction = ?
             ''', (faction,))
             row = self.cursor.fetchone()
-            return row[0] if row else 0
+            return row[0] if row else 1
         except sqlite3.Error as e:
             print(f"Ошибка при загрузке счетчика ходов: {e}")
             return 0
