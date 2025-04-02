@@ -299,7 +299,7 @@ def load_unit_data(faction):
     conn = sqlite3.connect("game_data.db")
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT unit_name, cost_money, cost_time, image_path, attack, defense, durability, unit_class
+        SELECT unit_name, consumption, cost_money, cost_time, image_path, attack, defense, durability, unit_class
         FROM units WHERE faction = ?
     """, (faction,))
     rows = cursor.fetchall()
@@ -307,7 +307,7 @@ def load_unit_data(faction):
 
     unit_data = {}
     for row in rows:
-        unit_name, cost_money, cost_time, image_path, attack, defense, durability, unit_class = row
+        unit_name, consumption, cost_money, cost_time, image_path, attack, defense, durability, unit_class = row
         unit_data[unit_name] = {
             "cost": [cost_money, cost_time],
             "image": image_path,
@@ -315,7 +315,8 @@ def load_unit_data(faction):
                 "Урон": attack,
                 "Защита": defense,
                 "Живучесть": durability,
-                "Класс юнита": unit_class
+                "Класс юнита": unit_class,
+                "Потребление сырья": consumption
             }
         }
     return unit_data

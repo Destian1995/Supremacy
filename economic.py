@@ -91,7 +91,8 @@ def save_building_change(faction_name, city, building_type, delta):
 class Faction:
     def __init__(self, name):
         self.faction = name
-        self.conn = sqlite3.connect('game_data.db')  # Подключение к базе данных
+        self.db_path = 'game_data.db'  # Путь к базе данных
+        self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
         self.resources = self.load_resources_from_db()  # Загрузка ресурсов
         self.buildings = self.load_buildings()  # Загрузка зданий
@@ -109,6 +110,7 @@ class Faction:
         self.food_peoples = 0
         self.tax_effects = 0
         self.clear_up_peoples = 0
+        self.total_consumption = 0
         self.turn = 0
         self.last_turn_loaded = -1  # Последний загруженный номер хода
         self.raw_material_price_history = []  # История цен на еду
@@ -594,7 +596,6 @@ class Faction:
                     ''', (self.faction, resource_type, amount))
 
             self.conn.commit()
-            print("Ресурсы успешно сохранены в базу данных.")
         except sqlite3.Error as e:
             print(f"Ошибка при сохранении ресурсов в базу данных: {e}")
 
@@ -759,92 +760,142 @@ class Faction:
         except sqlite3.Error as e:
             print(f"Ошибка при обновлении отношений для фракции {faction}: {e}")
 
+    def calculate_and_deduct_consumption(self):
+        """
+        Метод для расчета потребления сырья гарнизонами текущей фракции
+        и вычета суммарного потребления из self.raw_material.
+        """
+        try:
+            # Шаг 1: Выгрузка всех гарнизонов из таблицы garrisons
+            self.cursor.execute("""
+                SELECT city_id, unit_name, unit_count 
+                FROM garrisons
+            """)
+            garrisons = self.cursor.fetchall()
+
+            # Шаг 2: Для каждого гарнизона находим соответствующий юнит в таблице units
+            for garrison in garrisons:
+                city_id, unit_name, unit_count = garrison
+
+                # Проверяем, к какой фракции принадлежит юнит
+                self.cursor.execute("""
+                    SELECT consumption, faction 
+                    FROM units 
+                    WHERE unit_name = ?
+                """, (unit_name,))
+                unit_data = self.cursor.fetchone()
+
+                if unit_data:
+                    consumption, faction = unit_data
+
+                    # Учитываем только юниты текущей фракции
+                    if faction == self.faction:
+                        # Расчет потребления для данного типа юнита
+                        self.total_consumption = consumption * unit_count
+
+            # Шаг 3: Вычитание общего потребления из денег фракции
+            self.raw_material -= self.total_consumption
+            print(f"Общее потребление сырья: {self.total_consumption}")
+            print(f"Остаток сырья у фракции: {self.raw_material}")
+
+        except Exception as e:
+            print(f"Произошла ошибка: {e}")
+
     def update_resources(self):
         """
         Обновление текущих ресурсов с учетом данных из базы данных.
         Все расчеты выполняются на основе таблиц в базе данных.
         """
         try:
-            # Обновляем данные о зданиях из таблицы buildings
-            self.turn += 1
-            self.update_buildings()
-            self.update_buildings_from_db()
+            # Используем контекстный менеджер для управления соединением
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
 
-            # Генерируем новую цену на сырье
-            self.generate_raw_material_price()
+                # Обновляем данные о зданиях из таблицы buildings
+                self.turn += 1
+                self.update_buildings()
+                self.update_buildings_from_db()
 
-            # Обновляем ресурсы от союзников из таблицы trade_agreements
-            self.update_ally_resources_from_db()
+                # Генерируем новую цену на сырье
+                self.generate_raw_material_price()
 
-            # Обновляем ресурсы на основе торговых соглашений
-            self.update_trade_resources_from_db()
+                # Обновляем ресурсы от союзников из таблицы trade_agreements
+                self.update_ally_resources_from_db()
 
-            # Коэффициенты для каждой фракции
-            faction_coefficients = {
-                'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
-                            'food_loss': 1.4},
-                'Селестия': {'free_peoples_gain': 170, 'free_peoples_loss': 20, 'money_loss': 200, 'food_gain': 540,
-                             'food_loss': 1.1},
-                'Хиперион': {'free_peoples_gain': 210, 'free_peoples_loss': 40, 'money_loss': 200, 'food_gain': 530,
-                             'food_loss': 0.9},
-                'Этерия': {'free_peoples_gain': 240, 'free_peoples_loss': 60, 'money_loss': 300, 'food_gain': 500,
-                           'food_loss': 0.5},
-                'Халидон': {'free_peoples_gain': 230, 'free_peoples_loss': 50, 'money_loss': 300, 'food_gain': 500,
-                            'food_loss': 0.4},
-            }
+                # Обновляем ресурсы на основе торговых соглашений
+                self.update_trade_resources_from_db()
 
-            # Получение коэффициентов для текущей фракции
-            faction = self.faction
-            if faction not in faction_coefficients:
-                raise ValueError(f"Фракция '{faction}' не найдена.")
-            coeffs = faction_coefficients[faction]
 
-            # Обновление ресурсов с учетом коэффициентов
-            self.born_peoples = int(self.hospitals * 500)
-            self.work_peoples = int(self.factories * 200)
-            self.clear_up_peoples = self.born_peoples - self.work_peoples + self.tax_effects
+                # Коэффициенты для каждой фракции
+                faction_coefficients = {
+                    'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
+                                'food_loss': 1.4},
+                    'Селестия': {'free_peoples_gain': 170, 'free_peoples_loss': 20, 'money_loss': 200, 'food_gain': 540,
+                                 'food_loss': 1.1},
+                    'Хиперион': {'free_peoples_gain': 210, 'free_peoples_loss': 40, 'money_loss': 200, 'food_gain': 530,
+                                 'food_loss': 0.9},
+                    'Этерия': {'free_peoples_gain': 240, 'free_peoples_loss': 60, 'money_loss': 300, 'food_gain': 500,
+                               'food_loss': 0.5},
+                    'Халидон': {'free_peoples_gain': 230, 'free_peoples_loss': 50, 'money_loss': 300, 'food_gain': 500,
+                                'food_loss': 0.4},
+                }
 
-            # Загружаем текущие значения ресурсов из базы данных
-            self.load_resources_from_db()
+                # Получение коэффициентов для текущей фракции
+                faction = self.faction
+                if faction not in faction_coefficients:
+                    raise ValueError(f"Фракция '{faction}' не найдена.")
+                coeffs = faction_coefficients[faction]
 
-            # Выполняем расчеты
-            self.free_peoples += self.clear_up_peoples
-            self.money += int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
-            self.money_info = int(self.hospitals * coeffs['money_loss'])
-            self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
-            self.taxes_info = int(self.calculate_tax_income())
+                # Обновление ресурсов с учетом коэффициентов
+                self.born_peoples = int(self.hospitals * 500)
+                self.work_peoples = int(self.factories * 200)
+                self.clear_up_peoples = self.born_peoples - self.work_peoples + self.tax_effects
 
-            # Учитываем, что одна фабрика может прокормить 1000 людей
-            self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
-            self.food_info = int((self.factories * 1000) - (self.population * coeffs['food_loss']))
-            self.food_peoples = int(self.population * coeffs['food_loss'])
+                # Загружаем текущие значения ресурсов из базы данных
+                self.load_resources_from_db()
 
-            # Проверяем, будет ли население увеличиваться
-            if self.raw_material > 0:
-                self.population += int(self.clear_up_peoples)  # Увеличиваем население только если есть Сырье
-            else:
-                # Логика убыли населения при недостатке Сырья
-                if self.population > 100:
-                    loss = int(self.population * 0.45)  # 45% от населения
-                    self.population -= loss
+                # Выполняем расчеты
+                self.free_peoples += self.clear_up_peoples
+                self.money += int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
+                self.money_info = int(self.hospitals * coeffs['money_loss'])
+                self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
+                self.taxes_info = int(self.calculate_tax_income())
+
+                # Учитываем, что одна фабрика может прокормить 1000 людей
+                self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
+                self.food_info = (int((self.factories * 1000) - (self.population * coeffs['food_loss'])) - self.total_consumption)
+                self.food_peoples = int(self.population * coeffs['food_loss'])
+
+                # Проверяем, будет ли население увеличиваться
+                if self.raw_material > 0:
+                    self.population += int(self.clear_up_peoples)  # Увеличиваем население только если есть Сырье
                 else:
-                    loss = min(self.population, 50)  # Обнуление по 50, но не ниже 0
-                    self.population -= loss
-                self.free_peoples = 0  # Все рабочие обнуляются, так как Сырья нет
+                    # Логика убыли населения при недостатке Сырья
+                    if self.population > 100:
+                        loss = int(self.population * 0.45)  # 45% от населения
+                        self.population -= loss
+                    else:
+                        loss = min(self.population, 50)  # Обнуление по 50, но не ниже 0
+                        self.population -= loss
+                    self.free_peoples = 0  # Все рабочие обнуляются, так как Сырья нет
 
-            # Проверка, чтобы ресурсы не опускались ниже 0
-            self.resources.update({
-                "Кроны": max(int(self.money), 0),
-                "Рабочие": max(int(self.free_peoples), 0),
-                "Сырье": max(int(self.raw_material), 0),
-                "Население": max(int(self.population), 0)
-            })
-            # Применяем бонусы игроку
-            self.apply_player_bonuses()
-            # Сохраняем обновленные ресурсы в базу данных
-            self.save_resources_to_db()
+                # Проверка, чтобы ресурсы не опускались ниже 0
+                self.resources.update({
+                    "Кроны": max(int(self.money), 0),
+                    "Рабочие": max(int(self.free_peoples), 0),
+                    "Сырье": max(int(self.raw_material), 0),
+                    "Население": max(int(self.population), 0)
+                })
+                # Применяем бонусы игроку
+                self.apply_player_bonuses()
 
-            print(f"Ресурсы обновлены: {self.resources}, Больницы: {self.hospitals}, Фабрики: {self.factories}")
+                # Списываем потребление войсками
+                self.calculate_and_deduct_consumption()
+
+                # Сохраняем обновленные ресурсы в базу данных
+                self.save_resources_to_db()
+
+                print(f"Ресурсы обновлены: {self.resources}, Больницы: {self.hospitals}, Фабрики: {self.factories}")
 
         except sqlite3.Error as e:
             print(f"Ошибка при обновлении ресурсов: {e}")

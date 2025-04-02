@@ -24,6 +24,7 @@ class AIController:
         self.taxes_info = 0
         self.food_peoples = 0
         self.tax_effects = 0
+        self.total_consumption = 0
         self.army = self.load_army()
         self.cities = self.load_cities()
         # Инициализация ресурсов по умолчанию
@@ -607,6 +608,47 @@ class AIController:
         self.save_garrison()
         print("Гарнизон после найма армии:", self.garrison)
 
+    def calculate_and_deduct_consumption(self):
+        """
+        Метод для расчета потребления сырья гарнизонами текущей фракции
+        и вычета суммарного потребления из self.raw_material.
+        """
+        try:
+            # Шаг 1: Выгрузка всех гарнизонов из таблицы garrisons
+            self.cursor.execute("""
+                SELECT city_id, unit_name, unit_count 
+                FROM garrisons
+            """)
+            garrisons = self.cursor.fetchall()
+
+            # Шаг 2: Для каждого гарнизона находим соответствующий юнит в таблице units
+            for garrison in garrisons:
+                city_id, unit_name, unit_count = garrison
+
+                # Проверяем, к какой фракции принадлежит юнит
+                self.cursor.execute("""
+                    SELECT consumption, faction 
+                    FROM units 
+                    WHERE unit_name = ?
+                """, (unit_name,))
+                unit_data = self.cursor.fetchone()
+
+                if unit_data:
+                    consumption, faction = unit_data
+
+                    # Учитываем только юниты текущей фракции
+                    if faction == self.faction:
+                        # Расчет потребления для данного типа юнита
+                        self.total_consumption = consumption * unit_count
+
+            # Шаг 3: Вычитание общего потребления из денег фракции
+            self.raw_material -= self.total_consumption
+            print(f"Общее потребление сырья: {self.total_consumption}")
+            print(f"Остаток сырья у фракции: {self.raw_material}")
+
+        except Exception as e:
+            print(f"Произошла ошибка: {e}")
+
     def calculate_tax_income(self):
         """
         Рассчитывает налоговый доход на основе населения.
@@ -774,7 +816,7 @@ class AIController:
 
             # Учитываем, что одна фабрика может прокормить 1000 людей
             self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
-            self.food_info = int((self.factories * 1000) - (self.population * coeffs['food_loss']))
+            self.food_info = (int((self.factories * 1000) - (self.population * coeffs['food_loss'])) - self.total_consumption)
             self.food_peoples = int(self.population * coeffs['food_loss'])
 
             # Проверяем, будет ли население увеличиваться
@@ -797,6 +839,9 @@ class AIController:
                 "Сырье": max(int(self.raw_material), 0),
                 "Население": max(int(self.population), 0)
             })
+
+            # Потребление армии
+            self.calculate_and_deduct_consumption()
 
             # Сохраняем обновленные ресурсы в базу данных
             self.save_resources_to_db()
@@ -992,6 +1037,9 @@ class AIController:
         except sqlite3.Error as e:
             print(f"Ошибка при загрузке политической системы: {e}")
             return "Капитализм"
+
+
+
     # Основная логика хода ИИ
     def make_turn(self):
         """
