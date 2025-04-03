@@ -128,20 +128,6 @@ class AdvisorView(FloatLayout):
             spacing=dp(10)
         )
 
-        # Кнопки в нижней панели
-        close_button = Button(
-            text="Закрыть",
-            size_hint=(None, None),
-            size=(Window.width * 0.2, Window.height * 0.08),  # Адаптивный размер
-            background_normal='',
-            background_color=(0.8, 0.2, 0.2, 1),
-            color=(1, 1, 1, 1),
-            font_size=Window.height * 0.02,  # Размер шрифта зависит от высоты окна
-            bold=True,
-            border=(0, 0, 0, 0)
-        )
-        close_button.bind(on_press=self.close_window)
-
         political_system_button = Button(
             text="Полит. строй",
             size_hint=(None, None),
@@ -168,7 +154,6 @@ class AdvisorView(FloatLayout):
         )
         relations_button.bind(on_press=lambda x: self.show_relations("Состояние отношений"))
 
-        bottom_panel.add_widget(close_button)
         bottom_panel.add_widget(political_system_button)
         bottom_panel.add_widget(relations_button)
 
@@ -189,16 +174,13 @@ class AdvisorView(FloatLayout):
         self.popup.open()
 
     def show_political_systems(self):
-        """
-        Отображает окно с таблицей политических систем и их влияния на отношения.
-        """
-        # Загружаем данные о политических системах
         political_systems = self.load_political_systems()
+        print("Загруженные данные о политических системах:", political_systems)  # Отладочный вывод
+
         if not political_systems:
             print(f"Нет данных о политических системах для фракции {self.faction}.")
             return
 
-        # Создаем основной контейнер
         main_layout = BoxLayout(
             orientation='vertical',
             spacing=dp(10),
@@ -206,7 +188,6 @@ class AdvisorView(FloatLayout):
             size_hint=(1, 1)
         )
 
-        # Заголовок
         header = Label(
             text=f"Политические системы ({self.faction})",
             font_size=Window.height * 0.03,
@@ -217,7 +198,6 @@ class AdvisorView(FloatLayout):
         )
         main_layout.add_widget(header)
 
-        # Таблица с данными (3 столбца)
         table = GridLayout(
             cols=3,
             size_hint_y=None,
@@ -226,14 +206,17 @@ class AdvisorView(FloatLayout):
         )
         table.bind(minimum_height=table.setter('height'))
 
-        # Заголовки таблицы
         table.add_widget(self.create_header("Фракция"))
         table.add_widget(self.create_header("Полит. строй"))
         table.add_widget(self.create_header("Влияние на отношения"))
 
-        # Добавление данных
+        print("Загруженные политические системы:", political_systems)  # Отладочный вывод
+
         for faction, data in political_systems.items():
-            system = data["system"]  # Политическая система фракции
+            system = data["system"]
+            highlight = faction == self.faction
+
+            print(f"Обработка фракции: {faction}, Система: {system}, Выделение: {highlight}")  # Отладочный вывод
 
             # Определяем, какая стрелочка будет отображена
             if system == self.load_political_system():
@@ -241,12 +224,15 @@ class AdvisorView(FloatLayout):
             else:
                 influence_widget = self.create_arrow_icon("down", color=(0.8, 0, 0, 1))  # Красная стрелка вниз
 
+            # Создаем ячейки с возможным выделением
+            faction_widget = self._create_cell(faction, highlight=highlight)
+            system_widget = self._create_cell(system, highlight=highlight)
+
             # Добавляем данные в таблицу
-            table.add_widget(self.create_cell(faction))
-            table.add_widget(self.create_cell(system))
+            table.add_widget(faction_widget)
+            table.add_widget(system_widget)
             table.add_widget(influence_widget)
 
-        # Прокрутка
         scroll = ScrollView(
             size_hint=(1, 1),
             bar_width=dp(8),
@@ -255,7 +241,6 @@ class AdvisorView(FloatLayout):
         scroll.add_widget(table)
         main_layout.add_widget(scroll)
 
-        # Выбор политической системы
         system_layout = BoxLayout(
             orientation='horizontal',
             size_hint=(1, None),
@@ -281,7 +266,6 @@ class AdvisorView(FloatLayout):
         system_layout.add_widget(communism_button)
         main_layout.add_widget(system_layout)
 
-        # Настройка попапа
         popup = Popup(
             title='',
             content=main_layout,
@@ -291,8 +275,31 @@ class AdvisorView(FloatLayout):
         )
         popup.open()
 
-        # Сохраняем ссылку на текущий попап
         self.popup = popup
+
+    # Дополнительный метод для создания ячеек с поддержкой выделения
+    def _create_cell(self, text, highlight=False):
+        """
+        Создает ячейку таблицы с возможностью выделения.
+        :param text: Текст ячейки
+        :param highlight: Флаг выделения (True/False)
+        :return: Виджет Label
+        """
+        # Определяем цвет текста
+        text_color = self.colors['accent'] if highlight else (1, 1, 1, 1)  # Акцентный или белый цвет
+
+        return Label(
+            text=f"[b]{text}[/b]" if highlight else text,  # Жирный текст при выделении
+            markup=True,  # Поддержка разметки для жирного текста
+            font_size=Window.height * 0.022,  # Адаптивный размер шрифта
+            bold=True,  # Жирный шрифт
+            color=text_color,  # Цвет текста
+            halign='left',  # Выравнивание по левому краю
+            valign='middle',  # Вертикальное выравнивание по центру
+            padding_x=dp(15),  # Отступ слева
+            size_hint_y=None,  # Фиксированная высота
+            height=Window.height * 0.06,  # Адаптивная высота
+        )
 
     def create_arrow_icon(self, direction, color):
         """
