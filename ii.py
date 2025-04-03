@@ -781,6 +781,8 @@ class AIController:
             # Обновляем ресурсы на основе торговых соглашений из таблицы trade_agreements
             self.update_trade_resources_from_db()
 
+            self.process_trade_agreements()
+
             # Коэффициенты для каждой фракции
             faction_coefficients = {
                 'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
@@ -1079,9 +1081,6 @@ class AIController:
         try:
             # 1. Обновляем ресурсы из базы данных
             self.update_resources()
-
-            # 2. Читаем торговые соглашения
-            self.process_trade_agreements()
 
             # 3. Применяем бонусы от политической системы
             self.apply_political_system_bonus()

@@ -18,9 +18,11 @@ from kivy.uix.widget import Widget
 from kivy.core.window import Window
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.graphics import Color, RoundedRectangle, Rectangle
-from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.scatter import Scatter
-from kivy.uix.image import Image
+
+import threading
+
+# Глобальная блокировка для работы с БД
+db_lock = threading.Lock()
 from kivy.uix.behaviors import ButtonBehavior
 import json
 
@@ -80,6 +82,61 @@ def show_warning(message, color=(1, 0, 0, 1)):
         size_hint=(0.5, 0.3)
     )
     warning_popup.open()
+
+class PoliticalCash:
+    def __init__(self, faction, class_faction):
+        """
+        Инициализация класса PoliticalCash.
+        :param faction: Название фракции.
+        :param class_faction: Экземпляр класса Faction (экономический модуль).
+        """
+        self.faction = faction
+        self.class_faction = class_faction  # Экономический модуль
+        self.resources = self.load_resources()  # Загрузка начальных ресурсов
+
+    def load_resources(self):
+        """
+        Загружает текущие ресурсы фракции через экономический модуль.
+        """
+        try:
+            resources = {
+                "Кроны": self.class_faction.get_resource_now("Кроны"),
+                "Рабочие": self.class_faction.get_resource_now("Рабочие")
+            }
+            print(f"[DEBUG] Загружены ресурсы для фракции '{self.faction}': {resources}")
+            return resources
+        except Exception as e:
+            print(f"Ошибка при загрузке ресурсов: {e}")
+            return {"Кроны": 0, "Рабочие": 0}
+
+    def deduct_resources(self, crowns, workers=0):
+        """
+        Списывает ресурсы через экономический модуль.
+        :param crowns: Количество крон для списания.
+        :param workers: Количество рабочих для списания (по умолчанию 0).
+        :return: True, если ресурсы успешно списаны; False, если недостаточно ресурсов.
+        """
+        try:
+            # Проверяем доступность ресурсов через экономический модуль
+            current_crowns = self.class_faction.get_resource_now("Кроны")
+            current_workers = self.class_faction.get_resource_now("Рабочие")
+            print(f"[DEBUG] Текущие ресурсы: Кроны={current_crowns}, Рабочие={current_workers}")
+
+            if current_crowns < crowns or current_workers < workers:
+                print("[DEBUG] Недостаточно ресурсов для списания.")
+                return False
+
+            # Списываем ресурсы через экономический модуль
+            self.class_faction.update_resource_now("Кроны", current_crowns - crowns)
+            if workers > 0:
+                self.class_faction.update_resource_now("Рабочие", current_workers - workers)
+
+            return True
+        except Exception as e:
+            print(f"Ошибка при списании ресурсов: {e}")
+            return False
+
+
 
 # Кастомная кнопка с анимациями и эффектами
 class StyledButton(ButtonBehavior, BoxLayout):
@@ -152,7 +209,7 @@ class StyledButton(ButtonBehavior, BoxLayout):
             self.rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[self.height // 4])
 
 
-def show_new_agreement_window(faction, game_area):
+def show_new_agreement_window(faction, game_area, class_faction):
     """Создание красивого окна с кнопками"""
     game_area.clear_widgets()
 
@@ -207,7 +264,7 @@ def show_new_agreement_window(faction, game_area):
     # Создаем кнопки для каждой категории
     categories = [
         ("Торговое соглашение", show_trade_agreement_form),
-        ("Договор об культурном обмене", show_cultural_exchange_form),
+        ("Договор об культурном обмене", lambda *args: show_cultural_exchange_form(faction, game_area, class_faction)),
         ("Заключение мира", show_peace_form),
         ("Заключение альянса", show_alliance_form),
         ("Объявление войны", show_declare_war_form),
@@ -502,32 +559,19 @@ def on_window_resize(instance, width, height):
     global font_size
     font_size = calculate_font_size()
 
+def connect_to_db():
+    """Подключение к базе данных."""
+    db_path = "game_data.db"  # Путь к базе данных
+    return sqlite3.connect(db_path)
 
-def show_cultural_exchange_form(faction, game_area):
-    """Окно формы для договора о культурном обмене"""
-    # Рассчитываем базовый размер шрифта
+
+def show_cultural_exchange_form(faction, game_area, class_faction):
+    """Окно формы для договора о культурном обмене."""
     font_size = calculate_font_size()
-    button_height = font_size * 3  # Высота кнопок
-    input_height = font_size * 2.5  # Высота полей ввода
-    padding = font_size // 2  # Отступы
-    spacing = font_size // 4  # Промежутки между элементами
-
-    # Чтение данных из файла diplomaties.json
-    file_path = os.path.join("files", "config", "status", "diplomaties.json")
-    if not os.path.exists(file_path):
-        print("Файл diplomaties.json не найден.")
-        return
-
-    with open(file_path, 'r', encoding='utf-8') as file:
-        diplomaties = json.load(file)
-
-    # Проверка, существует ли указанная фракция
-    if faction not in diplomaties:
-        print(f"Ошибка: Фракция '{faction}' не найдена.")
-        return
-
-    # Получение текущих отношений фракции
-    relations = diplomaties[faction]["отношения"]
+    button_height = font_size * 3
+    input_height = font_size * 2.5
+    padding = font_size // 2
+    spacing = font_size // 4
 
     # Список всех фракций
     all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
@@ -566,9 +610,10 @@ def show_cultural_exchange_form(faction, game_area):
 
     # Описание
     description_label = Label(
-        text="Обмен культурными ценностями повышает доверие между фракциями (+7% к отношениям).\nСтоимость: 10 000 000 крон",
+        text="Обмен культурными ценностями повышает доверие между фракциями (+7% к отношениям).\n"
+             "Стоимость: от 6 млн. крон.",
         size_hint=(1, None),
-        height=font_size * 4,  # Высота зависит от количества строк
+        height=font_size * 4,
         font_size=font_size,
         color=(1, 1, 1, 1),
         halign='center'
@@ -593,40 +638,68 @@ def show_cultural_exchange_form(faction, game_area):
         message_label.text = text
         message_label.color = color
 
+    # Создаем экземпляр PoliticalCash
+    political_cash = PoliticalCash(faction, class_faction)
+
     # Функция для отправки предложения
     def send_proposal(instance):
-        """Отправляет предложение, если фракция выбрана и хватает денег"""
+        """Отправляет предложение, если фракция выбрана и хватает денег."""
         target_faction = factions_spinner.text
         if target_faction == "С какой фракцией?":
             show_warning("Пожалуйста, выберите фракцию!")
             return
 
-        # Проверяем состояние отношений
-        if relations.get(target_faction) == "война":
-            show_warning(f"Невозможно отправить предложение: идет война с {target_faction}!")
-            return
+        # Проверяем состояние отношений (например, война)
+        conn = connect_to_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT relationship FROM relations WHERE faction1 = ? AND faction2 = ?",
+                (faction, target_faction)
+            )
+            relation_value = cursor.fetchone()
 
-        # Проверяем, хватает ли денег
-        cash_file = 'files/config/resources/cash.json'
-        if os.path.exists(cash_file):
+            # Если relation_value is None, значит запись не найдена
+            if relation_value is None:
+                show_warning(f"Отношения между {faction} и {target_faction} не определены!")
+                return
+
+            # Извлекаем значение из кортежа и преобразуем его в целое число
             try:
-                with open(cash_file, 'r') as file:
-                    resources_data = json.load(file)
-                money = resources_data.get('Кроны', 0)
-                if money < 10_000_000:
-                    show_warning("Недостаточно крон для заключения договора!")
-                    return
-                # Списываем деньги
-                resources_data['Кроны'] -= 10_000_000
-                with open(cash_file, 'w') as file:
-                    json.dump(resources_data, file, indent=4)
-                # Отправляем предложение
-                send_cultural_exchange_proposal(target_faction, faction)
-                show_warning(f"Договор заключён с {target_faction}! (-10 млн крон)", color=(0, 1, 0, 1))
-            except json.JSONDecodeError:
-                show_warning("Ошибка чтения файла ресурсов!")
-        else:
-            show_warning("Файл ресурсов не найден!")
+                relationship = int(relation_value[0])  # Преобразуем в int
+            except ValueError:
+                show_warning(f"Ошибка: Некорректное значение отношений между {faction} и {target_faction}!")
+                return
+
+            # Проверяем, идет ли война (например, значение < 0)
+            if relationship < 0:
+                show_warning(f"Невозможно отправить предложение: идет война с {target_faction}!")
+                return
+
+            # Получаем текущий баланс крон игрока через PoliticalCash
+            current_balance = political_cash.resources["Кроны"]
+            cost = int(0.2 * current_balance) + 6_000_000  # Стоимость договора
+
+            if current_balance < cost:
+                show_warning(f"Недостаточно средств, требуется {cost} крон.")
+                return
+
+            # Списываем средства через PoliticalCash
+            if not political_cash.deduct_resources(cost):
+                show_warning("Мы недавно уже подписали один договор! Попробуйте позже")
+                return
+
+            # Обновляем отношения в таблице relations
+            cursor.execute(
+                "UPDATE relations SET relationship = relationship + 7 WHERE (faction1 = ? AND faction2 = ?) OR (faction1 = ? AND faction2 = ?)",
+                (faction, target_faction, target_faction, faction)
+            )
+            conn.commit()
+
+            show_warning(f"Мы улучшили отношения с {target_faction}!", color=(0, 1, 0, 1))
+
+        finally:
+            conn.close()
 
     # Кнопки
     button_layout = BoxLayout(
@@ -636,28 +709,25 @@ def show_cultural_exchange_form(faction, game_area):
         spacing=font_size // 2
     )
 
-    # Цвета для кнопок
-    default_button_color = (0.2, 0.6, 1, 1)  # Синий цвет
-    default_text_color = (1, 1, 1, 1)  # Белый текст
     send_button = Button(
         text="Отправить предложение",
         font_size=font_size,
-        background_color=default_button_color,
-        color=default_text_color,
+        background_color=(0.2, 0.6, 1, 1),
+        color=(1, 1, 1, 1),
         size_hint=(0.5, None),
         height=button_height
     )
     send_button.bind(on_press=send_proposal)
+
     back_button = Button(
         text="Назад",
         font_size=font_size,
-        background_color=(0.8, 0.2, 0.2, 1),  # Красный цвет
-        color=default_text_color,
+        background_color=(0.8, 0.2, 0.2, 1),
+        color=(1, 1, 1, 1),
         size_hint=(0.5, None),
         height=button_height
     )
 
-    # Создаем и открываем Popup
     popup = Popup(
         title="Культурный обмен",
         content=content,
@@ -673,91 +743,7 @@ def show_cultural_exchange_form(faction, game_area):
     popup.open()
 
 
-def send_cultural_exchange_proposal(fraction, target_faction):
-    # Преобразуем путь к файлу
-    source_faction = transform_filename(target_faction)
-    dogovor_path_target = transform_filename(rf'files\config\status\dipforce\{fraction}\{source_faction}.json')
-    dogovor_path_my_fraction = transform_filename(rf'files\config\status\dipforce\{source_faction}\{fraction}.json')
-    # Создаем директорию, если она не существует
-    os.makedirs(os.path.dirname(dogovor_path_target), exist_ok=True)
-    os.makedirs(os.path.dirname(dogovor_path_my_fraction), exist_ok=True)
 
-    # Данные для записи в JSON
-    data = {
-        "Source_faction": target_faction,
-        "Target_faction": fraction
-    }
-    # Записываем данные в JSON-файл
-    with open(dogovor_path_my_fraction, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-
-    # Записываем данные в JSON-файл
-    with open(dogovor_path_target, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-
-    print(
-        f"Договор о культурном обмене между {fraction} и {target_faction} успешно записан в {dogovor_path_target}")
-    manage_relations(source_faction)
-
-
-def manage_relations(faction):
-    """Управление отношениями только для фракций, заключивших дипломатическое соглашение"""
-    # Проверяем, есть ли фракция в translation_dict
-    ru_name_fraction = reverse_translation_dict.get(faction, faction)
-    # Формируем путь к директории фракции
-    relations_path = r'files\config\status\dipforce'
-    faction_dir_path = os.path.join(relations_path, faction)
-
-    # Проверяем существование директории
-    if not os.path.exists(faction_dir_path):
-        print(f"Путь {faction_dir_path} не существует.")
-        return
-
-    # Загружаем текущие отношения
-    relations_data = load_relations()
-    if ru_name_fraction not in relations_data["relations"]:
-        print(f"Отношения для фракции {ru_name_fraction} не найдены.")
-        return
-
-    # Перебираем файлы в директории, обрабатываем только тех, с кем заключены соглашения
-    for filename in os.listdir(faction_dir_path):
-        if filename.endswith(".json"):
-            faction_name_en = filename.replace('.json', '')
-            faction_name_ru = reverse_translation_dict.get(faction_name_en, faction_name_en)
-
-            # Проверяем, есть ли дипломатическое соглашение
-            if faction_name_ru in relations_data["relations"][ru_name_fraction]:
-                current_value_self = relations_data["relations"][ru_name_fraction][faction_name_ru]
-                current_value_other = relations_data["relations"][faction_name_ru][ru_name_fraction]
-                relations_data["relations"][ru_name_fraction][faction_name_ru] = min(current_value_self + 7, 100)
-                relations_data["relations"][faction_name_ru][ru_name_fraction] = min(current_value_other + 7, 100)
-
-            # Удаляем обработанный файл (чтобы это изменение было одноразовым)
-            os.remove(os.path.join(faction_dir_path, filename))
-
-    # Сохраняем обновленные данные
-    save_relations(relations_data)
-
-
-def load_relations():
-    relations_file = r'files\config\status\dipforce\relations.json'
-    """Загружаем текущие отношения из файла relations.json"""
-    try:
-        with open(relations_file, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        print("Файл relations.json не найден. Создаем новый.")
-        return {"relations": {}}
-
-
-def save_relations(relations_data):
-    """Сохраняем обновленные отношения в файл relations.json"""
-    relations_file = r'files\config\status\dipforce\relations.json'
-    try:
-        with open(relations_file, "w", encoding="utf-8") as f:
-            json.dump(relations_data, f, ensure_ascii=False, indent=4)
-    except PermissionError:
-        print("Ошибка доступа к файлу relations.json. Проверьте права доступа.")
 
 
 def calculate_peace_army_points(faction_file):
@@ -1675,7 +1661,7 @@ def start_politic_mode(faction, game_area, class_faction):
         return button
 
     # Создаем кнопки
-    negotiate_btn = create_styled_button("Новый договор", lambda x: show_new_agreement_window(faction, game_area))
+    negotiate_btn = create_styled_button("Новый договор", lambda x: show_new_agreement_window(faction, game_area, class_faction))
     form_alliance_btn = create_styled_button("Управление союзниками", lambda x: print("Управление союзниками"))
     declare_raite_btn = create_styled_button(
         "Рейтинги",

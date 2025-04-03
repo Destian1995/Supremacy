@@ -421,7 +421,7 @@ class Faction:
         else:
             raise ValueError(f"Неизвестный тип ресурса: {resource_type}")
 
-    def update_resource_deals(self, resource_type, amount):
+    def update_resource_deals(self, resource_type='', amount=''):
         """
         Обновляет количество ресурсов фракции на указанное значение.
 
