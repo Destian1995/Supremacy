@@ -13,7 +13,6 @@ import os
 import sqlite3
 import random
 
-import json
 
 # Словарь для перевода названий
 translation_dict = {
@@ -22,15 +21,6 @@ translation_dict = {
     "Этерия": "eteria",
     "Хиперион": "giperion",
     "Халидон": "halidon",
-}
-
-# Имена глав МИД
-foreign_ministers = {
-    "Аркадия": "Мирослав",
-    "Селестия": "Меркуцио",
-    "Хиперион": "Джон",
-    "Этерия": "Цзинь Лун",
-    "Халидон": "Сулейман",
 }
 
 
@@ -59,11 +49,9 @@ class AdvisorView(FloatLayout):
     def __init__(self, faction, **kwargs):
         super(AdvisorView, self).__init__(**(kwargs))
         self.faction = faction
-        self.db_connection = sqlite3.connect('game_data.db')  # Подключение к базе данных
+        self.db = 'game_data.db'
+        self.db_connection = sqlite3.connect(self.db)  # Подключение к базе данных
         self.cursor = self.db_connection.cursor()
-
-        self.relations_path = r'files\config\status\dipforce'
-        self.relations_file = r'files\config\status\dipforce\relations.json'
 
         # Инициализация таблицы political_systems
         self.initialize_political_systems()
@@ -130,8 +118,7 @@ class AdvisorView(FloatLayout):
 
         political_system_button = Button(
             text="Полит. строй",
-            size_hint=(None, None),
-            size=(Window.width * 0.2, Window.height * 0.08),  # Адаптивный размер
+            size_hint=(1, 1),  # Растягиваем кнопку по ширине и высоте
             background_normal='',
             background_color=(0.227, 0.525, 0.835, 1),
             color=(1, 1, 1, 1),
@@ -143,8 +130,7 @@ class AdvisorView(FloatLayout):
 
         relations_button = Button(
             text="Отношения",
-            size_hint=(None, None),
-            size=(Window.width * 0.2, Window.height * 0.08),  # Адаптивный размер
+            size_hint=(1, 1),  # Растягиваем кнопку по ширине и высоте
             background_normal='',
             background_color=(0.118, 0.255, 0.455, 1),
             color=(1, 1, 1, 1),
@@ -437,106 +423,6 @@ class AdvisorView(FloatLayout):
         else:
             print("Ошибка: Попап не найден.")
 
-    def trade_news(self, faction):
-        """Функция для загрузки данных по торговым отношениям и построения таблицы"""
-        # Загрузка данных о текущих отношениях
-        relations_data = self.load_relations()
-
-        # Проверка наличия данных
-        if not relations_data or "relations" not in relations_data:
-            print("Нет данных об отношениях.")
-            return
-
-        # Получаем данные о текущей фракции
-        faction_relations = relations_data["relations"].get(self.faction, {})
-        if not faction_relations:
-            print(f"Нет данных об отношениях для фракции {self.faction}.")
-            return
-
-        # Создаем основной контейнер
-        main_layout = BoxLayout(
-            orientation='vertical',
-            spacing=dp(10),
-            padding=dp(10),
-            size_hint=(1, 1)
-        )
-
-        # Заголовок
-        header = Label(
-            text=f"Торговые условия для {self.faction}",
-            font_size=Window.height * 0.03,  # Адаптивный размер шрифта
-            bold=True,
-            size_hint_y=None,
-            height=Window.height * 0.06,  # Адаптивная высота
-            color=(0.15, 0.15, 0.15, 1)
-        )
-        main_layout.add_widget(header)
-
-        # Таблица с данными
-        table = GridLayout(
-            cols=3,
-            size_hint_y=None,
-            spacing=dp(5),
-            row_default_height=Window.height * 0.06  # Адаптивная высота строки
-        )
-        table.bind(minimum_height=table.setter('height'))
-
-        # Заголовки таблицы
-        table.add_widget(self.create_header("Фракция"))
-        table.add_widget(self.create_header("Торговые условия"))
-        table.add_widget(self.create_header("Коэффициент"))
-
-        # Добавление данных
-        for target_faction, relation_level in faction_relations.items():
-            # Определяем коэффициент на основе уровня отношений
-            coefficient = self.calculate_coefficient(relation_level)
-
-            # Формируем текстовое описание условий
-            if coefficient == 0:
-                condition_text = "Отказ от сделок."
-            elif coefficient < 1:
-                condition_text = f"Должны уступать {int((1 - coefficient) * 100)}% в сделках."
-            elif coefficient == 1:
-                condition_text = "Можем требовать столько же, сколько предлагаем."
-            else:
-                condition_text = f"Можем требовать больше на {int((coefficient - 1) * 100)}%."
-
-            # Добавляем данные в таблицу
-            table.add_widget(self.create_cell(target_faction))
-            table.add_widget(self.create_cell(condition_text))
-            table.add_widget(self.create_value_trade_cell(coefficient))
-
-        # Прокрутка
-        scroll = ScrollView(
-            size_hint=(1, 1),
-            bar_width=dp(8),
-            bar_color=(0.4, 0.4, 0.4, 0.6)
-        )
-        scroll.add_widget(table)
-        main_layout.add_widget(scroll)
-
-        # Настройка попапа
-        popup = Popup(
-            title='',
-            content=main_layout,
-            size_hint=(0.8, 0.8),
-            background_color=(0.96, 0.96, 0.96, 1),
-            overlay_color=(0, 0, 0, 0.2)
-        )
-        popup.open()
-
-    def load_trade_agreements(self, faction):
-        """Загружает данные о торговых соглашениях для указанной фракции"""
-        trade_file_path = transform_filename(f'files/config/status/trade_dogovor/{faction}.json')
-        try:
-            with open(trade_file_path, 'r', encoding='utf-8') as file:
-                return json.load(file)
-        except FileNotFoundError:
-            print(f"Файл торговых соглашений для фракции {faction} не найден.")
-            return {}
-        except json.JSONDecodeError:
-            print(f"Ошибка чтения файла торговых соглашений для фракции {faction}.")
-            return {}
 
     def load_relations(self):
         """
@@ -584,48 +470,46 @@ class AdvisorView(FloatLayout):
 
     def load_combined_relations(self):
         """
-        Загружает и комбинирует отношения из таблицы relations и файла diplomaties.json.
+        Загружает и комбинирует отношения из таблицы relations и файла diplomaties
         Возвращает словарь, где ключи — названия фракций, а значения — словари с уровнем отношений и статусом.
         """
         # Загрузка данных из таблицы relations
         relations_data = self.load_relations()
+        print("Загруженные данные из таблицы relations:", relations_data)  # Отладочный вывод
 
         # Загрузка данных из таблицы diplomaties
         diplomacies_data = self.load_diplomacies()
+        print("Загруженные данные из таблицы diplomaties:", diplomacies_data)  # Отладочный вывод
 
         # Создаем комбинированный словарь отношений
         combined_relations = {}
 
         # Обрабатываем данные из таблицы relations
         for target_faction, relation_level in relations_data.items():
-            if target_faction not in combined_relations:
-                combined_relations[target_faction] = {}
-
             combined_relations[target_faction] = {
                 "relation_level": relation_level,
                 "status": "неизвестно"  # значение по умолчанию
             }
 
         # Добавляем/обновляем статусы из таблицы diplomaties
-        for faction, data in diplomacies_data.items():
-            if faction == self.faction:  # Рассматриваем только текущую фракцию
-                for target_faction, status in data.get("отношения", {}).items():
-                    if target_faction in combined_relations:
-                        combined_relations[target_faction]["status"] = status
-                    else:
-                        combined_relations[target_faction] = {
-                            "relation_level": 0,  # значение по умолчанию
-                            "status": status
-                        }
+        for target_faction, status in diplomacies_data.items():
+            if target_faction in combined_relations:
+                combined_relations[target_faction]["status"] = status
+            else:
+                combined_relations[target_faction] = {
+                    "relation_level": 0,  # значение по умолчанию
+                    "status": status
+                }
 
+        print("Комбинированные отношения:", combined_relations)  # Отладочный вывод
         return combined_relations
 
     def show_relations(self, instance):
         """Отображает окно с таблицей отношений."""
         self.manage_relations()
-
         # Загружаем комбинированные отношения
         combined_relations = self.load_combined_relations()
+        print("Комбинированные отношения для отображения:", combined_relations)  # Отладочный вывод
 
         if not combined_relations:
             print(f"Нет данных об отношениях для фракции {self.faction}.")
@@ -669,15 +553,10 @@ class AdvisorView(FloatLayout):
         for country, data in combined_relations.items():
             relation_level = data["relation_level"]
             status = data["status"]
-
             table.add_widget(self.create_cell(country))
             table.add_widget(self.create_value_cell(relation_level))
-
-            # Рассчитываем коэффициент
             coefficient = self.calculate_coefficient(relation_level)
             table.add_widget(self.create_value_trade_cell(coefficient))
-
-            # Статус отношений
             table.add_widget(self.create_status_cell(status))
 
         # Прокрутка
@@ -699,13 +578,31 @@ class AdvisorView(FloatLayout):
         )
         popup.open()
 
-    def save_relations(self, relations_data):
-        """Сохраняем обновленные отношения в файл relations.json"""
+    def load_diplomacies(self):
+        """
+        Загружает дипломатические соглашения из базы данных для текущей фракции (self.faction).
+        Возвращает словарь, где ключи — названия фракций, а значения — статусы отношений.
+        """
+        diplomacies_data = {}
         try:
-            with open(self.relations_file, "w", encoding="utf-8") as f:
-                json.dump(relations_data, f, ensure_ascii=False, indent=4)
-        except PermissionError:
-            print("Ошибка доступа к файлу relations.json. Проверьте права доступа.")
+            with sqlite3.connect(self.db) as conn:
+                cursor = conn.cursor()
+                # Добавляем условие WHERE faction1 = ?
+                query = "SELECT faction2, relationship FROM diplomacies WHERE faction1 = ?"
+                cursor.execute(query, (self.faction,))
+                rows = cursor.fetchall()
+
+                print("Загруженные данные из таблицы diplomacies:", rows)  # Отладочный вывод
+
+                # Преобразуем результат в словарь
+                for faction2, relationship in rows:
+                    diplomacies_data[faction2] = relationship
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при работе с базой данных: {e}")
+        finally:
+            print("Результат загрузки diplomacies_data:", diplomacies_data)  # Отладочный вывод
+            return diplomacies_data
 
     def manage_relations(self):
         """
@@ -790,16 +687,6 @@ class AdvisorView(FloatLayout):
             print("Отношения успешно сохранены в базе данных.")
         except sqlite3.Error as e:
             print(f"Ошибка при сохранении отношений в базе данных: {e}")
-
-    def load_diplomacies(self):
-        """Загружает данные о дипломатических отношениях из файла."""
-        try:
-            file_path = "files/config/status/diplomaties.json"
-            with open(file_path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except FileNotFoundError:
-            print("Файл diplomaties.json не найден.")
-            return {}
 
     def create_status_cell(self, status):
         """Создает ячейку со статусом отношений и цветовой маркировкой."""

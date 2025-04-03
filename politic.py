@@ -265,7 +265,7 @@ def show_new_agreement_window(faction, game_area, class_faction):
     categories = [
         ("Торговое соглашение", show_trade_agreement_form),
         ("Договор об культурном обмене", lambda *args: show_cultural_exchange_form(faction, game_area, class_faction)),
-        ("Заключение мира", show_peace_form),
+        ("Заключение мира", lambda *args: show_peace_form(faction)),
         ("Заключение альянса", show_alliance_form),
         ("Объявление войны", show_declare_war_form),
     ]
@@ -423,6 +423,7 @@ def show_trade_agreement_form(faction, game_area):
     )
 
     def generate_agreement(instance):
+        global their_amount, our_amount
         errors = []
 
         # Проверка выбора фракции
@@ -461,6 +462,7 @@ def show_trade_agreement_form(faction, game_area):
         send_button.opacity = 1
 
     def send_agreement(instance):
+        global conn
         faction_selected = factions_spinner.text
 
         # Проверка выбранной фракции
@@ -746,47 +748,51 @@ def show_cultural_exchange_form(faction, game_area, class_faction):
 
 
 
-def calculate_peace_army_points(faction_file):
-    """Вычисляет общие очки армии для указанной фракции."""
+def calculate_peace_army_points(conn, faction):
+    """
+    Вычисляет общие очки армии для указанной фракции.
+    :param conn: Подключение к базе данных.
+    :param faction: Название фракции.
+    :return: Общие очки армии.
+    """
     # Коэффициенты для классов юнитов
     class_coefficients = {
-        '1': 1.3,
-        '2': 1.7,
-        '3': 2.0,
-        '4': 3.0
+        1: 1.3,
+        2: 1.7,
+        3: 2.0,
+        4: 3.0
     }
 
     total_points = 0
-
-    if not os.path.exists(faction_file):
-        print(f"Файл {faction_file} не найден.")
-        return total_points
+    cursor = conn.cursor()
 
     try:
-        with open(faction_file, 'r', encoding='utf-8') as file:
-            data = json.load(file)
+        # Шаг 1: JOIN-запрос для получения данных о юнитах и их фракции
+        cursor.execute("""
+            SELECT g.city_id, g.unit_name, g.unit_count, u.attack, u.defense, u.durability, u.unit_class
+            FROM garrisons g
+            JOIN units u ON g.unit_name = u.unit_name
+            WHERE u.faction = ?
+        """, (faction,))
+        units_data = cursor.fetchall()
 
-        for city_data in data.values():
-            for city_info in city_data:
-                for unit in city_info.get("units", []):
-                    stats = unit.get("units_stats", {})
-                    unit_class = str(stats.get("Класс юнита", "1"))
-                    damage = stats.get("Урон", 0)
-                    defense = stats.get("Защита", 0)
-                    endurance = stats.get("Живучесть", 0)
-                    coefficient = class_coefficients.get(unit_class, 1.0)
+        # Шаг 2: Вычисление очков для каждого юнита
+        for city_id, unit_name, unit_count, attack, defense, durability, unit_class in units_data:
+            base_score = attack + defense + durability
+            class_multiplier = class_coefficients.get(unit_class, 1.0)  # Если класс не найден, используем 1.0
+            unit_score = base_score * class_multiplier
 
-                    # Формула для вычисления очков юнита
-                    unit_points = defense + endurance + (damage * coefficient)
-                    total_points += unit_points * unit.get("unit_count", 1)
+            # Умножаем на количество юнитов
+            total_points += unit_score * unit_count
 
-    except json.JSONDecodeError:
-        print(f"Ошибка чтения файла {faction_file}.")
+        return total_points
 
-    return total_points
+    except Exception as e:
+        print(f"Ошибка при вычислении очков армии: {e}")
+        return 0
 
 
-def show_peace_form(player_faction, game_area):
+def show_peace_form(player_faction):
     """Окно формы для предложения о заключении мира."""
     # Рассчитываем базовый размер шрифта
     font_size = calculate_font_size()
@@ -795,215 +801,223 @@ def show_peace_form(player_faction, game_area):
     padding = font_size // 2  # Отступы
     spacing = font_size // 4  # Промежутки между элементами
 
-    # Чтение данных из файла diplomaties.json
-    diplomaties_file_path = os.path.join("files", "config", "status", "diplomaties.json")
-    if not os.path.exists(diplomaties_file_path):
-        print("Файл diplomaties.json не найден.")
-        return
+    conn = connect_to_db()
+    cursor = conn.cursor()
 
-    with open(diplomaties_file_path, 'r', encoding='utf-8') as file:
-        diplomaties = json.load(file)
+    try:
+        # Получаем текущие отношения фракции из таблицы diplomacies
+        cursor.execute(
+            "SELECT faction2, relationship FROM diplomacies WHERE faction1 = ?",
+            (player_faction,)
+        )
+        relations = {faction: status for faction, status in cursor.fetchall()}
 
-    # Проверка, существует ли указанная фракция
-    if player_faction not in diplomaties:
-        print(f"Ошибка: Фракция '{player_faction}' не найдена.")
-        return
+        # Список всех доступных фракций
+        all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
+        available_factions = [f for f, status in relations.items() if status == "война"]
 
-    # Получение текущих отношений фракции
-    relations = diplomaties[player_faction]["отношения"]
+        # Если нет доступных фракций для заключения мира
+        if not available_factions:
+            popup_content = BoxLayout(
+                orientation='vertical',
+                padding=padding,
+                spacing=spacing
+            )
+            message_label = Label(
+                text="Мы сейчас ни с кем не воюем",
+                size_hint=(1, None),
+                height=font_size * 2,
+                font_size=font_size,
+                color=(0, 1, 0, 1),  # Зеленый цвет
+                halign='center'
+            )
+            popup_content.add_widget(message_label)
 
-    # Список всех фракций
-    all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
-    available_factions = [f for f, status in relations.items() if status == "война"]
+            close_button = Button(
+                text="Закрыть",
+                font_size=font_size,
+                background_color=(0.8, 0.2, 0.2, 1),  # Красный цвет
+                color=(1, 1, 1, 1),
+                size_hint=(1, None),
+                height=button_height
+            )
 
-    # Если нет доступных фракций для заключения мира
-    if not available_factions:
-        # Выводим сообщение "Мы сейчас ни с кем не воюем"
-        popup_content = BoxLayout(
+            popup = Popup(
+                title="Заключение мира",
+                content=popup_content,
+                size_hint=(0.7, 0.3),
+                auto_dismiss=False
+            )
+            close_button.bind(on_press=popup.dismiss)
+            popup_content.add_widget(close_button)
+            popup.open()
+            return
+
+        # Создаем контент для Popup
+        content = BoxLayout(
             orientation='vertical',
             padding=padding,
             spacing=spacing
         )
+
+        # Заголовок
+        title = Label(
+            text="Предложение о заключении мира",
+            size_hint=(1, None),
+            height=button_height,
+            font_size=font_size * 1.5,
+            color=(1, 1, 1, 1),
+            bold=True,
+            halign='center'
+        )
+        content.add_widget(title)
+
+        # Спиннер для выбора фракции
+        factions_spinner = Spinner(
+            text="С какой фракцией?",
+            values=available_factions,
+            size_hint=(1, None),
+            height=input_height,
+            font_size=font_size,
+            background_color=(0.2, 0.6, 1, 1),
+            background_normal=''
+        )
+        content.add_widget(factions_spinner)
+
+        # Сообщения пользователю
         message_label = Label(
-            text="Мы сейчас ни с кем не воюем",
+            text="",
             size_hint=(1, None),
             height=font_size * 2,
             font_size=font_size,
-            color=(0, 1, 0, 1),  # Зеленый цвет
+            color=(0, 1, 0, 1),  # Зеленый цвет по умолчанию
             halign='center'
         )
-        popup_content.add_widget(message_label)
+        content.add_widget(message_label)
 
-        close_button = Button(
-            text="Закрыть",
+        # Функция для вывода предупреждений
+        def show_warning(text, color=(1, 0, 0, 1)):
+            """Выводит предупреждение с указанным цветом."""
+            message_label.text = text
+            message_label.color = color
+
+        # Функция для отправки предложения
+        def send_proposal(instance):
+            """Отправляет предложение о заключении мира."""
+            target_faction = factions_spinner.text
+            if target_faction == "С какой фракцией?":
+                show_warning("Пожалуйста, выберите фракцию!", color=(1, 0, 0, 1))  # Красный цвет
+                return
+
+            # Вычисление очков армии для игрока и противника
+            player_points = calculate_peace_army_points(conn, player_faction)
+            enemy_points = calculate_peace_army_points(conn, target_faction)
+
+            # Проверка на наличие армии у врага
+            if player_points == 0 and enemy_points > 0:
+                show_warning("Обойдешься. Сейчас я отыграюсь по полной.", color=(1, 0, 0, 1))
+                return
+
+            # Условие: если нет армий, заключаем мир
+            if enemy_points == 0 and player_points == 0:
+                response = "Мы согласны на мир! Нам пока и воевать то нечем..."
+                cursor.execute(
+                    "UPDATE diplomacies SET relationship = ? WHERE faction1 = ? AND faction2 = ?",
+                    ("нейтралитет", player_faction, target_faction)
+                )
+                cursor.execute(
+                    "UPDATE diplomacies SET relationship = ? WHERE faction1 = ? AND faction2 = ?",
+                    ("нейтралитет", target_faction, player_faction)
+                )
+                conn.commit()
+                show_warning(response, color=(0, 1, 0, 1))  # Зеленый цвет
+                return
+
+            # Вычисление процента превосходства
+            if player_points > enemy_points:
+                superiority_percentage = ((player_points - enemy_points) / enemy_points) * 100
+                if superiority_percentage >= 70:
+                    response = "А смысл нам сопротивляться? Все приплыли.."
+                elif 30 <= superiority_percentage < 70:
+                    response = "Нихера себе повоевали...."
+                elif 20 <= superiority_percentage < 30:
+                    response = "Что там случилось...такое.."
+                elif 10 <= superiority_percentage < 20:
+                    response = "По-моему мы что-то упустили"
+                else:
+                    response = "В следующий раз мы будем лучше готовы"
+
+                # Меняем статус на "нейтралитет" в таблице diplomacies
+                cursor.execute(
+                    "UPDATE diplomacies SET relationship = ? WHERE faction1 = ? AND faction2 = ?",
+                    ("нейтралитет", player_faction, target_faction)
+                )
+                cursor.execute(
+                    "UPDATE diplomacies SET relationship = ? WHERE faction1 = ? AND faction2 = ?",
+                    ("нейтралитет", target_faction, player_faction)
+                )
+                conn.commit()
+
+                show_warning(response, color=(0, 1, 0, 1))  # Зеленый цвет
+            elif player_points < enemy_points:
+                inferiority_percentage = ((enemy_points - player_points) / player_points) * 100
+                if inferiority_percentage <= 15:
+                    response = "Почти то что надо, подкинь пару крон и договоримся"
+                    show_warning(response, color=(1, 1, 0, 1))  # Желтый цвет
+                else:
+                    response = "Мы еще не закончили Вас бить"
+                    show_warning(response, color=(1, 0, 0, 1))  # Красный цвет
+            else:
+                response = "Сейчас передохнем и в рыло дадим"
+                show_warning(response, color=(1, 0, 0, 1))  # Красный цвет
+
+        # Кнопки
+        button_layout = BoxLayout(
+            orientation='horizontal',
+            size_hint=(1, None),
+            height=button_height,
+            spacing=font_size // 2
+        )
+
+        # Цвета для кнопок
+        default_button_color = (0.2, 0.6, 1, 1)  # Синий цвет
+        default_text_color = (1, 1, 1, 1)  # Белый текст
+        send_button = Button(
+            text="Отправить предложение",
+            font_size=font_size,
+            background_color=default_button_color,
+            color=default_text_color,
+            size_hint=(0.5, None),
+            height=button_height
+        )
+        send_button.bind(on_press=send_proposal)
+        back_button = Button(
+            text="Назад",
             font_size=font_size,
             background_color=(0.8, 0.2, 0.2, 1),  # Красный цвет
-            color=(1, 1, 1, 1),
-            size_hint=(1, None),
+            color=default_text_color,
+            size_hint=(0.5, None),
             height=button_height
         )
 
+        # Создаем и открываем Popup
         popup = Popup(
             title="Заключение мира",
-            content=popup_content,
-            size_hint=(0.7, 0.3),
+            content=content,
+            size_hint=(0.7, 0.5),
             auto_dismiss=False
         )
-        close_button.bind(on_press=popup.dismiss)
-        popup_content.add_widget(close_button)
+        back_button.bind(on_press=popup.dismiss)
+
+        button_layout.add_widget(send_button)
+        button_layout.add_widget(back_button)
+        content.add_widget(button_layout)
+
         popup.open()
-        return
 
-    # Создаем контент для Popup
-    content = BoxLayout(
-        orientation='vertical',
-        padding=padding,
-        spacing=spacing
-    )
+    except Exception as e:
+        print(f"Ошибка при работе с дипломатией: {e}")
 
-    # Заголовок
-    title = Label(
-        text="Предложение о заключении мира",
-        size_hint=(1, None),
-        height=button_height,
-        font_size=font_size * 1.5,
-        color=(1, 1, 1, 1),
-        bold=True,
-        halign='center'
-    )
-    content.add_widget(title)
-
-    # Спиннер для выбора фракции
-    factions_spinner = Spinner(
-        text="С какой фракцией?",
-        values=available_factions,
-        size_hint=(1, None),
-        height=input_height,
-        font_size=font_size,
-        background_color=(0.2, 0.6, 1, 1),
-        background_normal=''
-    )
-    content.add_widget(factions_spinner)
-
-    # Сообщения пользователю
-    message_label = Label(
-        text="",
-        size_hint=(1, None),
-        height=font_size * 2,
-        font_size=font_size,
-        color=(0, 1, 0, 1),  # Зеленый цвет по умолчанию
-        halign='center'
-    )
-    content.add_widget(message_label)
-
-    # Функция для вывода предупреждений
-    def show_warning(text, color=(1, 0, 0, 1)):
-        """Выводит предупреждение с указанным цветом."""
-        message_label.text = text
-        message_label.color = color
-
-    # Функция для отправки предложения
-    def send_proposal(instance):
-        """Отправляет предложение о заключении мира."""
-        target_faction = factions_spinner.text
-        if target_faction == "С какой фракцией?":
-            show_warning("Пожалуйста, выберите фракцию!", color=(1, 0, 0, 1))  # Красный цвет
-            return
-
-        # Преобразование русских названий в английские
-        player_english_name = translation_dict.get(player_faction)
-        enemy_english_name = translation_dict.get(target_faction)
-
-        if not player_english_name or not enemy_english_name:
-            show_warning("Ошибка при определении фракций.", color=(1, 0, 0, 1))  # Красный цвет
-            return
-
-        # Путь к файлам армий
-        player_file = os.path.join("files", "config", "manage_ii", f"{player_english_name}_in_city.json")
-        enemy_file = os.path.join("files", "config", "manage_ii", f"{enemy_english_name}_in_city.json")
-
-        # Вычисление очков армии
-        player_points = calculate_peace_army_points(player_file)
-        enemy_points = calculate_peace_army_points(enemy_file)
-
-        if player_points == 0 or enemy_points == 0:
-            show_warning("Ошибка при вычислении очков армии.", color=(1, 0, 0, 1))  # Красный цвет
-            return
-
-        # Вычисление процента превосходства
-        if player_points > enemy_points:
-            superiority_percentage = ((player_points - enemy_points) / enemy_points) * 100
-            if superiority_percentage >= 70:
-                response = "А смысл нам сопротивляться? Все приплыли.."
-            elif 30 <= superiority_percentage < 70:
-                response = "Нихера себе повоевали...."
-            elif 20 <= superiority_percentage < 30:
-                response = "Что там случилось...такое.."
-            elif 10 <= superiority_percentage < 20:
-                response = "По-моему мы что-то упустили"
-            else:
-                response = "В следующий раз мы будем лучше готовы"
-            # Меняем статус на "мир"
-            diplomaties[player_faction]["отношения"][target_faction] = "нейтралитет"
-            diplomaties[target_faction]["отношения"][player_faction] = "нейтралитет"
-            with open(diplomaties_file_path, 'w', encoding='utf-8') as file:
-                json.dump(diplomaties, file, ensure_ascii=False, indent=4)
-            show_warning(response, color=(0, 1, 0, 1))  # Зеленый цвет
-        elif player_points < enemy_points:
-            inferiority_percentage = ((enemy_points - player_points) / player_points) * 100
-            if inferiority_percentage <= 15:
-                response = "Почти то что надо, подкинь пару крон и договоримся"
-                show_warning(response, color=(1, 1, 0, 1))  # Желтый цвет
-            else:
-                response = "Мы еще не закончили Вас бить"
-                show_warning(response, color=(1, 0, 0, 1))  # Красный цвет
-        else:
-            response = "Сейчас передохнем и в рыло дадим"
-            show_warning(response, color=(1, 0, 0, 1))  # Красный цвет
-
-    # Кнопки
-    button_layout = BoxLayout(
-        orientation='horizontal',
-        size_hint=(1, None),
-        height=button_height,
-        spacing=font_size // 2
-    )
-
-    # Цвета для кнопок
-    default_button_color = (0.2, 0.6, 1, 1)  # Синий цвет
-    default_text_color = (1, 1, 1, 1)  # Белый текст
-    send_button = Button(
-        text="Отправить предложение",
-        font_size=font_size,
-        background_color=default_button_color,
-        color=default_text_color,
-        size_hint=(0.5, None),
-        height=button_height
-    )
-    send_button.bind(on_press=send_proposal)
-    back_button = Button(
-        text="Назад",
-        font_size=font_size,
-        background_color=(0.8, 0.2, 0.2, 1),  # Красный цвет
-        color=default_text_color,
-        size_hint=(0.5, None),
-        height=button_height
-    )
-
-    # Создаем и открываем Popup
-    popup = Popup(
-        title="Заключение мира",
-        content=content,
-        size_hint=(0.7, 0.5),
-        auto_dismiss=False
-    )
-    back_button.bind(on_press=popup.dismiss)
-
-    button_layout.add_widget(send_button)
-    button_layout.add_widget(back_button)
-    content.add_widget(button_layout)
-
-    popup.open()
 
 
 def show_alliance_form(faction, game_area):
