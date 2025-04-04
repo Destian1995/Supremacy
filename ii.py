@@ -476,8 +476,8 @@ class AIController:
 
         # Определение стадии игры
         early_game = self.turn < 17  # ранняя игра
-        mid_game = 17 <= self.turn <= 40  # Средняя игра
-        late_game = self.turn > 40  # Поздняя игра
+        mid_game = 17 <= self.turn <= 30  # Средняя игра
+        late_game = self.turn > 30  # Поздняя игра
 
         # Распределение ресурсов в зависимости от стадии игры
         if early_game:

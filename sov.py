@@ -795,11 +795,11 @@ class AdvisorView(FloatLayout):
 
     def get_relation_trade_color(self, value):
         """Возвращает цвет в зависимости от значения коэффициента"""
-        if value <= 0.08:
+        if value <= 0.09:
             return (0.8, 0.1, 0.1, 1)  # Красный
-        elif 0.08 < value <= 0.3:
+        elif 0.09 < value <= 0.2:
             return (1.0, 0.5, 0.0, 1)  # Оранжевый
-        elif 0.3 < value <= 0.8:
+        elif 0.2 < value <= 0.8:
             return (1.0, 0.8, 0.0, 1)  # Желтый
         elif 0.8 < value <= 1.0:
             return (0.2, 0.7, 0.3, 1)  # Зеленый
@@ -807,7 +807,7 @@ class AdvisorView(FloatLayout):
             return (0.0, 0.8, 0.8, 1)  # Голубой
         elif 1.4 < value <= 2.0:
             return (0.0, 0.6, 1.0, 1)  # Синий
-        elif 2.0 < value <= 2.9:
+        elif 2.0 < value <= 3.1:
             return (0.1, 0.3, 0.9, 1)  # Темно-синий
         else:
             return (1, 1, 1, 1)  # Белый

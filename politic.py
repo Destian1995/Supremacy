@@ -18,6 +18,7 @@ from kivy.uix.widget import Widget
 from kivy.core.window import Window
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.graphics import Color, RoundedRectangle, Rectangle
+from economic import format_number
 
 import threading
 
@@ -1019,6 +1020,14 @@ def show_peace_form(player_faction):
         print(f"Ошибка при работе с дипломатией: {e}")
 
 
+# Словарь фраз для каждой фракции
+alliance_phrases = {
+    "Селестия": "Мы Вас прикроем, от огня врагов!",
+    "Аркадия": "Светлого неба!",
+    "Этерия": "Вместе мы непобедимы!",
+    "Халидон": "Мудрость в том чтобы не допустить войны. В любом случае мы с Вами",
+    "Хиперион": "Пора выбить кому то зубы. Так. На всякий случай"
+}
 
 def show_alliance_form(faction, game_area):
     """Окно формы для предложения о создании альянса."""
@@ -1029,31 +1038,30 @@ def show_alliance_form(faction, game_area):
     padding = font_size // 2  # Отступы
     spacing = font_size // 4  # Промежутки между элементами
 
-    # Чтение данных из файла diplomaties.json
-    diplomaties_file_path = os.path.join("files", "config", "status", "diplomaties.json")
-    if not os.path.exists(diplomaties_file_path):
-        print("Файл diplomaties.json не найден.")
+    # Подключение к базе данных
+    conn = sqlite3.connect('game_data.db')  # Замените на путь к вашей базе данных
+    cursor = conn.cursor()
+
+    # Проверка существования фракции в таблицах
+    cursor.execute("SELECT COUNT(*) FROM diplomacies WHERE faction1 = ? OR faction2 = ?", (faction, faction))
+    if cursor.fetchone()[0] == 0:
+        print(f"Ошибка: Фракция '{faction}' не найдена в таблице 'diplomacies'.")
+        conn.close()
         return
 
-    with open(diplomaties_file_path, 'r', encoding='utf-8') as file:
-        diplomaties = json.load(file)
-
-    # Чтение данных из файла relations.json
-    relations_file_path = os.path.join("files", "config", "status", "dipforce", "relations.json")
-    if not os.path.exists(relations_file_path):
-        print("Файл relations.json не найден.")
+    cursor.execute("SELECT COUNT(*) FROM relations WHERE faction1 = ? OR faction2 = ?", (faction, faction))
+    if cursor.fetchone()[0] == 0:
+        print(f"Ошибка: Фракция '{faction}' не найдена в таблице 'relations'.")
+        conn.close()
         return
 
-    with open(relations_file_path, 'r', encoding='utf-8') as file:
-        relations_data = json.load(file)
-
-    # Проверка, существует ли указанная фракция
-    if faction not in diplomaties or faction not in relations_data["relations"]:
-        print(f"Ошибка: Фракция '{faction}' не найдена.")
-        return
-
-    # Получение текущих отношений фракции
-    relations = relations_data["relations"][faction]
+    # Получение текущих отношений фракции из таблицы relations
+    cursor.execute("""
+        SELECT faction1, faction2, relationship 
+        FROM relations 
+        WHERE faction1 = ? OR faction2 = ?
+    """, (faction, faction))
+    relations_data = {row[1] if row[0] == faction else row[0]: row[2] for row in cursor.fetchall()}
 
     # Список всех фракций
     all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
@@ -1128,18 +1136,22 @@ def show_alliance_form(faction, game_area):
             return
 
         # Проверяем уровень отношений
-        relation_level = relations.get(target_faction, 0)
+        relation_level = int(relations_data.get(target_faction, 0))
+
+        # Получаем фразу для выбранной фракции
+        alliance_phrase = alliance_phrases.get(target_faction, "Союз заключен!")
 
         if relation_level >= 90:
             # Меняем статус отношений на "союз"
-            diplomaties[faction]["отношения"][target_faction] = "союз"
-            diplomaties[target_faction]["отношения"][faction] = "союз"
+            cursor.execute("""
+                UPDATE diplomacies 
+                SET relationship = 'союз' 
+                WHERE (faction1 = ? AND faction2 = ?) OR (faction1 = ? AND faction2 = ?)
+            """, (faction, target_faction, target_faction, faction))
+            conn.commit()
 
-            # Сохраняем изменения в файл diplomaties.json
-            with open(diplomaties_file_path, 'w', encoding='utf-8') as file:
-                json.dump(diplomaties, file, ensure_ascii=False, indent=4)
-
-            show_warning("Пусть наши враги боятся нас! Светлого неба!", color=(0, 1, 0, 1))
+            # Выводим фразу, соответствующую фракции
+            show_warning(alliance_phrase, color=(0, 1, 0, 1))
         elif 75 <= relation_level < 90:
             show_warning("Друг. Мы должны сильнее доверять друг другу, тогда союз будет возможен.")
         elif 50 <= relation_level < 75:
@@ -1179,6 +1191,8 @@ def show_alliance_form(faction, game_area):
         size_hint=(0.5, None),
         height=button_height
     )
+    def close_connection(*args):
+        conn.close()
 
     # Создаем и открываем Popup
     popup = Popup(
@@ -1188,6 +1202,7 @@ def show_alliance_form(faction, game_area):
         auto_dismiss=False
     )
     back_button.bind(on_press=popup.dismiss)
+    popup.bind(on_dismiss=close_connection)  # Привязываем функцию close_connection к событию закрытия popup
 
     button_layout.add_widget(send_button)
     button_layout.add_widget(back_button)
@@ -1195,6 +1210,12 @@ def show_alliance_form(faction, game_area):
 
     popup.open()
 
+
+
+
+from kivy.uix.popup import Popup
+
+from kivy.uix.popup import Popup
 
 def show_declare_war_form(faction, game_area):
     """Окно формы для объявления войны."""
@@ -1205,28 +1226,59 @@ def show_declare_war_form(faction, game_area):
     padding = font_size // 2  # Отступы
     spacing = font_size // 4  # Промежутки между элементами
 
-    # Чтение данных из файла diplomaties.json
-    file_path = os.path.join("files", "config", "status", "diplomaties.json")
-    if not os.path.exists(file_path):
-        print("Файл diplomaties.json не найден.")
+    # Подключение к базе данных через контекстный менеджер
+    try:
+        with sqlite3.connect('game_data.db') as conn:  # Замените на путь к вашей базе данных
+            cursor = conn.cursor()
+
+            # Проверка текущего хода
+            cursor.execute("SELECT turn_count FROM turn")
+            turn_result = cursor.fetchone()
+            if turn_result is None:
+                show_popup_message("Ошибка", "Таблица 'turn' пуста или отсутствует.")
+                return
+
+            current_turn = turn_result[0]
+            if current_turn < 16:
+                show_popup_message("Слишком рано", "Атаковать другие фракции можно только после 16 хода.")
+                return
+
+            # Проверка существования фракции в таблице diplomacies
+            cursor.execute("SELECT COUNT(*) FROM diplomacies WHERE faction1 = ? OR faction2 = ?", (faction, faction))
+            diplomacy_count = cursor.fetchone()[0]
+            if diplomacy_count == 0:
+                show_popup_message("Ошибка", f"Фракция '{faction}' не найдена в таблице 'diplomacies'.")
+                return
+
+            # Получение текущих отношений фракции
+            cursor.execute("""
+                SELECT faction1, faction2, relationship 
+                FROM diplomacies 
+                WHERE faction1 = ? OR faction2 = ?
+            """, (faction, faction))
+            relations = {}
+            for row in cursor.fetchall():
+                other_faction = row[1] if row[0] == faction else row[0]
+                relations[other_faction] = row[2]
+
+            # Фильтрация стран, которым можно объявить войну (не "война")
+            available_targets = [country for country, status in relations.items() if status != "война"]
+            if not available_targets:
+                show_popup_message("Нет целей", "Нет доступных целей для объявления войны.")
+                return
+
+    except Exception as e:
+        show_popup_message("Ошибка", f"Произошла ошибка при работе с базой данных: {e}")
         return
 
-    with open(file_path, 'r', encoding='utf-8') as file:
-        diplomaties = json.load(file)
-
-    # Проверка, существует ли указанная фракция
-    if faction not in diplomaties:
-        print(f"Ошибка: Фракция '{faction}' не найдена.")
-        return
-
-    # Получение текущих отношений фракции
-    relations = diplomaties[faction]["отношения"]
-
-    # Фильтрация стран, которым можно объявить войну (не "война")
-    available_targets = [country for country, status in relations.items() if status != "война"]
-    if not available_targets:
-        print("Нет доступных целей для объявления войны.")
-        return
+    # Уникальные фразы для каждой фракции
+    faction_phrases = {
+        "Селестия": "Не посрамим честь предков!!",
+        "Аркадия": "Тебя давно по голове били? Сейчас исправим",
+        "Этерия": "Вы слишком самонадеяны, Вам это аукнется",
+        "Халидон": "Мудрый правитель умеет договорится. Однако это не про Вас",
+        "Хиперион": "Ты когда-нибудь слышал про К-17? Когда услышишь мало не покажется"
+    }
 
     # Создаем контент для Popup
     content = BoxLayout(
@@ -1284,19 +1336,34 @@ def show_declare_war_form(faction, game_area):
             show_warning("Пожалуйста, выберите цель!")
             return
 
-        # Обновление статуса отношений в diplomaties.json
-        diplomaties[faction]["отношения"][target_faction] = "война"
-        diplomaties[target_faction]["отношения"][faction] = "война"
+        try:
+            # Подключение к базе данных
+            with sqlite3.connect('game_data.db') as conn:
+                cursor = conn.cursor()
 
-        # Сохранение изменений в файл diplomaties.json
-        with open(file_path, 'w', encoding='utf-8') as file:
-            json.dump(diplomaties, file, ensure_ascii=False, indent=4)
+                # Обновление статуса отношений в таблице diplomacies
+                cursor.execute("""
+                    UPDATE diplomacies 
+                    SET relationship = 'война' 
+                    WHERE (faction1 = ? AND faction2 = ?) OR (faction1 = ? AND faction2 = ?)
+                """, (faction, target_faction, target_faction, faction))
 
-        # Обнуление отношений в relations.json
-        reset_relations_between_factions(faction, target_faction)
+                # Обнуление отношений в таблице relations
+                cursor.execute("""
+                    UPDATE relations 
+                    SET relationship = 0 
+                    WHERE (faction1 = ? AND faction2 = ?) OR (faction1 = ? AND faction2 = ?)
+                """, (faction, target_faction, target_faction, faction))
 
-        # Вывод сообщения об успешном объявлении войны
-        show_warning(f"Война объявлена против {target_faction}!", color=(0, 1, 0, 1))
+                # Сохраняем изменения в базе данных
+                conn.commit()
+
+            # Вывод сообщения об успешном объявлении войны
+            phrase = faction_phrases.get(target_faction, f"Война объявлена против {target_faction}!")
+            show_warning(phrase, color=(1, 0, 0, 1))  # Красный текст
+
+        except Exception as e:
+            show_popup_message("Ошибка", f"Произошла ошибка при объявлении войны: {e}")
 
     # Кнопки
     button_layout = BoxLayout(
@@ -1349,111 +1416,167 @@ def show_declare_war_form(faction, game_area):
     popup.open()
 
 
-def reset_relations_between_factions(faction, target_faction):
+def show_popup_message(title, message):
     """
-    Обнуляет отношения между двумя фракциями в файле relations.json.
+    Показывает всплывающее окно с заданным заголовком и сообщением.
 
-    :param faction: Наша фракция (например, "Хиперион").
-    :param target_faction: Целевая фракция (например, "Аркадия").
+    :param title: Заголовок окна.
+    :param message: Текст сообщения.
     """
-    # Путь к файлу relations.json
-    file_path = os.path.join("files", "config", "status", "dipforce", "relations.json")
+    popup_content = BoxLayout(orientation='vertical', padding=10, spacing=10)
+    popup_content.add_widget(Label(text=message, color=(1, 1, 1, 1), halign='center'))
+    close_button = Button(text="Закрыть", size_hint=(1, 0.3))
+    popup = Popup(title=title, content=popup_content, size_hint=(0.6, 0.4), auto_dismiss=False)
+    close_button.bind(on_press=popup.dismiss)
+    popup_content.add_widget(close_button)
+    popup.open()
 
-    # Проверка существования файла
-    if not os.path.exists(file_path):
-        print(f"Ошибка: Файл '{file_path}' не найден.")
-        return
 
-    # Чтение данных из файла
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            relations_data = json.load(file)
-    except json.JSONDecodeError:
-        print("Ошибка: Невозможно прочитать файл relations.json.")
-        return
 
-    # Проверка наличия ключей в данных
-    if "relations" not in relations_data:
-        print("Ошибка: В файле relations.json отсутствует ключ 'relations'.")
-        return
-
-    relations = relations_data["relations"]
-
-    # Проверка наличия наших фракций в данных
-    if faction not in relations or target_faction not in relations:
-        print(f"Ошибка: Фракция '{faction}' или '{target_faction}' не найдена в relations.json.")
-        return
-
-    # Обнуление отношений
-    if target_faction in relations[faction]:
-        relations[faction][target_faction] = 0
-    else:
-        print(f"Ошибка: Отношения между '{faction}' и '{target_faction}' не найдены.")
-
-    if faction in relations[target_faction]:
-        relations[target_faction][faction] = 0
-    else:
-        print(f"Ошибка: Отношения между '{target_faction}' и '{faction}' не найдены.")
-
-    # Сохранение изменений в файл
-    try:
-        with open(file_path, 'w', encoding='utf-8') as file:
-            json.dump(relations_data, file, ensure_ascii=False, indent=4)
-        print(f"Отношения между '{faction}' и '{target_faction}' успешно обнулены.")
-    except Exception as e:
-        print(f"Ошибка при сохранении файла: {e}")
 
 #-------------------------------------
 
-def load_faction_files(folder_path):
-    """Загружает данные о фракциях из указанной папки."""
-    faction_files = {}
-    if not os.path.exists(folder_path):
-        print(f"Папка {folder_path} не найдена.")
-        return faction_files
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".json"):
-            faction_name = filename[:-5]  # Убираем расширение .json
-            file_path = os.path.join(folder_path, filename)
-            try:
-                with open(file_path, 'r', encoding='utf-8') as file:
-                    json.load(file)  # Просто проверяем, что файл можно прочитать
-                    faction_files[faction_name] = file_path
-            except Exception as e:
-                print(f"Ошибка чтения файла {file_path}: {e}")
-    return faction_files
 
-def calculate_economy_points(buildings_file):
-    """Вычисляет общие очки экономики для указанной фракции."""
-    total_buildings = 0
-    if not os.path.exists(buildings_file):
-        print(f"Файл {buildings_file} не найден.")
-        return total_buildings
+def create_economy_rating_table():
+    """Создает таблицу рейтинга экономик на основе данных из таблицы buildings."""
+    # Подключение к базе данных
     try:
-        with open(buildings_file, 'r', encoding='utf-8') as file:
-            data = json.load(file)
-            if not isinstance(data, dict):
-                raise ValueError("Некорректный формат данных: ожидался словарь.")
-            for city_info in data.values():
-                buildings = city_info.get("Здания", {})
-                total_buildings += sum(buildings.values())
+        with sqlite3.connect('game_data.db') as conn:
+            cursor = conn.cursor()
+
+            # Получение данных о зданиях
+            cursor.execute("""
+                SELECT faction, SUM(count) AS total_buildings 
+                FROM buildings 
+                GROUP BY faction
+            """)
+            economy_points = {row[0]: row[1] for row in cursor.fetchall()}
+
+            max_points = max(economy_points.values(), default=1)
+
+            layout = GridLayout(cols=3, size_hint_y=None, spacing=5, padding=10)
+            layout.bind(minimum_height=layout.setter('height'))
+
+            def add_header_with_background(text):
+                header = Label(
+                    text=text,
+                    bold=True,
+                    color=(1, 1, 1, 1),
+                    size_hint_y=None,
+                    height=40
+                )
+                with header.canvas.before:
+                    Color(0.2, 0.6, 1, 1)  # Синий фон
+                    header.rect = Rectangle(pos=header.pos, size=header.size)
+                header.bind(
+                    pos=lambda _, value: setattr(header.rect, 'pos', value),
+                    size=lambda _, value: setattr(header.rect, 'size', value)
+                )
+                return header
+
+            layout.add_widget(add_header_with_background("Фракция"))
+            layout.add_widget(add_header_with_background("Рейтинг (%)"))
+            layout.add_widget(add_header_with_background("Плотность застройки"))
+
+            rank_colors = {
+                0: (1, 1, 1, 1),       # Белый (1-й)
+                1: (0, 0.8, 0.8, 1),   # Бирюзовый (2-й)
+                2: (0, 1, 0, 1),       # Зеленый (3-й)
+                3: (1, 1, 0, 1),       # Желтый (4-й)
+                4: (1, 0, 0, 1)        # Красный (5-й)
+            }
+
+            sorted_factions = sorted(economy_points.items(), key=lambda x: x[1], reverse=True)
+            for rank, (faction, points) in enumerate(sorted_factions):
+                rating = (points / max_points) * 100 if max_points > 0 else 0
+                russian_name = faction_names.get(faction, faction)
+                row_color = rank_colors.get(rank, (0.5, 0.5, 0.5, 1))
+
+                layout.add_widget(Label(text=russian_name, color=row_color, size_hint_y=None, height=40))
+                layout.add_widget(Label(text=f"{rating:.2f}%", color=row_color, size_hint_y=None, height=40))
+                layout.add_widget(Label(text=str(points), color=row_color, size_hint_y=None, height=40))
+
+            return layout
+
     except Exception as e:
-        print(f"Ошибка обработки файла {buildings_file}: {e}")
-    return total_buildings
+        print(f"Ошибка при работе с базой данных: {e}")
+        return GridLayout()
 
-def create_economy_rating_table(faction_files):
-    """Создает таблицу рейтинга экономик."""
-    economy_points = {}
-    for faction, file in faction_files.items():
-        points = calculate_economy_points(file)
-        economy_points[faction] = points
 
-    max_points = max(economy_points.values(), default=1)
+def calculate_army_strength():
+    """Рассчитывает силу армий для каждой фракции."""
+    class_coefficients = {
+        "1": 1.3,  # Класс 1: базовые юниты
+        "2": 1.7,  # Класс 2: улучшенные юниты
+        "3": 2.0,  # Класс 3: элитные юниты
+        "4": 3.0   # Класс 4: легендарные юниты
+    }
+
+    army_strength = {}
+
+    try:
+        with sqlite3.connect('game_data.db') as conn:
+            cursor = conn.cursor()
+
+            # Получаем все юниты из таблицы garrisons и их характеристики из таблицы units
+            cursor.execute("""
+                SELECT g.unit_name, g.unit_count, u.faction, u.attack, u.defense, u.durability, u.unit_class 
+                FROM garrisons g
+                JOIN units u ON g.unit_name = u.unit_name
+            """)
+            garrison_data = cursor.fetchall()
+
+            # Рассчитываем силу армии для каждой фракции
+            for row in garrison_data:
+                unit_name, unit_count, faction, attack, defense, durability, unit_class = row
+
+                if not faction:
+                    continue
+
+                # Коэффициент класса
+                coefficient = class_coefficients.get(unit_class, 1.0)
+
+                # Рассчитываем силу юнита
+                unit_strength = (attack * coefficient) + defense + durability
+
+                # Умножаем на количество юнитов
+                total_strength = unit_strength * unit_count
+
+                # Добавляем к общей силе фракции
+                if faction not in army_strength:
+                    army_strength[faction] = 0
+                army_strength[faction] += total_strength
+
+    except Exception as e:
+        print(f"Ошибка при работе с базой данных: {e}")
+        return {}
+
+    # Возвращаем два словаря: один с числовыми значениями, другой с отформатированными строками
+    formatted_army_strength = {faction: format_number(strength) for faction, strength in army_strength.items()}
+    return army_strength, formatted_army_strength
+
+
+def create_army_rating_table():
+    """Создает таблицу рейтинга армий на основе силы войск."""
+    # Получаем числовые и отформатированные значения силы армий
+    army_strength, formatted_army_strength = calculate_army_strength()
+
+    if not army_strength:
+        return GridLayout()
+
+    max_strength = max(army_strength.values(), default=1)
+
     layout = GridLayout(cols=3, size_hint_y=None, spacing=5, padding=10)
     layout.bind(minimum_height=layout.setter('height'))
 
     def add_header_with_background(text):
-        header = Label(text=text, bold=True, color=(1, 1, 1, 1), size_hint_y=None, height=40)
+        header = Label(
+            text=text,
+            bold=True,
+            color=(1, 1, 1, 1),
+            size_hint_y=None,
+            height=40
+        )
         with header.canvas.before:
             Color(0.2, 0.6, 1, 1)  # Синий фон
             header.rect = Rectangle(pos=header.pos, size=header.size)
@@ -1465,7 +1588,7 @@ def create_economy_rating_table(faction_files):
 
     layout.add_widget(add_header_with_background("Фракция"))
     layout.add_widget(add_header_with_background("Рейтинг (%)"))
-    layout.add_widget(add_header_with_background("Плотность застройки"))
+    layout.add_widget(add_header_with_background("Общая сила"))
 
     rank_colors = {
         0: (1, 1, 1, 1),       # Белый (1-й)
@@ -1475,25 +1598,28 @@ def create_economy_rating_table(faction_files):
         4: (1, 0, 0, 1)        # Красный (5-й)
     }
 
-    sorted_factions = sorted(economy_points.items(), key=lambda x: x[1], reverse=True)
-    for rank, (faction, points) in enumerate(sorted_factions):
-        rating = (points / max_points) * 100 if max_points > 0 else 0
-        russian_name = faction_names_build.get(faction, faction)
+    sorted_factions = sorted(
+        army_strength.items(),
+        key=lambda x: x[1],  # Сортируем по числовым значениям
+        reverse=True
+    )
+    for rank, (faction, strength) in enumerate(sorted_factions):
+        rating = (strength / max_strength) * 100 if max_strength > 0 else 0
+        russian_name = faction_names.get(faction, faction)
         row_color = rank_colors.get(rank, (0.5, 0.5, 0.5, 1))
+
+        # Отображаем отформатированное значение силы армии
+        formatted_strength = formatted_army_strength[faction]
 
         layout.add_widget(Label(text=russian_name, color=row_color, size_hint_y=None, height=40))
         layout.add_widget(Label(text=f"{rating:.2f}%", color=row_color, size_hint_y=None, height=40))
-        layout.add_widget(Label(text=str(points), color=row_color, size_hint_y=None, height=40))
+        layout.add_widget(Label(text=formatted_strength, color=row_color, size_hint_y=None, height=40))
 
     return layout
 
 
 def create_ratings_tab():
     """Создает вкладку 'Рейтинги' с выпадающим меню для выбора таблиц."""
-    # Загружаем данные для армий и экономики
-    faction_army_files = load_faction_files(os.path.join("files", "config", "manage_ii"))
-    faction_economy_files = load_faction_files(os.path.join("files", "config", "buildings_in_city"))
-
     # Основной контейнер
     layout = BoxLayout(orientation="vertical")
 
@@ -1514,9 +1640,9 @@ def create_ratings_tab():
     def update_content(instance, value):
         content_area.clear_widgets()  # Очищаем текущее содержимое
         if value == "Рейтинг армий":
-            table_layout = create_army_rating_table(faction_army_files)
+            table_layout = create_army_rating_table()
         elif value == "Рейтинг экономик":
-            table_layout = create_economy_rating_table(faction_economy_files)
+            table_layout = create_economy_rating_table()
         else:
             table_layout = Label(text="Нет данных", color=(1, 1, 1, 1))
 
@@ -1533,6 +1659,7 @@ def create_ratings_tab():
 
     return layout
 
+
 def show_ratings_popup():
     """Открывает всплывающее окно с рейтингами."""
     content = create_ratings_tab()
@@ -1543,97 +1670,6 @@ def show_ratings_popup():
         auto_dismiss=True
     )
     popup.open()
-
-
-def calculate_army_points(faction_file):
-    """Вычисляет общие очки армии и численность армии для указанной фракции."""
-    class_coefficients = {
-        "1": 1.3,  # Класс 1: базовые юниты
-        "2": 1.7,  # Класс 2: улучшенные юниты
-        "3": 2.0,  # Класс 3: элитные юниты
-        "4": 3.0   # Класс 4: легендарные юниты
-    }
-    total_points = 0
-    total_units = 0  # Численность армии
-    if not os.path.exists(faction_file):
-        print(f"Файл {faction_file} не найден.")
-        return total_points, total_units
-    try:
-        with open(faction_file, 'r', encoding='utf-8') as file:
-            data = json.load(file)
-            if not isinstance(data, dict):
-                raise ValueError("Некорректный формат данных: ожидался словарь.")
-            for city_data in data.values():
-                for city_info in city_data:
-                    for unit in city_info.get("units", []):
-                        stats = unit.get("units_stats", {})
-                        unit_class = str(stats.get("Класс юнита", "1"))
-                        damage = stats.get("Урон", 0)
-                        defense = stats.get("Защита", 0)
-                        endurance = stats.get("Живучесть", 0)
-                        coefficient = class_coefficients.get(unit_class, 1.0)
-                        unit_points = defense + endurance + (damage * coefficient)
-                        unit_count = unit.get("unit_count", 1)
-                        total_points += unit_points * unit_count
-                        total_units += unit_count
-    except Exception as e:
-        print(f"Ошибка обработки файла {faction_file}: {e}")
-    return total_points, total_units
-
-def create_army_rating_table(faction_files):
-    """Создает таблицу рейтинга армий."""
-    army_points = {}
-    army_units = {}  # Словарь для хранения численности армий
-    for faction, file in faction_files.items():
-        points, units = calculate_army_points(file)
-        army_points[faction] = points
-        army_units[faction] = units
-
-    max_points = max(army_points.values(), default=1)
-    layout = GridLayout(cols=3, size_hint_y=None, spacing=5, padding=10)
-    layout.bind(minimum_height=layout.setter('height'))
-
-    def add_header_with_background(text):
-        header = Label(
-            text=text,
-            bold=True,
-            color=(1, 1, 1, 1),  # Белый текст
-            size_hint_y=None,
-            height=40
-        )
-        with header.canvas.before:
-            Color(0.2, 0.6, 1, 1)  # Синий фон
-            header.rect = Rectangle(pos=header.pos, size=header.size)
-        header.bind(
-            pos=lambda _, value: setattr(header.rect, 'pos', value),
-            size=lambda _, value: setattr(header.rect, 'size', value)
-        )
-        return header
-
-    layout.add_widget(add_header_with_background("Фракция"))
-    layout.add_widget(add_header_with_background("Рейтинг (%)"))
-    layout.add_widget(add_header_with_background("Численность армии"))
-
-    rank_colors = {
-        0: (1, 1, 1, 1),       # Белый (1-й)
-        1: (0, 0.8, 0.8, 1),   # Бирюзовый (2-й)
-        2: (0, 1, 0, 1),       # Зеленый (3-й)
-        3: (1, 1, 0, 1),       # Желтый (4-й)
-        4: (1, 0, 0, 1)        # Красный (5-й)
-    }
-
-    sorted_factions = sorted(army_points.items(), key=lambda x: x[1], reverse=True)
-    for rank, (faction, points) in enumerate(sorted_factions):
-        rating = (points / max_points) * 100 if max_points > 0 else 0
-        russian_name = faction_names.get(faction, faction)
-        row_color = rank_colors.get(rank, (0.5, 0.5, 0.5, 1))
-        units = army_units[faction]
-
-        layout.add_widget(Label(text=russian_name, color=row_color, size_hint_y=None, height=40))
-        layout.add_widget(Label(text=f"{rating:.2f}%", color=row_color, size_hint_y=None, height=40))
-        layout.add_widget(Label(text=str(units), color=row_color, size_hint_y=None, height=40))
-
-    return layout
 
 
 

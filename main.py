@@ -1,3 +1,4 @@
+from kivy.animation import Animation
 from kivy.graphics import Color, Ellipse, Rectangle
 from kivy.app import App
 from kivy.uix.floatlayout import FloatLayout
@@ -412,24 +413,44 @@ class MenuWidget(FloatLayout):
 class KingdomSelectionWidget(FloatLayout):
     def __init__(self, **kwargs):
         super(KingdomSelectionWidget, self).__init__(**kwargs)
-        # Загрузка данных о княжествах из JSON
-        with open('files/config/city.json', 'r', encoding='utf-8') as f:
-            self.kingdom_data = json.load(f)["kingdoms"]
+
+        # Подключение к базе данных и загрузка данных о княжествах
+        self.conn = sqlite3.connect('game_data.db', check_same_thread=False)
+        self.kingdom_data = self.load_kingdoms_from_db()
 
         # Фон выбора княжества с размытием
         self.add_widget(Image(source='files/choice.jpg', allow_stretch=True, keep_ratio=False))
 
-        # Заголовок с тенью
-        self.kingdom_label = Label(
+        # Заголовок "Выберите сторону" над изображением советника
+        self.select_side_label = Label(
             text="Выберите сторону",
-            font_size='40sp',
-            size_hint=(1, 0.2),
-            pos_hint={'center_x': 0.5, 'center_y': 0.85},
-            color=(0.2, 0.2, 0.2, 1),
+            font_size='30sp',
+            size_hint=(None, None),
+            size=(200, 50),
+            pos_hint={'center_x': 0.75, 'center_y': 0.85},
+            color=(1, 1, 1, 1),  # Белый текст
             outline_color=(0, 0, 0, 1),
-            outline_width=2
+            outline_width=2,
+            markup=True
         )
-        self.add_widget(self.kingdom_label)
+        self.add_widget(self.select_side_label)
+
+        # Надпись с названием фракции (изначально пустая)
+        self.faction_label = Label(
+            text="",
+            font_size='24sp',
+            size_hint=(None, None),
+            size=(300, 100),
+            pos_hint={'center_x': 0.75, 'center_y': 0.30},
+            color=(1, 1, 1, 1),  # Белый текст
+            outline_color=(0, 0, 0, 1),
+            outline_width=2,
+            markup=True,
+            halign="center",
+            valign="middle"
+        )
+        self.faction_label.bind(size=self.faction_label.setter('text_size'))  # Для переноса текста
+        self.add_widget(self.faction_label)
 
         # Панель для кнопок выбора княжеств
         self.kingdom_buttons = BoxLayout(
@@ -440,21 +461,21 @@ class KingdomSelectionWidget(FloatLayout):
             padding=[10, 10, 10, 10]
         )
 
-        # Создание кнопок для каждого княжества с черным текстом
+        # Создание кнопок для каждого княжества с анимацией
         for kingdom in self.kingdom_data.keys():
             btn = Button(
                 text=kingdom,
                 size_hint=(1, None),
-                height=50,
+                height=60,
                 background_normal='',
-                background_color=(0.96, 0.89, 0.76, 1),  # Бежевый цвет кнопок
-                color=(0, 0, 0, 1),  # Черный цвет текста
+                background_color=(0.1, 0.5, 0.9, 1),  # Синий цвет кнопок
+                color=(1, 1, 1, 1),  # Белый цвет текста
                 border=(20, 20, 20, 20)
             )
             btn.bind(on_press=self.select_kingdom)
-            # Более светлый оттенок при наведении
-            btn.bind(on_enter=lambda x: setattr(btn, 'background_color', (0.98, 0.92, 0.8, 1)))
-            btn.bind(on_leave=lambda x: setattr(btn, 'background_color', (0.96, 0.89, 0.76, 1)))
+            # Анимация при наведении
+            btn.bind(on_enter=lambda x: Animation(background_color=(0.2, 0.6, 1, 1), duration=0.2).start(x))
+            btn.bind(on_leave=lambda x: Animation(background_color=(0.1, 0.5, 0.9, 1), duration=0.2).start(x))
             self.kingdom_buttons.add_widget(btn)
 
         self.add_widget(self.kingdom_buttons)
@@ -467,78 +488,49 @@ class KingdomSelectionWidget(FloatLayout):
         )
         self.add_widget(self.advisor_image)
 
-        # Панель вкладок
-        self.tabs_panel = TabbedPanel(size_hint=(0.35, 0.3), pos_hint={'center_x': 0.8, 'center_y': 0.35})
-
-        # Вкладка с информацией о княжестве
-        self.info_tab = TabbedPanelItem(text="Инфо")
-        self.info_tab.background_color = (0.6, 0.8, 1, 1)  # Светло-синий фон вкладки
-        self.info_tab.color = (0, 0, 0, 1)  # Черный цвет текста
-
-        self.info_text_box = TextInput(
-            text="",
-            background_color=(0.96, 0.89, 0.76, 1),  # Бежевый цвет фона
-            foreground_color=(0, 0, 0, 1),  # Черный цвет текста
-            readonly=True,
-            multiline=True,
-            size_hint_y=None,
-            height=150,
-            padding=[10, 10, 10, 10]
-        )
-        self.info_tab.add_widget(self.info_text_box)
-        self.tabs_panel.add_widget(self.info_tab)
-
-        # Вкладка с городами
-        self.cities_tab = TabbedPanelItem(text="Города")
-        self.cities_tab.background_color = (0.6, 0.8, 1, 1)  # Светло-синий фон вкладки
-        self.cities_tab.color = (0, 0, 0, 1)  # Черный цвет текста
-
-        self.cities_text_box = TextInput(
-            text="",
-            background_color=(0.96, 0.89, 0.76, 1),  # Бежевый цвет фона
-            foreground_color=(0, 0, 0, 1),  # Черный цвет текста
-            readonly=True,
-            multiline=True,
-            size_hint_y=None,
-            height=150,
-            padding=[10, 10, 10, 10]
-        )
-        self.cities_tab.add_widget(self.cities_text_box)
-        self.tabs_panel.add_widget(self.cities_tab)
-
-        # Устанавливаем вкладку "Инфо" как активную
-        self.tabs_panel.default_tab = self.info_tab
-        self.add_widget(self.tabs_panel)
-
-        # Стилизация кнопок вкладок
-        for tab in self.tabs_panel.tab_list:
-            tab.bind(on_enter=lambda x: setattr(tab, 'background_color',
-                                                (0.7, 0.85, 1, 1)))  # Более яркий оттенок при наведении
-            tab.bind(on_leave=lambda x: setattr(tab, 'background_color',
-                                                (0.6, 0.8, 1, 1)))  # Вернуться к оригинальному цвету
-            tab.size_hint_y = None
-            tab.height = 50  # Высота кнопок
-            tab.background_normal = ''  # Убираем стандартный фон кнопок
-            tab.background_color = (0.6, 0.8, 1, 1)  # Светло-синий цвет кнопок
-
-        # Кнопка для начала игры с черным текстом
+        # Кнопка для начала игры с анимацией
         self.start_game_button = Button(
             text="Начать игру",
             size_hint=(0.4, None),
             height=60,
             pos_hint={'center_x': 0.8, 'center_y': 0.10},
             background_normal='',
-            background_color=(0.96, 0.89, 0.76, 1),
-            color=(0, 0, 0, 1),  # Черный цвет текста
+            background_color=(0.1, 0.5, 0.9, 1),
+            color=(1, 1, 1, 1),  # Белый цвет текста
             border=(20, 20, 20, 20)
         )
         self.start_game_button.bind(on_press=self.start_game)
-        # Более светлый оттенок при наведении
+        # Анимация при наведении
         self.start_game_button.bind(
-            on_enter=lambda x: setattr(self.start_game_button, 'background_color', (0.98, 0.92, 0.8, 1)))
+            on_enter=lambda x: Animation(background_color=(0.2, 0.6, 1, 1), duration=0.2).start(x))
         self.start_game_button.bind(
-            on_leave=lambda x: setattr(self.start_game_button, 'background_color', (0.96, 0.89, 0.76, 1)))
+            on_leave=lambda x: Animation(background_color=(0.1, 0.5, 0.9, 1), duration=0.2).start(x))
         self.add_widget(self.start_game_button)
+
+    def load_kingdoms_from_db(self):
+        """Загружает данные о княжествах из базы данных."""
+        kingdoms = {}
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                SELECT kingdom, fortress_name, coordinates, color
+                FROM city
+            """)
+            rows = cursor.fetchall()
+            for row in rows:
+                kingdom, fortress_name, coordinates, color = row
+                if kingdom not in kingdoms:
+                    kingdoms[kingdom] = {
+                        "fortresses": [],
+                        "color": color
+                    }
+                kingdoms[kingdom]["fortresses"].append({
+                    "name": fortress_name,
+                    "coordinates": coordinates
+                })
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке данных из базы данных: {e}")
+        return kingdoms
 
     def select_kingdom(self, instance):
         """Метод для обработки выбора княжества"""
@@ -554,28 +546,24 @@ class KingdomSelectionWidget(FloatLayout):
 
         # Устанавливаем выбранное княжество в атрибут приложения
         app = App.get_running_app()
-        app.selected_kingdom = kingdom_name  # Сохраняем выбранное княжество
+        app.selected_kingdom = kingdom_name
 
         english_name = kingdom_rename.get(kingdom_name, kingdom_name).lower()
         advisor_image_path = f'files/sov/sov_{english_name}.jpg'
         self.advisor_image.source = advisor_image_path
         self.advisor_image.reload()
 
-        # Обновляем текст для вкладки "Инфо"
-        kingdom_info_text = self.get_kingdom_info(kingdom_name)
-        self.info_text_box.text = kingdom_info_text
-
-        # Обновляем текст для вкладки "Города"
-        fortresses_info = "\n".join([f"{fort['name']}: {fort['coordinates']}" for fort in kingdom_info["fortresses"]])
-        self.cities_text_box.text = f"Города:\n{fortresses_info}"
+        # Обновляем текст для надписи с названием фракции
+        faction_info_text = self.get_kingdom_info(kingdom_name)
+        self.faction_label.text = f"[b]{kingdom_name}[/b]\n\n{faction_info_text}"
 
     def get_kingdom_info(self, kingdom):
         info = {
-            "Аркадия": "Аркадия - северное княжество.\nДоход крон: 10\nДоход сырья: 5\nАрмия: 9\n",
-            "Селестия": "Селестия - юго-западная республика.\nДоход крон: 8\nДоход сырья: 6\nАрмия: 7\n",
-            "Хиперион": "Хиперион - средиземная империя.\nДоход крон: 7\nДоход сырья: 7\nАрмия: 10\n",
-            "Халидон": "Халидон - юго-восточный эмират.\nДоход крон: 4\nДоход сырья: 10\nАрмия: 6\n",
-            "Этерия": "Этерия - восточное царство.\nДоход крон: 6\nДоход сырья: 8\nАрмия: 8"
+            "Аркадия": "Доход крон: 10\nДоход сырья: 5\nАрмия: 9\n",
+            "Селестия": "Доход крон: 8\nДоход сырья: 6\nАрмия: 7\n",
+            "Хиперион": "Доход крон: 7\nДоход сырья: 7\nАрмия: 10\n",
+            "Халидон": "Доход крон: 4\nДоход сырья: 10\nАрмия: 6\n",
+            "Этерия": "Доход крон: 6\nДоход сырья: 8\nАрмия: 8\n"
         }
         return info.get(kingdom, "")
 
