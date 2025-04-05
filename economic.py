@@ -226,11 +226,12 @@ class Faction:
         """
         Загружает список городов для текущей фракции из таблицы cities.
         Инициализирует self.cities_buildings для каждого города.
+        Также подсчитывает количество городов и сохраняет его в self.city_count.
         """
         rows = self.load_data("cities", ["name", "coordinates"], "faction = ?", (self.faction,))
         cities = []
         self.cities_buildings = {}  # Сброс данных о зданиях
-
+        self.city_count = 0
         for row in rows:
             name, coordinates = row
             try:
@@ -244,6 +245,7 @@ class Faction:
             cities.append({"name": name, "x": x, "y": y})
             # Инициализируем данные о зданиях для каждого города
             self.cities_buildings[name] = {'Больница': 0, 'Фабрика': 0}
+            self.city_count += 1  # Увеличиваем счетчик городов
 
         return cities
 
@@ -795,16 +797,11 @@ class Faction:
 
         # Коэффициенты для каждой фракции
         faction_coefficients = {
-            'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
-                        'food_loss': 1.4},
-            'Селестия': {'free_peoples_gain': 170, 'free_peoples_loss': 20, 'money_loss': 200, 'food_gain': 540,
-                         'food_loss': 1.1},
-            'Хиперион': {'free_peoples_gain': 210, 'free_peoples_loss': 40, 'money_loss': 200, 'food_gain': 530,
-                         'food_loss': 0.9},
-            'Этерия': {'free_peoples_gain': 240, 'free_peoples_loss': 60, 'money_loss': 300, 'food_gain': 500,
-                       'food_loss': 0.5},
-            'Халидон': {'free_peoples_gain': 230, 'free_peoples_loss': 50, 'money_loss': 300, 'food_gain': 500,
-                        'food_loss': 0.4},
+            'Аркадия': {'money_loss': 100, 'food_gain': 600, 'food_loss': 1.4},
+            'Селестия': {'money_loss': 200, 'food_gain': 540, 'food_loss': 1.1},
+            'Хиперион': {'money_loss': 200, 'food_gain': 530, 'food_loss': 0.9},
+            'Этерия': {'money_loss': 300, 'food_gain': 500, 'food_loss': 0.5},
+            'Халидон': {'money_loss': 300, 'food_gain': 500, 'food_loss': 0.4},
         }
 
         # Получение коэффициентов для текущей фракции
@@ -816,7 +813,7 @@ class Faction:
         # Обновление ресурсов с учетом коэффициентов
         self.born_peoples = int(self.hospitals * 500)
         self.work_peoples = int(self.factories * 200)
-        self.clear_up_peoples = self.born_peoples - self.work_peoples + self.tax_effects
+        self.clear_up_peoples = (self.born_peoples - self.work_peoples + self.tax_effects) + int(self.city_count * (self.population/100))
 
         # Загружаем текущие значения ресурсов из базы данных
         self.load_resources_from_db()
@@ -827,6 +824,7 @@ class Faction:
         self.money_info = int(self.hospitals * coeffs['money_loss'])
         self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
         self.taxes_info = int(self.calculate_tax_income())
+
 
         # Учитываем, что одна фабрика может прокормить 1000 людей
         self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))

@@ -12,7 +12,6 @@ class AIController:
         self.garrison = self.load_garrison()
         self.relations = self.load_relations()
         self.buildings = {}
-        self.turn_count = 0
         self.hospitals = 0
         self.factories = 0
         self.taxes = 0
@@ -25,6 +24,7 @@ class AIController:
         self.food_peoples = 0
         self.tax_effects = 0
         self.total_consumption = 0
+        self.city_count = 0
         self.army = self.load_army()
         self.cities = self.load_cities()
         # Инициализация ресурсов по умолчанию
@@ -185,6 +185,7 @@ class AIController:
         """
         Загружает список городов для текущей фракции из таблицы cities.
         Выводит отладочную информацию о загруженных городах.
+        Также подсчитывает количество городов и сохраняет его в self.city_count.
         """
         try:
             # SQL-запрос для получения списка городов
@@ -199,6 +200,9 @@ class AIController:
             # Преобразуем результат в словарь {id: name}
             cities = {row[0]: row[1] for row in rows}
 
+            # Подсчет количества городов
+            self.city_count = len(cities)  # Сохраняем количество городов
+
             # Отладочный вывод: информация о загруженных городах
             print(f"Загружены города для фракции '{self.faction}':")
             if cities:
@@ -211,6 +215,7 @@ class AIController:
         except sqlite3.Error as e:
             print(f"Ошибка при загрузке городов для фракции '{self.faction}': {e}")
             return {}
+
 
     # Методы сохранения данных в БД
     def save_resources_to_db(self):
@@ -351,17 +356,17 @@ class AIController:
         try:
             crowns = self.resources['Кроны']
 
-            # Бюджет на строительство (90% от текущих крон)
-            building_budget = int(crowns * 0.9)
+            # Бюджет на строительство (97% от текущих крон)
+            building_budget = int(crowns * 0.97)
 
             # Проверяем, достаточно ли средств для начала строительства
-            if building_budget < 500:
+            if building_budget < 350:
                 print("Недостаточно средств для строительства.")
                 return
 
             # Вычисляем, сколько зданий каждого типа можно построить
-            result_buildings = building_budget // 500  # Количество пакетов по 500 крон
-            hospitals_to_build = result_buildings
+            result_buildings = building_budget // 350  # Количество пакетов по 500 крон
+            hospitals_to_build = result_buildings-1
             factories_to_build = result_buildings
 
             # Строим все больницы сразу
@@ -382,13 +387,9 @@ class AIController:
         """
         Строительство зданий в городе.
         """
-        cost = 300 if building_type == 'Больница' else 200
+        global target_city
+        cost = 175 if building_type == 'Больница' else 175
         total_cost = cost * count
-
-        # Проверяем, достаточно ли крон для строительства
-        if self.resources['Кроны'] < total_cost:
-            print("Недостаточно средств для строительства.")
-            return False
 
         # Определяем город для строительства
         preferred_cities = {
@@ -399,11 +400,7 @@ class AIController:
             "Этерия": ["Фэйху"]
         }
 
-        target_city = None
-        if not hasattr(self, "turn_count"):
-            self.turn_count = 0  # Инициализация счетчика ходов
-
-        if self.turn_count == 0:  # Первый ход
+        if self.turn == 0:  # Первый ход
             cities_for_faction = preferred_cities.get(self.faction, [])
             if cities_for_faction:
                 # Для Хипериона чередуем города между Ауренбургом и Элдирией
@@ -433,18 +430,18 @@ class AIController:
         print(f"Построено {count} {building_type} в городе {target_city}")
 
         # Увеличиваем счетчик ходов после первого цикла строительства
-        if self.turn_count == 0 and self.hospitals + self.factories >= 5:
-            self.turn_count += 1
+        if self.turn == 0 and self.hospitals + self.factories >= 4:
+            self.turn += 1
 
         return True
 
     def sell_resources(self):
         """
         Продажа сырья на рынке.
-        Продается 70% сырья, если его больше 10000.
+        Продается 95% сырья, если его больше 10000.
         """
         if self.resources['Сырье'] > 10000:
-            amount_to_sell = int(((self.resources['Сырье'])/10000) * 0.7)  # Продаем 70% сырья
+            amount_to_sell = int(((self.resources['Сырье'])/10000) * 0.95)  # Продаем 95% сырья
             earned_crowns = int(amount_to_sell * self.raw_material_price)
 
             # Обновляем ресурсы
@@ -785,16 +782,11 @@ class AIController:
 
             # Коэффициенты для каждой фракции
             faction_coefficients = {
-                'Аркадия': {'free_peoples_gain': 190, 'free_peoples_loss': 30, 'money_loss': 100, 'food_gain': 600,
-                            'food_loss': 1.4},
-                'Селестия': {'free_peoples_gain': 170, 'free_peoples_loss': 20, 'money_loss': 200, 'food_gain': 540,
-                             'food_loss': 1.1},
-                'Хиперион': {'free_peoples_gain': 210, 'free_peoples_loss': 40, 'money_loss': 200, 'food_gain': 530,
-                             'food_loss': 0.9},
-                'Этерия': {'free_peoples_gain': 240, 'free_peoples_loss': 60, 'money_loss': 300, 'food_gain': 500,
-                           'food_loss': 0.5},
-                'Халидон': {'free_peoples_gain': 230, 'free_peoples_loss': 50, 'money_loss': 300, 'food_gain': 500,
-                            'food_loss': 0.4},
+                'Аркадия': {'money_loss': 100, 'food_gain': 600, 'food_loss': 1.4},
+                'Селестия': {'money_loss': 200, 'food_gain': 540, 'food_loss': 1.1},
+                'Хиперион': {'money_loss': 200, 'food_gain': 530, 'food_loss': 0.9},
+                'Этерия': {'money_loss': 300, 'food_gain': 500, 'food_loss': 0.5},
+                'Халидон': {'money_loss': 300, 'food_gain': 500, 'food_loss': 0.4},
             }
 
             # Получение коэффициентов для текущей фракции
@@ -806,7 +798,7 @@ class AIController:
             # Обновление ресурсов с учетом коэффициентов
             self.born_peoples = int(self.hospitals * 500)
             self.work_peoples = int(self.factories * 200)
-            self.clear_up_peoples = self.born_peoples - self.work_peoples + self.tax_effects
+            self.clear_up_peoples = (self.born_peoples - self.work_peoples + self.tax_effects) + int(self.city_count * (self.population/100))
 
             # Загружаем текущие значения ресурсов из базы данных
             self.load_resources_from_db()
@@ -1072,6 +1064,13 @@ class AIController:
 
 
 
+
+
+
+
+
+#---------------------------------------------------------------------
+
     # Основная логика хода ИИ
     def make_turn(self):
         """
@@ -1094,7 +1093,7 @@ class AIController:
             # 6. Управление строительством (90% крон на строительство)
             self.manage_buildings()
 
-            # 7. Продажа сырья (70% сырья, если его больше 10000)
+            # 7. Продажа сырья (99% сырья, если его больше 10000)
             resources_sold = self.sell_resources()
 
             # 8. Найм армии (на оставшиеся деньги после строительства и продажи сырья)
