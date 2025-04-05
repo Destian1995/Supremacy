@@ -150,6 +150,8 @@ class GameScreen(Screen):
         self.conn = self.game_state_manager.conn
         self.cursor = self.game_state_manager.cursor
         self.turn_counter = self.game_state_manager.turn_counter
+        # Инициализация политических данных
+        self.initialize_political_data()
         # Инициализация AI-контроллеров
         self.ai_controllers = {}
         # Инициализация EventManager
@@ -262,6 +264,46 @@ class GameScreen(Screen):
             print("Генерация события...")
             self.event_manager.generate_event(self.turn_counter)
 
+    def initialize_political_data(self):
+        """
+        Инициализирует таблицу political_systems значениями по умолчанию,
+        если она пуста. Политическая система для каждой фракции выбирается случайным образом.
+        Условие: не может быть меньше 2 и больше 3 стран с одним политическим строем.
+        """
+        try:
+            # Проверяем, есть ли записи в таблице
+            self.cursor.execute("SELECT COUNT(*) FROM political_systems")
+            count = self.cursor.fetchone()[0]
+            if count == 0:
+                # Список всех фракций
+                factions = ["Аркадия", "Селестия", "Хиперион", "Этерия", "Халидон"]
+
+                # Список возможных политических систем
+                systems = ["Капитализм", "Коммунизм"]
+
+                # Функция для проверки распределения
+                def is_valid_distribution(distribution):
+                    counts = {system: distribution.count(system) for system in systems}
+                    return all(2 <= count <= 3 for count in counts.values())
+
+                # Генерация случайного распределения
+                while True:
+                    default_systems = [(faction, random.choice(systems)) for faction in factions]
+                    distribution = [system for _, system in default_systems]
+
+                    if is_valid_distribution(distribution):
+                        break
+
+                # Вставляем данные в таблицу
+                self.cursor.executemany(
+                    "INSERT INTO political_systems (faction, system) VALUES (?, ?)",
+                    default_systems
+                )
+                self.conn.commit()
+                print("Таблица political_systems инициализирована случайными значениями.")
+        except sqlite3.Error as e:
+            print(f"Ошибка при инициализации таблицы political_systems: {e}")
+
     def update_cash(self, dt):
         """Обновление текущего капитала фракции через каждые 1 секунду."""
         self.faction.update_cash()
@@ -296,6 +338,7 @@ class GameScreen(Screen):
         self.clear_game_area()
         advisor_view = AdvisorView(self.selected_faction)
         self.game_area.add_widget(advisor_view)
+
 
     def init_ai_controllers(self):
         """Создание контроллеров ИИ для каждой фракции кроме выбранной"""
