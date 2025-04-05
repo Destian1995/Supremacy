@@ -18,6 +18,7 @@ from ii import AIController
 from sov import AdvisorView
 from event_manager import EventManager
 import sqlite3
+import random
 
 # Список всех фракций
 FACTIONS = ["Аркадия", "Селестия", "Хиперион", "Халидон", "Этерия"]
@@ -152,7 +153,7 @@ class GameScreen(Screen):
         # Инициализация AI-контроллеров
         self.ai_controllers = {}
         # Инициализация EventManager
-        self.event_manager = EventManager(self.selected_faction, self)
+        self.event_manager = EventManager(self.selected_faction, self, self.game_state_manager.faction)
         # Инициализация UI
         self.init_ui()
         # Запускаем обновление ресурсов каждую 1 секунду
@@ -255,11 +256,11 @@ class GameScreen(Screen):
 
         # Логирование или обновление интерфейса после хода
         print(f"Ход {self.turn_counter} завершён")
-
+        self.event_now = random.randint(4, 7)
         # Проверяем, нужно ли запустить событие
-        if self.turn_counter % 3 == 0:
+        if self.turn_counter % self.event_now == 0:
             print("Генерация события...")
-            self.event_manager.generate_event()
+            self.event_manager.generate_event(self.turn_counter)
 
     def update_cash(self, dt):
         """Обновление текущего капитала фракции через каждые 1 секунду."""
@@ -280,6 +281,7 @@ class GameScreen(Screen):
         """Переключение на политическую вкладку."""
         self.clear_game_area()
         politic.start_politic_mode(self.selected_faction, self.game_area, self.game_state_manager.faction)
+
 
     def clear_game_area(self):
         """Очистка центральной области."""

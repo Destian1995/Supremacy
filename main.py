@@ -113,13 +113,13 @@ def clear_tables(conn):
         "city",
         "diplomacies",
         "garrisons",
-        "hiring",
         "resources",
         "trade_agreements",
         "weapons",
         "turn",
         "armies",
-        "political_systems"
+        "political_systems",
+        "karma"
     ]
 
     cursor = conn.cursor()
