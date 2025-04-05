@@ -365,7 +365,7 @@ class AIController:
                 return
 
             # Вычисляем, сколько зданий каждого типа можно построить
-            result_buildings = building_budget // 350  # Количество пакетов по 500 крон
+            result_buildings = building_budget // 350  # Количество пакетов по 350 крон
             hospitals_to_build = result_buildings-1
             factories_to_build = result_buildings
 
@@ -674,8 +674,8 @@ class AIController:
         """
         Генерирует новую цену на сырье.
         """
-        # Простая реализация: случайная цена в диапазоне от 2.0 до 3.0
-        self.raw_material_price = round(random.uniform(1200, 41250), 2200)
+        # Простая реализация: случайная цена в диапазоне
+        self.raw_material_price = round(random.uniform(16200, 49250), 2200)
         print(f"Новая цена на сырье: {self.raw_material_price}")
 
     def update_trade_resources_from_db(self):
