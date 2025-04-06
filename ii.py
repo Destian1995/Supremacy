@@ -785,11 +785,11 @@ class AIController:
 
             # Коэффициенты для каждой фракции
             faction_coefficients = {
-                'Аркадия': {'money_loss': 100, 'food_gain': 600, 'food_loss': 1.4},
-                'Селестия': {'money_loss': 200, 'food_gain': 540, 'food_loss': 1.1},
-                'Хиперион': {'money_loss': 200, 'food_gain': 530, 'food_loss': 0.9},
-                'Этерия': {'money_loss': 300, 'food_gain': 500, 'food_loss': 0.5},
-                'Халидон': {'money_loss': 300, 'food_gain': 500, 'food_loss': 0.4},
+                'Аркадия': {'money_loss': 100, 'food_loss': 0.4},
+                'Селестия': {'money_loss': 10, 'food_loss': 0.04},
+                'Хиперион': {'money_loss': 5, 'food_loss': 0.03},
+                'Этерия': {'money_loss': 100, 'food_loss': 0.07},
+                'Халидон': {'money_loss': 100,'food_loss': 0.06},
             }
 
             # Получение коэффициентов для текущей фракции
