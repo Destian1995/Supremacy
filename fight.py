@@ -126,7 +126,7 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
     # Бой между юнитами
     for attacking_unit in attacking_army:
         for defending_unit in defending_army:
-            if attacking_unit['unit_count'] > 0 and defending_unit['unit_count'] > 0:
+            if int(attacking_unit['unit_count']) > 0 and int(defending_unit['unit_count']) > 0:
                 attacking_unit, defending_unit = battle_units(attacking_unit, defending_unit, defending_city)
 
     # Генерация отчета
@@ -134,7 +134,7 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
 
     # Обновление гарнизонов в базе данных
     update_garrisons_after_battle(
-        winner='attacking' if any(u['unit_count'] > 0 for u in attacking_army) else 'defending',
+        winner='attacking' if any(int(u['unit_count']) > 0 for u in attacking_army) else 'defending',
         attacking_city=attacking_city,
         defending_city=defending_city,
         attacking_army=attacking_army,
@@ -287,11 +287,12 @@ def update_garrisons_after_battle(winner, attacking_city, defending_city,
 
                 # Обновляем принадлежность города
                 cursor.execute("""
-                    UPDATE city SET kingdom = ?, color = (
-                        SELECT color FROM city WHERE fortress_name = ?
-                    ) WHERE fortress_name = ?
-                """, (attacking_fraction, attacking_city, defending_city))
-
+                    UPDATE city SET kingdom = ? WHERE fortress_name = ?
+                """, (attacking_fraction, defending_city))
+                # Обновляем принадлежность города
+                cursor.execute("""
+                    UPDATE cities SET faction = ? WHERE name = ?
+                """, (attacking_fraction, defending_city))
                 # Уцелевшие здания переходят под контроль захватчика
                 cursor.execute("""
                     UPDATE buildings
