@@ -1279,6 +1279,7 @@ class AIController:
                 defending_army.append({
                     "unit_name": unit_name,
                     "unit_count": int(unit_count),
+                    "unit_image": unit_image,
                     "units_stats": {
                         "Урон": int(attack),
                         "Защита": int(defense),
