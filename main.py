@@ -514,7 +514,7 @@ class KingdomSelectionWidget(FloatLayout):
             cursor = self.conn.cursor()
             cursor.execute("""
                 SELECT kingdom, fortress_name, coordinates, color
-                FROM city
+                FROM city_default
             """)
             rows = cursor.fetchall()
             for row in rows:

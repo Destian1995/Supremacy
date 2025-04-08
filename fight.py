@@ -9,6 +9,26 @@ from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
 
 
+def merge_units(army):
+    """
+    Объединяет юниты одного типа в одну группу.
+    :param army: Список юнитов (атакующих или обороняющихся).
+    :return: Объединенный список юнитов.
+    """
+    merged_army = {}
+    for unit in army:
+        unit_name = unit['unit_name']
+        if unit_name not in merged_army:
+            merged_army[unit_name] = {
+                "unit_name": unit['unit_name'],
+                "unit_count": unit['unit_count'],
+                "unit_image": unit.get('unit_image', ''),
+                "units_stats": unit['units_stats']
+            }
+        else:
+            merged_army[unit_name]['unit_count'] += unit['unit_count']
+    return list(merged_army.values())
+
 # Окно отчета боя
 def show_battle_report(report_data):
     print('================================================================')
@@ -97,6 +117,9 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
     print('attacking_army in fight:', attacking_army)
     print('defending_army in fight:', defending_army)
 
+    # Объединяем войска одной стороны
+    attacking_army = merge_units(attacking_army)
+    defending_army = merge_units(defending_army)
     # Сохраняем начальные значения ДО боя
     for unit in attacking_army:
         unit['initial_count'] = unit['unit_count']

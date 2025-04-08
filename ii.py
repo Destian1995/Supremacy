@@ -1156,6 +1156,41 @@ class AIController:
         except sqlite3.Error as e:
             print(f"Ошибка при обновлении статуса дипломатии: {e}")
 
+    def find_nearest_allied_city(self, faction):
+        """
+        Находит ближайший союзный город для передислокации войск.
+        :param faction: Название фракции (своей или союзной)
+        :return: Имя ближайшего союзного города или None, если подходящий город не найден
+        """
+        try:
+            # Получаем координаты всех городов текущей фракции
+            query = "SELECT name, coordinates FROM cities WHERE faction = ?"
+            self.cursor.execute(query, (self.faction,))
+            our_cities = self.cursor.fetchall()
+
+            # Получаем координаты всех союзных городов
+            query = "SELECT name, coordinates FROM cities WHERE faction = ?"
+            self.cursor.execute(query, (faction,))
+            allied_cities = self.cursor.fetchall()
+
+            # Находим ближайший союзный город с учетом ограничения по дистанции
+            nearest_city = None
+            min_distance = float('inf')
+            for our_city_name, our_coords in our_cities:
+                our_coords = our_coords.strip("[]")  # Убираем [ и ]
+                our_x, our_y = map(int, our_coords.split(','))
+                for allied_city_name, allied_coords in allied_cities:
+                    allied_coords = allied_coords.strip("[]")  # Убираем [ и ]
+                    allied_x, allied_y = map(int, allied_coords.split(','))
+                    distance = ((our_x - allied_x) ** 2 + (our_y - allied_y) ** 2) ** 0.5
+                    if distance <= 250 and distance < min_distance:
+                        min_distance = distance
+                        nearest_city = allied_city_name
+            return nearest_city
+        except sqlite3.Error as e:
+            print(f"Ошибка при поиске ближайшего союзного города: {e}")
+            return None
+
     def find_nearest_city(self, faction):
         """
         Находит ближайший город противника для атаки.
@@ -1223,26 +1258,66 @@ class AIController:
         except sqlite3.Error as e:
             print(f"Ошибка при передислокации юнитов: {e}")
 
+    def get_defending_army(self, city_name):
+        """
+        Получает данные об обороняющейся армии в указанном городе.
+        :param city_name: Имя города
+        :return: Список обороняющихся юнитов
+        """
+        try:
+            query = """
+                SELECT g.unit_name, g.unit_count, u.attack, u.defense, u.durability, u.unit_class, g.unit_image
+                FROM garrisons g
+                JOIN units u ON g.unit_name = u.unit_name
+                WHERE g.city_id = ?
+            """
+            self.cursor.execute(query, (city_name,))
+            defending_units = self.cursor.fetchall()
+
+            defending_army = []
+            for unit_name, unit_count, attack, defense, durability, unit_class, unit_image in defending_units:
+                defending_army.append({
+                    "unit_name": unit_name,
+                    "unit_count": int(unit_count),
+                    "units_stats": {
+                        "Урон": int(attack),
+                        "Защита": int(defense),
+                        "Живучесть": int(durability),
+                        "Класс юнита": unit_class,
+                    }
+                })
+            return defending_army
+        except sqlite3.Error as e:
+            print(f"Ошибка при получении обороняющейся армии: {e}")
+            return []
+
     def attack_city(self, city_name, faction):
         """
-        Организует атаку на выбранный город и вызывает метод fight для проведения битвы.
+        Организует атаку на выбранный город через ближайший союзный город.
         :param city_name: Имя города для атаки
         :param faction: Название фракции противника
         """
         try:
-            # Выбираем юниты с высокой атакой из гарнизона текущей фракции
+            # Шаг 1: Находим ближайший союзный город
+            allied_city = self.find_nearest_allied_city(self.faction)
+            if not allied_city:
+                print("Не удалось найти ближайший союзный город.")
+                return
+
+            print(f"Ближайший союзный город для передислокации: {allied_city}")
+
+            # Шаг 2: Собираем войска для атаки
             query = """SELECT g.city_id, g.unit_name, g.unit_count, u.attack, u.defense, u.durability, u.unit_class, 
             g.unit_image FROM garrisons g JOIN units u ON g.unit_name = u.unit_name WHERE g.city_id IN (SELECT name 
             FROM cities WHERE faction = ?) AND u.faction = ?"""
             self.cursor.execute(query, (self.faction, self.faction))
             attacking_units = self.cursor.fetchall()
 
-            print('Состав attacking_units в методе attack_city:', attacking_units)
             if not attacking_units:
                 print("В гарнизоне текущей фракции нет юнитов.")
                 return
 
-            # Отбираем юниты с высокой атакой
+            # Формируем атакующую армию
             attacking_army = []
             for row in attacking_units:
                 city_from, unit_name, unit_count, attack, defense, durability, unit_class, unit_image = row
@@ -1264,43 +1339,30 @@ class AIController:
                 print("Нет подходящих юнитов для атаки.")
                 return
 
-            # Передислоцируем войска атакующей стороны в город для битвы
+            # Шаг 3: Передислоцируем войска в ближайший союзный город
             for unit in attacking_army:
-                self.relocate_units(unit["city_id"], city_name, unit["unit_name"], unit["unit_count"], unit["unit_image"])
+                self.relocate_units(unit["city_id"], allied_city, unit["unit_name"], unit["unit_count"],
+                                    unit["unit_image"])
 
-            # Получаем информацию о защищающемся городе и его гарнизоне
+            print(f"Войска успешно передислоцированы в город {allied_city}.")
+
+            # Шаг 4: Проверяем готовность войск к атаке
             query = """
-                SELECT g.unit_name, g.unit_count, u.attack, u.defense, u.durability, u.unit_class, g.unit_image
-                FROM garrisons g
-                JOIN units u ON g.unit_name = u.unit_name
-                WHERE g.city_id = ?
+                SELECT SUM(unit_count) FROM garrisons
+                WHERE city_id = ?
             """
-            self.cursor.execute(query, (city_name,))
-            defending_units = self.cursor.fetchall()
+            self.cursor.execute(query, (allied_city,))
+            total_units = self.cursor.fetchone()[0] or 0
 
-            if not defending_units:
-                print("В гарнизоне противника нет юнитов.")
-                self.capture_city(city_name)
+            if total_units == 0:
+                print(f"Войска не готовы к атаке. Гарнизон пуст.")
                 return
 
-            defending_army = []
-            for unit_name, unit_count, attack, defense, durability, unit_class, unit_image in defending_units:
-                defending_army.append({
-                    "unit_name": unit_name,
-                    "unit_count": int(unit_count),
-                    "units_stats": {
-                        "Урон": int(attack),
-                        "Защита": int(defense),
-                        "Живучесть": int(durability),
-                        "Класс юнита": unit_class,
-                    }
-                })
-
-            # Вызываем метод fight для проведения битвы
+            # Шаг 5: Атакуем вражеский город
             result = fight(
-                attacking_city=self.faction,  # Имя атакующей фракции как "город"
+                attacking_city=allied_city,  # Ближайший союзный город
                 defending_city=city_name,
-                defending_army=defending_army,
+                defending_army=self.get_defending_army(city_name),
                 attacking_army=attacking_army,
                 attacking_fraction=self.faction,
                 defending_fraction=faction,
@@ -1316,244 +1378,9 @@ class AIController:
             else:
                 print("Битва завершилась вничью.")
 
-            # Применяем результаты битвы
-            for unit in attacking_army:
-                self.cursor.execute("""
-                    UPDATE garrisons
-                    SET unit_count = unit_count - ?
-                    WHERE city_id = ? AND unit_name = ?
-                """, (result["attacker_losses"][unit["unit_name"]], city_name, unit["unit_name"]))
-            for unit in defending_army:
-                self.cursor.execute("""
-                    UPDATE garrisons
-                    SET unit_count = unit_count - ?
-                    WHERE city_id = ? AND unit_name = ?
-                """, (result["defender_losses"][unit["unit_name"]], city_name, unit["unit_name"]))
-
-            # Проверка на отсутствие гарнизона противника
-            self.check_for_empty_garrison(city_name, faction)
-
         except sqlite3.Error as e:
             print(f"Ошибка при организации атаки: {e}")
 
-    def calculate_distance(self, city1_id, city2_id):
-        """
-        Рассчитывает расстояние между двумя городами.
-        :param city1_id: ID первого города
-        :param city2_id: ID второго города
-        :return: Расстояние между городами
-        """
-        try:
-            query = """
-                SELECT coordinates FROM cities WHERE id = ?
-            """
-            self.cursor.execute(query, (city1_id,))
-            city1_coords = self.cursor.fetchone()[0].strip("[]").split(",")
-            city1_x, city1_y = map(int, city1_coords)
-
-            self.cursor.execute(query, (city2_id,))
-            city2_coords = self.cursor.fetchone()[0].strip("[]").split(",")
-            city2_x, city2_y = map(int, city2_coords)
-
-            distance = ((city1_x - city2_x) ** 2 + (city1_y - city2_y) ** 2) ** 0.5
-            return distance
-        except sqlite3.Error as e:
-            print(f"Ошибка при расчете расстояния: {e}")
-            return float('inf')
-
-    def organize_attack(self, city_id, faction):
-        """
-        Организует атаку на город противника.
-        :param city_id: ID города для атаки
-        :param faction: Фракция противника
-        """
-        try:
-            # 1. Находим ближайший дружественный город к целевому городу противника
-            nearest_friendly_city = self.find_nearest_friendly_city(city_id)
-            if not nearest_friendly_city:
-                print("Не удалось найти ближайший дружественный город для атаки.")
-                return
-
-            print(f"Ближайший дружественный город для объединения войск: {nearest_friendly_city}")
-
-            # 2. Собираем атакующую армию из всех городов текущей фракции
-            attacking_army = self.collect_attacking_army(nearest_friendly_city)
-            if not attacking_army:
-                print("Нет подходящих юнитов для атаки.")
-                return
-
-            print(f"Объединенная армия собрана в городе {nearest_friendly_city}: {attacking_army}")
-
-            # 3. Атакуем целевой город противника
-            self.attack_city_from_base(nearest_friendly_city, city_id, attacking_army, faction)
-
-        except sqlite3.Error as e:
-            print(f"Ошибка при организации атаки: {e}")
-
-    def find_nearest_friendly_city(self, enemy_city_id):
-        """
-        Находит ближайший дружественный город к указанному городу противника.
-        :param enemy_city_id: ID города противника
-        :return: ID ближайшего дружественного города или None
-        """
-        try:
-            query = """
-                SELECT id, coordinates FROM cities WHERE faction = ?
-            """
-            self.cursor.execute(query, (self.faction,))
-            friendly_cities = self.cursor.fetchall()
-
-            # Получаем координаты целевого города противника
-            query = "SELECT coordinates FROM cities WHERE id = ?"
-            self.cursor.execute(query, (enemy_city_id,))
-            enemy_coords = self.cursor.fetchone()[0]
-            enemy_x, enemy_y = map(int, enemy_coords.strip("[]").split(","))
-
-            min_distance = float('inf')
-            nearest_city = None
-
-            for city_id, coords in friendly_cities:
-                x, y = map(int, coords.strip("[]").split(","))
-                distance = ((x - enemy_x) ** 2 + (y - enemy_y) ** 2) ** 0.5
-                if distance < min_distance:
-                    min_distance = distance
-                    nearest_city = city_id
-
-            return nearest_city
-
-        except sqlite3.Error as e:
-            print(f"Ошибка при поиске ближайшего дружественного города: {e}")
-            return None
-
-    def collect_attacking_army(self, base_city_id):
-        """
-        Собирает атакующую армию из всех городов текущей фракции в указанный базовый город.
-        :param base_city_id: ID города, куда собираются войска
-        :return: Список юнитов, готовых к атаке
-        """
-        try:
-            # Выбираем юниты с высокой атакой из гарнизона текущей фракции
-            query = """SELECT g.city_id, g.unit_name, g.unit_count, u.attack, u.defense, u.durability, u.unit_class, 
-            g.unit_image FROM garrisons g JOIN units u ON g.unit_name = u.unit_name WHERE g.city_id IN (SELECT id 
-            FROM cities WHERE faction = ?) AND u.faction = ?"""
-            self.cursor.execute(query, (self.faction, self.faction))
-            attacking_units = self.cursor.fetchall()
-
-            # Отбираем юниты с высокой атакой
-            attacking_army = []
-            for row in attacking_units:
-                city_id, unit_name, unit_count, attack, defense, durability, unit_class, unit_image = row
-                if attack > defense and attack > durability:
-                    attacking_army.append({
-                        "city_id": city_id,
-                        "unit_name": unit_name,
-                        "unit_count": unit_count,
-                        "unit_image": unit_image,
-                        "units_stats": {
-                            "Урон": int(attack),
-                            "Защита": int(defense),
-                            "Живучесть": int(durability),
-                            "Класс юнита": unit_class,  # Пример класса юнита
-                        }
-                    })
-
-            # Передислоцируем все юниты в базовый город
-            for unit in attacking_army:
-                self.relocate_units(unit["city_id"], base_city_id, unit["unit_name"], unit["unit_count"],
-                                    unit["unit_image"])
-
-            return attacking_army
-
-        except sqlite3.Error as e:
-            print(f"Ошибка при сборе атакующей армии: {e}")
-            return []
-
-    def attack_city_from_base(self, base_city_id, target_city_id, attacking_army, faction):
-        """
-        Атакует целевой город противника из базового города.
-        :param base_city_id: ID базового города
-        :param target_city_id: ID целевого города
-        :param attacking_army: Список атакующих юнитов
-        :param faction: Фракция противника
-        """
-        try:
-            # Передислоцируем войска из базового города в целевой город для битвы
-            for unit in attacking_army:
-                self.relocate_units(base_city_id, target_city_id, unit["unit_name"], unit["unit_count"],
-                                    unit["unit_image"])
-
-            # Получаем информацию о защищающемся городе и его гарнизоне
-            query = """
-                SELECT g.unit_name, g.unit_count, u.attack, u.defense, u.durability, u.unit_class, g.unit_image
-                FROM garrisons g
-                JOIN units u ON g.unit_name = u.unit_name
-                WHERE g.city_id = ?
-            """
-            self.cursor.execute(query, (target_city_id,))
-            defending_units = self.cursor.fetchall()
-
-            if not defending_units:
-                print("В гарнизоне противника нет юнитов.")
-                self.capture_city(target_city_id)
-                return
-
-            defending_army = []
-            for unit_name, unit_count, attack, defense, durability, unit_class, unit_image in defending_units:
-                defending_army.append({
-                    "unit_name": unit_name,
-                    "unit_count": int(unit_count),
-                    "units_stats": {
-                        "Урон": int(attack),
-                        "Защита": int(defense),
-                        "Живучесть": int(durability),
-                        "Класс юнита": unit_class,
-                    }
-                })
-
-            # Получаем название города
-            query = "SELECT name FROM cities WHERE id = ?"
-            self.cursor.execute(query, (target_city_id,))
-            defending_city_name = self.cursor.fetchone()[0]
-
-            # Вызываем метод fight для проведения битвы
-            result = fight(
-                attacking_city=self.faction,  # Имя атакующей фракции как "город"
-                defending_city=defending_city_name,
-                defending_army=defending_army,
-                attacking_army=attacking_army,
-                attacking_fraction=self.faction,
-                defending_fraction=faction,
-                db_connection=self.db_connection
-            )
-
-            # Обработка результата битвы
-            if result["winner"] == "attacker":
-                print(f"Битва выиграна! Город {defending_city_name} захвачен.")
-                self.capture_city(target_city_id)
-            elif result["winner"] == "defender":
-                print(f"Битва проиграна. Город {defending_city_name} остается у противника.")
-            else:
-                print("Битва завершилась вничью.")
-
-            # Применяем результаты битвы
-            for unit in attacking_army:
-                self.cursor.execute("""
-                    UPDATE garrisons
-                    SET unit_count = unit_count - ?
-                    WHERE city_id = ? AND unit_name = ?
-                """, (result["attacker_losses"][unit["unit_name"]], target_city_id, unit["unit_name"]))
-            for unit in defending_army:
-                self.cursor.execute("""
-                    UPDATE garrisons
-                    SET unit_count = unit_count - ?
-                    WHERE city_id = ? AND unit_name = ?
-                """, (result["defender_losses"][unit["unit_name"]], target_city_id, unit["unit_name"]))
-
-            # Проверка на отсутствие гарнизона противника
-            self.check_for_empty_garrison(target_city_id, faction)
-
-        except sqlite3.Error as e:
-            print(f"Ошибка при атаке города: {e}")
 
     def capture_city(self, city_name):
         """
