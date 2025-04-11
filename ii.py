@@ -55,8 +55,6 @@ class AIController:
             ''', (self.faction,))
             rows = self.cursor.fetchall()
 
-
-
             # Обновление ресурсов на основе данных из базы данных
             for resource_type, amount in rows:
                 if resource_type == "Кроны":
@@ -219,7 +217,6 @@ class AIController:
             print(f"Ошибка при загрузке городов для фракции '{self.faction}': {e}")
             return {}
 
-
     # Методы сохранения данных в БД
     def save_resources_to_db(self):
         """
@@ -320,12 +317,23 @@ class AIController:
         try:
             # Для каждого города обновляем или добавляем записи гарнизона
             for city_name, units in self.garrison.items():
+                # Проверяем, принадлежит ли город текущей фракции
+                self.cursor.execute("""
+                    SELECT faction
+                    FROM cities
+                    WHERE name = ?
+                """, (city_name,))
+                result = self.cursor.fetchone()
+                if not result or result[0] != self.faction:
+                    print(f"Город {city_name} не принадлежит фракции {self.faction}. Пропускаем сохранение гарнизона.")
+                    continue
+
+                # Если город принадлежит фракции, сохраняем юниты
                 for unit in units:
                     unit_name = unit['unit_name']
                     unit_count = unit['unit_count']
                     unit_image = self.get_unit_image(unit_name)
                     print(f"  Обработка юнита: {unit_name}, Количество: {unit_count}, Изображение: {unit_image}")
-
                     # Проверяем, существует ли уже запись для данного city_name и unit_name
                     self.cursor.execute("""
                         SELECT unit_count
@@ -333,7 +341,6 @@ class AIController:
                         WHERE city_id = ? AND unit_name = ?
                     """, (city_name, unit_name))
                     existing_record = self.cursor.fetchone()
-
                     if existing_record:
                         # Если запись существует, обновляем количество юнитов
                         new_count = existing_record[0] + unit_count
@@ -348,13 +355,11 @@ class AIController:
                             INSERT INTO garrisons (city_id, unit_name, unit_count, unit_image)
                             VALUES (?, ?, ?, ?)
                         """, (city_name, unit_name, unit_count, unit_image))
-
             # Сохраняем изменения в базе данных
             self.db_connection.commit()
             print("Гарнизон успешно сохранен в БД.")
         except sqlite3.Error as e:
             print(f"Ошибка при сохранении гарнизона: {e}")
-
     def manage_buildings(self):
         try:
             crowns = self.resources['Кроны']
@@ -369,7 +374,7 @@ class AIController:
 
             # Вычисляем, сколько зданий каждого типа можно построить
             result_buildings = building_budget // 350  # Количество пакетов по 350 крон
-            hospitals_to_build = result_buildings-1
+            hospitals_to_build = result_buildings - 1
             factories_to_build = result_buildings
 
             # Строим все больницы сразу
@@ -453,7 +458,7 @@ class AIController:
         Продается 95% сырья, если его больше 10000.
         """
         if self.resources['Сырье'] > 10000:
-            amount_to_sell = int(((self.resources['Сырье'])/10000) * 0.95)  # Продаем 95% сырья
+            amount_to_sell = int(((self.resources['Сырье']) / 10000) * 0.95)  # Продаем 95% сырья
             earned_crowns = int(amount_to_sell * self.raw_material_price)
 
             # Обновляем ресурсы
@@ -471,6 +476,7 @@ class AIController:
         Найм армии.
         Добавляет новые юниты в гарнизон через метод save_garrison.
         """
+        self.update_buildings_for_current_cities()
         global resource_allocation
 
         crowns = self.resources['Кроны']
@@ -798,7 +804,7 @@ class AIController:
                 'Селестия': {'money_loss': 10, 'food_loss': 0.04},
                 'Хиперион': {'money_loss': 5, 'food_loss': 0.03},
                 'Этерия': {'money_loss': 100, 'food_loss': 0.07},
-                'Халидон': {'money_loss': 100,'food_loss': 0.06},
+                'Халидон': {'money_loss': 100, 'food_loss': 0.06},
             }
 
             # Получение коэффициентов для текущей фракции
@@ -810,7 +816,8 @@ class AIController:
             # Обновление ресурсов с учетом коэффициентов
             self.born_peoples = int(self.hospitals * 500)
             self.work_peoples = int(self.factories * 200)
-            self.clear_up_peoples = (self.born_peoples - self.work_peoples + self.tax_effects) + int(self.city_count * (self.population/100))
+            self.clear_up_peoples = (self.born_peoples - self.work_peoples + self.tax_effects) + int(
+                self.city_count * (self.population / 100))
 
             # Загружаем текущие значения ресурсов из базы данных
             self.load_resources_from_db()
@@ -824,7 +831,8 @@ class AIController:
 
             # Учитываем, что одна фабрика может прокормить 1000 людей
             self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
-            self.food_info = (int((self.factories * 1000) - (self.population * coeffs['food_loss'])) - self.total_consumption)
+            self.food_info = (
+                    int((self.factories * 1000) - (self.population * coeffs['food_loss'])) - self.total_consumption)
             self.food_peoples = int(self.population * coeffs['food_loss'])
 
             # Проверяем, будет ли население увеличиваться
@@ -1382,7 +1390,6 @@ class AIController:
         except sqlite3.Error as e:
             print(f"Ошибка при организации атаки: {e}")
 
-
     def capture_city(self, city_name):
         """
         Захватывает город под контроль текущей фракции.
@@ -1436,6 +1443,47 @@ class AIController:
                 print(f"Город {city_name} успешно захвачен фракцией {self.faction}.")
         except sqlite3.Error as e:
             print(f"Ошибка при захвате города: {e}")
+
+    def update_buildings_for_current_cities(self):
+        """
+        Обновляет self.buildings, учитывая только города, которые на данный момент принадлежат фракции.
+        """
+        try:
+            # Загружаем актуальный список городов текущей фракции
+            query = """
+                SELECT id, name 
+                FROM cities 
+                WHERE faction = ?
+            """
+            self.cursor.execute(query, (self.faction,))
+            rows = self.cursor.fetchall()
+            current_cities = {row[0]: row[1] for row in rows}
+
+            # Очищаем self.buildings и обновляем его только для актуальных городов
+            updated_buildings = {}
+            for city_id, city_name in current_cities.items():
+                updated_buildings[city_name] = {"Здания": {"Больница": 0, "Фабрика": 0}}
+
+            # Загружаем данные о зданиях для актуальных городов
+            query = """
+                SELECT city_name, building_type, count 
+                FROM buildings 
+                WHERE faction = ?
+            """
+            self.cursor.execute(query, (self.faction,))
+            rows = self.cursor.fetchall()
+
+            for row in rows:
+                city_name, building_type, count = row
+                if city_name in updated_buildings:
+                    updated_buildings[city_name]["Здания"][building_type] += count
+
+            # Обновляем self.buildings
+            self.buildings = updated_buildings
+            print(f"Обновлены данные о зданиях для фракции {self.faction}: {self.buildings}")
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении данных о зданиях: {e}")
 
     def check_for_empty_garrison(self, city_id, faction):
         """
@@ -1526,10 +1574,7 @@ class AIController:
         except Exception as e:
             print(f"Ошибка при проверке и объявлении войны: {e}")
 
-
-
-
-    #---------------------------------------------------------------------
+    # ---------------------------------------------------------------------
 
     # Основная логика хода ИИ
     def make_turn(self):
