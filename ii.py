@@ -10,7 +10,6 @@ class AIController:
         self.turn = 0
         self.db_connection = sqlite3.connect(db_path)
         self.cursor = self.db_connection.cursor()
-        self.resources = {"Кроны": 0, "Сырье": 0, "Рабочие": 0, "Население": 0}
         self.garrison = self.load_garrison()
         self.relations = self.load_relations()
         self.buildings = {}
@@ -29,6 +28,7 @@ class AIController:
         self.city_count = 0
         self.army = self.load_army()
         self.cities = self.load_cities()
+        self.army_limit = self.calculate_army_limit()
         self.attacking_army = []
         # Инициализация ресурсов по умолчанию
         self.money = 2000
@@ -39,7 +39,9 @@ class AIController:
             'Кроны': self.money,
             'Рабочие': self.free_peoples,
             'Сырье': self.raw_material,
-            'Население': self.population
+            'Население': self.population,
+            'Текущее потребление': self.total_consumption,
+            'Лимит армии': self.army_limit
         }
 
     # Методы загрузки данных из БД
@@ -162,7 +164,7 @@ class AIController:
 
     def load_army(self):
         query = """
-            SELECT unit_name, cost_money, cost_time, attack, defense, durability, unit_class 
+            SELECT unit_name, cost_money, cost_time, attack, defense, durability, unit_class, consumption 
             FROM units 
             WHERE faction = ?
         """
@@ -178,7 +180,8 @@ class AIController:
                     "Защита": row[4],
                     "Прочность": row[5],
                     "Класс": row[6]
-                }
+                },
+                "consumption": row[7]
             } for row in self.cursor.fetchall()
         }
 
@@ -360,6 +363,7 @@ class AIController:
             print("Гарнизон успешно сохранен в БД.")
         except sqlite3.Error as e:
             print(f"Ошибка при сохранении гарнизона: {e}")
+
     def manage_buildings(self):
         try:
             crowns = self.resources['Кроны']
@@ -499,57 +503,58 @@ class AIController:
     def hire_army(self):
         """
         Найм армии.
-        Добавляет новые юниты в гарнизон через метод save_garrison.
+        Добавляет новые юниты в гарнизон через метод save_garrison,
+        учитывая текущее потребление и лимит армии.
         """
         self.update_buildings_for_current_cities()
-        global resource_allocation
 
+        # Текущие ресурсы
         crowns = self.resources['Кроны']
         works = self.resources['Рабочие']
-
-        # Отладочный вывод: текущие ресурсы
-        print(f"Текущие кроны: {crowns}, Текущие рабочие: {works}")
 
         if crowns <= 0 or works <= 0:
             print("Недостаточно средств для найма армии.")
             return
 
+        # Рассчитываем текущее потребление
+        self.calculate_current_consumption()
+        print(f"Текущее потребление: {self.total_consumption}, Лимит армии: {self.army_limit}")
+
+        # Проверяем, есть ли место для найма новой армии
+        if self.total_consumption > self.army_limit:
+            print("Текущее потребление достигло лимита. Наем армии невозможен.")
+            return
+
+        # Определяем доступное место для дополнительного потребления
+        available_consumption = self.army_limit - self.total_consumption
+        print(f"Доступное потребление: {available_consumption}")
+
         # Определение стадии игры
         early_game = self.turn < 17  # ранняя игра
-        mid_game = 17 <= self.turn <= 30  # Средняя игра
-        late_game = self.turn > 30  # Поздняя игра
+        mid_game = 17 <= self.turn <= 30  # средняя игра
+        late_game = self.turn > 30  # поздняя игра
 
         # Распределение ресурсов в зависимости от стадии игры
-        if early_game:
-            resource_allocation = {
-                "attack": 0.8,  # 80% на атаку
-                "defense": 0.2  # 20% на защиту
-            }
-        if mid_game:
-            resource_allocation = {
-                "attack": 0.4,  # 40% на атаку
-                "defense": 0.6  # 60% на защиту
-            }
-        elif late_game:
-            resource_allocation = {
-                "attack": 0.20,  # 20% на атаку
-                "defense": 0.6,  # 60% на защиту
-                "middle": 0.10,  # 10% на универсальных юнитов
-                "hard_attack": 0.10  # 10% на супер ударных юнитов
-            }
+        resource_allocation = {
+            "attack": 0.8 if early_game else (0.4 if mid_game else 0.2),
+            "defense": 0.2 if early_game else (0.6 if mid_game else 0.6),
+            "middle": 0.1 if late_game else 0,  # универсальные юниты
+            "hard_attack": 0.1 if late_game else 0  # супер ударные юниты
+        }
 
         # Списки для найма юнитов по категориям
         hired_units = {
             "attack": {"unit_name": None, "max_units": 0, "best_efficiency": 0},
             "defense": {"unit_name": None, "max_units": 0, "best_efficiency": 0},
             "middle": {"unit_name": None, "max_units": 0, "best_efficiency": 0},
-            "hard_attack": {"unit_name": None, "max_units": 0, "best_efficiency": 0}  # Новая категория
+            "hard_attack": {"unit_name": None, "max_units": 0, "best_efficiency": 0}
         }
 
         # Проходим по всем доступным юнитам
         for unit_name, unit_data in self.army.items():
             cost_money = unit_data['cost']['money']
             cost_time = unit_data['cost']['time']
+            consumption = unit_data.get('consumption', 0)
             attack = unit_data['stats']['Атака']
             defense = unit_data['stats']['Защита']
             durability = unit_data['stats']['Прочность']
@@ -562,6 +567,17 @@ class AIController:
             if affordable_units <= 0:
                 continue  # Пропускаем юниты, которых нельзя нанять
 
+            # Учитываем доступное место для потребления
+            max_units_by_consumption = available_consumption // consumption if consumption > 0 else affordable_units
+
+            # Новое условие с двойной проверкой
+            max_units = min(
+                affordable_units,
+                max_units_by_consumption
+            )
+            if max_units <= 0:
+                continue  # Пропускаем юниты, которые превышают лимит потребления
+
             # Рассчитываем эффективность юнита для разных категорий
             efficiency_attack = attack / (cost_money + cost_time)
             efficiency_defense = (defense + durability) / (cost_money + cost_time)
@@ -569,31 +585,17 @@ class AIController:
 
             # Выбираем лучшие юниты для каждой категории
             if efficiency_attack > hired_units["attack"]["best_efficiency"]:
-                hired_units["attack"] = {
-                    "unit_name": unit_name,
-                    "max_units": affordable_units,
-                    "best_efficiency": efficiency_attack
-                }
+                hired_units["attack"] = {"unit_name": unit_name, "max_units": max_units,
+                                         "best_efficiency": efficiency_attack}
             if efficiency_defense > hired_units["defense"]["best_efficiency"]:
-                hired_units["defense"] = {
-                    "unit_name": unit_name,
-                    "max_units": affordable_units,
-                    "best_efficiency": efficiency_defense
-                }
+                hired_units["defense"] = {"unit_name": unit_name, "max_units": max_units,
+                                          "best_efficiency": efficiency_defense}
             if late_game and efficiency_middle > hired_units["middle"]["best_efficiency"]:
-                hired_units["middle"] = {
-                    "unit_name": unit_name,
-                    "max_units": affordable_units,
-                    "best_efficiency": efficiency_middle
-                }
-
-            # Для поздней игры выбираем юниты с максимальной атакой
+                hired_units["middle"] = {"unit_name": unit_name, "max_units": max_units,
+                                         "best_efficiency": efficiency_middle}
             if late_game and attack > hired_units["hard_attack"]["best_efficiency"]:
-                hired_units["hard_attack"] = {
-                    "unit_name": unit_name,
-                    "max_units": affordable_units,
-                    "best_efficiency": attack  # Учитываем только атаку
-                }
+                hired_units["hard_attack"] = {"unit_name": unit_name, "max_units": max_units,
+                                              "best_efficiency": attack}
 
         # Расчет количества юнитов для найма в зависимости от распределения ресурсов
         total_units = {}
@@ -601,30 +603,38 @@ class AIController:
             if hired_units[category]["unit_name"]:
                 max_units = int(hired_units[category]["max_units"] * allocation)
                 if max_units > 0:
-                    total_units[category] = {
-                        "unit_name": hired_units[category]["unit_name"],
-                        "max_units": max_units
-                    }
+                    total_units[category] = {"unit_name": hired_units[category]["unit_name"], "max_units": max_units}
 
-        # Если нет подходящих юнитов
         if not total_units:
             print("Недостаточно средств для найма армии.")
             return
 
         # Найм юнитов и списание ресурсов
-        target_city = max(
-            self.buildings.items(),
-            key=lambda city: sum(city[1]['Здания'].values())
-        )[0]
+        target_city = max(self.buildings.items(), key=lambda city: sum(city[1]['Здания'].values()))[0]
         print(f"Выбран город для найма: {target_city}.")
-
         new_garrison_entry = {target_city: []}
+
         for category, unit_info in total_units.items():
             unit_name = unit_info["unit_name"]
             max_units = unit_info["max_units"]
             unit_data = self.army[unit_name]
             cost_money = unit_data['cost']['money']
             cost_time = unit_data['cost']['time']
+            consumption = unit_data.get('consumption', 0)
+
+            # Проверяем, хватает ли доступного потребления
+            if available_consumption <= 0:
+                print("Доступное потребление исчерпано. Прекращение найма.")
+                break
+
+            # Новое условие с двойной проверкой
+            max_units = min(
+                max_units,
+                available_consumption // consumption if consumption > 0 else max_units
+            )
+            if max_units <= 0:
+                print(f"Недостаточно доступного потребления для найма юнитов '{unit_name}'.")
+                continue
 
             # Списываем ресурсы
             total_cost_money = max_units * cost_money
@@ -632,16 +642,74 @@ class AIController:
             self.resources['Кроны'] -= total_cost_money
             self.resources['Рабочие'] -= total_cost_time
 
+            # Обновляем доступное потребление
+            available_consumption -= max_units * consumption
+
             # Добавляем юниты в гарнизон
             new_garrison_entry[target_city].append({"unit_name": unit_name, "unit_count": max_units})
             print(
                 f"Нанято {max_units} юнитов '{unit_name}' за {total_cost_money} крон и {total_cost_time} рабочих в городе {target_city}."
             )
 
+        # Новая проверка перед сохранением гарнизона
+        if available_consumption < 0:
+            print("Превышение лимита потребления. Отмена изменений в гарнизоне.")
+            return
+
         # Обновляем гарнизон
         self.garrison.update(new_garrison_entry)
         self.save_garrison()
         print("Гарнизон после найма армии:", self.garrison)
+
+        # Перерасчет потребления
+        self.calculate_and_deduct_consumption()
+        print(f"После найма: Текущее потребление: {self.total_consumption}, Лимит армии: {self.army_limit}")
+
+    def calculate_army_limit(self):
+        """
+        Рассчитывает максимальный лимит армии на основе базового значения и бонуса от городов.
+        """
+        base_limit = 1_000_000  # Базовый лимит 1 млн
+        city_bonus = 100_000 * len(self.cities)  # Бонус за каждый город
+        total_limit = base_limit + city_bonus
+        return total_limit
+
+    def calculate_current_consumption(self):
+        """
+        Рассчитывает текущее потребление армии.
+        """
+        try:
+            self.total_consumption = 0  # Сбрасываем предыдущее значение
+
+            # Выгрузка всех гарнизонов из таблицы garrisons
+            self.cursor.execute("""
+                SELECT city_id, unit_name, unit_count 
+                FROM garrisons
+            """)
+            garrisons = self.cursor.fetchall()
+
+            # Для каждого гарнизона находим соответствующий юнит в таблице units
+            for garrison in garrisons:
+                city_id, unit_name, unit_count = garrison
+
+                # Получаем потребление юнита
+                self.cursor.execute("""
+                    SELECT consumption, faction 
+                    FROM units 
+                    WHERE unit_name = ?
+                """, (unit_name,))
+                unit_data = self.cursor.fetchone()
+
+                if unit_data:
+                    consumption, unit_faction = unit_data
+                    if unit_faction == self.faction:
+                        # Добавляем потребление данного типа юнита
+                        self.total_consumption += consumption * unit_count
+
+            print(f"Текущее потребление сырья: {self.total_consumption}")
+
+        except Exception as e:
+            print(f"Ошибка при расчете текущего потребления: {e}")
 
     def calculate_and_deduct_consumption(self):
         """
@@ -878,13 +946,16 @@ class AIController:
                 "Кроны": max(min(int(self.money), 10_000_000_000), 0),  # Не более 10 млрд
                 "Рабочие": max(min(int(self.free_peoples), 10_000_000), 0),  # Не более 10 млн
                 "Сырье": max(min(int(self.raw_material), 10_000_000_000), 0),  # Не более 10 млрд
-                "Население": max(min(int(self.population), 100_000_000), 0)  # Не более 100 млн
+                "Население": max(min(int(self.population), 100_000_000), 0),  # Не более 100 млн
+                "Текущее потребление": self.total_consumption,  # Используем рассчитанное значение
+                "Лимит армии": self.army_limit
             })
             self.money = self.resources['Кроны']
             self.free_peoples = self.resources['Рабочие']
             self.raw_material = self.resources['Сырье']
             self.population = self.resources['Население']
-
+            self.army_limit = self.resources['Лимит армии']
+            self.total_consumption = self.resources['Текущее потребление']
             # Потребление армии
             self.calculate_and_deduct_consumption()
 
@@ -900,7 +971,6 @@ class AIController:
         try:
             self.save_resources_to_db()
             self.save_buildings()
-            self.save_garrison()
             print("Все данные успешно сохранены в БД")
         except Exception as e:
             print(f"Ошибка при сохранении данных: {e}")
@@ -1179,17 +1249,27 @@ class AIController:
         """
         Обновляет статус дипломатии с указанной фракцией.
         :param faction: Название фракции
-        :param status: Новый статус ("war" или "peace")
+        :param status: Новый статус ("война" или "мир")
         """
         try:
+            # Обновляем запись A-B
             query = """
                 UPDATE diplomacies
                 SET relationship = ?
                 WHERE faction1 = ? AND faction2 = ?
             """
             self.cursor.execute(query, (status, self.faction, faction))
+
+            # Обновляем запись B-A
+            query = """
+                UPDATE diplomacies
+                SET relationship = ?
+                WHERE faction1 = ? AND faction2 = ?
+            """
+            self.cursor.execute(query, (status, faction, self.faction))
+
             self.db_connection.commit()
-            print(f"Статус дипломатии с фракцией {faction} обновлен на '{status}'.")
+            print(f"Статус дипломатии между {self.faction} и {faction} обновлен на '{status}'.")
         except sqlite3.Error as e:
             print(f"Ошибка при обновлении статуса дипломатии: {e}")
 

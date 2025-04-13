@@ -132,9 +132,9 @@ class ResourceBox(BoxLayout):
 
     def calculate_font_size(self):
         """Расчет размера шрифта на основе высоты виджета."""
-        base_font_size = 14  # Базовый размер шрифта
+        base_font_size = 16  # Базовый размер шрифта
         scale_factor = self.height / 800  # Масштабирование относительно высоты экрана
-        return max(base_font_size * scale_factor, 10)  # Минимальный размер шрифта
+        return max(base_font_size * scale_factor, 12)  # Минимальный размер шрифта
 
     def calculate_label_height(self):
         """Расчет высоты метки на основе размера шрифта."""

@@ -896,6 +896,17 @@ class Faction:
         except Exception as e:
             print(f"Произошла ошибка: {e}")
 
+            # Обновляем текущее потребление в ресурсах
+            self.current_consumption = self.total_consumption
+            self.resources['Текущее потребление'] = self.current_consumption
+            self.resources['Лимит армии'] = total_limit
+
+            # Сохраняем ресурсы в базу данных
+            self.save_resources_to_db()
+
+        except Exception as e:
+            print(f"Произошла ошибка: {e}")
+
     def update_resources(self):
         """
         Обновление текущих ресурсов с учетом данных из базы данных.
