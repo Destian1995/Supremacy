@@ -114,9 +114,25 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
     """
     Основная функция боя между двумя армиями.
     """
-    print('attacking_army in fight:', attacking_army)
-    print('defending_army in fight:', defending_army)
+    print('attacking_fraction:', attacking_fraction)
+    print('defending_fraction:', defending_fraction)
+    cursor = db_connection.cursor()
+    try:
+        # SQL-запрос для выборки значения faction
+        query = "SELECT faction FROM user_faction"
+        cursor.execute(query)
 
+        # Получение первого значения из результата (если оно есть)
+        result = cursor.fetchone()
+        if result:
+            user_faction = result[0]  # Значение faction
+        else:
+            user_faction = None
+    except Exception as e:
+        print(f"Ошибка при выгрузке значения faction: {e}")
+        user_faction = None
+    if user_faction == attacking_fraction or user_faction == defending_fraction:
+        user_faction = 1
     # Объединяем войска одной стороны
     attacking_army = merge_units(attacking_army)
     defending_army = merge_units(defending_army)
@@ -150,7 +166,7 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
     for attacking_unit in attacking_army:
         for defending_unit in defending_army:
             if int(attacking_unit['unit_count']) > 0 and int(defending_unit['unit_count']) > 0:
-                attacking_unit, defending_unit = battle_units(attacking_unit, defending_unit, defending_city)
+                attacking_unit, defending_unit = battle_units(attacking_unit, defending_unit, defending_city, user_faction)
 
     # Генерация отчета
     report_data = generate_battle_report(attacking_army, defending_army)
@@ -168,7 +184,8 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
     )
 
     # Показываем отчет
-    show_battle_report(report_data)
+    if user_faction == 1:
+        show_battle_report(report_data)
 
 
 def generate_battle_report(attacking_army, defending_army):
@@ -242,7 +259,7 @@ def calculate_unit_power(unit, is_attacking):
         return durability + defense
 
 
-def battle_units(attacking_unit, defending_unit, city):
+def battle_units(attacking_unit, defending_unit, city, user_faction):
     """
     Осуществляет бой между двумя юнитами.
     :param city:
@@ -258,7 +275,7 @@ def battle_units(attacking_unit, defending_unit, city):
     defense_points = calculate_unit_power(defending_unit, is_attacking=False)
     total_defense_power = defense_points * defending_unit['unit_count']
 
-    damage_to_infrastructure(total_attack_power, city)
+    damage_to_infrastructure(total_attack_power, city, user_faction)
 
     # Определение победителя раунда
     if total_attack_power > total_defense_power:
@@ -357,7 +374,7 @@ def update_garrisons_after_battle(winner, attacking_city, defending_city,
 
 #------------------------------------
 
-def damage_to_infrastructure(all_damage, city_name):
+def damage_to_infrastructure(all_damage, city_name, user_faction):
     """
     Вычисляет урон по инфраструктуре города и обновляет данные в базе данных.
 
@@ -455,8 +472,9 @@ def damage_to_infrastructure(all_damage, city_name):
     finally:
         conn.close()
 
-    # Показать информацию об уроне
-    show_damage_info_infrastructure(damage_info)
+    if user_faction == 1:
+        # Показать информацию об уроне
+        show_damage_info_infrastructure(damage_info)
 
 
 def show_damage_info_infrastructure(damage_info):

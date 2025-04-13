@@ -165,6 +165,9 @@ class GameScreen(Screen):
         self.conn = self.game_state_manager.conn
         self.cursor = self.game_state_manager.cursor
         self.turn_counter = self.game_state_manager.turn_counter
+
+        # Сохраняем текущую фракцию игрока
+        self.save_selected_faction_to_db()
         # Инициализация политических данных
         self.initialize_political_data()
         # Инициализация AI-контроллеров
@@ -240,6 +243,23 @@ class GameScreen(Screen):
 
         # Инициализация ИИ для остальных фракций
         self.init_ai_controllers()
+
+    def save_selected_faction_to_db(self):
+        """
+        Сохраняет выбранную фракцию пользователя в таблицу user_faction.
+        """
+        try:
+            # SQL-запрос для вставки данных
+            query = "INSERT INTO user_faction (faction) VALUES (?)"
+            # Выполнение запроса с кортежем в качестве параметра
+            self.cursor.execute(query, (self.selected_faction,))
+            # Фиксация изменений в базе данных
+            self.conn.commit()
+            print(f"Фракция '{self.selected_faction}' успешно сохранена для пользователя.")
+        except Exception as e:
+            # Откат изменений в случае ошибки
+            self.conn.rollback()
+            print(f"Ошибка при сохранении фракции: {e}")
 
     def process_turn(self, instance=None):
         """Обработка хода игрока и ИИ"""

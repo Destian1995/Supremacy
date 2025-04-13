@@ -1,13 +1,11 @@
-import os
+
 import json
 import random
-from kivy.app import App
 from kivy.clock import Clock
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.popup import Popup
-from kivy.core.window import Window
 from kivy.graphics import Color, Rectangle
 import sqlite3
 
@@ -71,25 +69,6 @@ class EventManager:
 
         self.show_event_active_popup(description, option_1, option_2, effects)
 
-    def format_option(self, option_data):
-        """
-        Форматирует текст опции на основе её данных.
-        """
-        resource_changes = option_data.get("resource_changes", {})
-        relation_change = option_data.get("relation_change", 0)
-
-        # Собираем изменения ресурсов
-        changes_text = []
-        for resource, change_data in resource_changes.items():
-            kf = change_data.get("kf", 1)
-            changes_text.append(f"{resource}: kf={kf}")
-
-        # Добавляем изменение отношений, если оно есть
-        if relation_change != 0:
-            changes_text.append(f"Отношения: {relation_change:+}")
-
-        # Формируем итоговый текст опции
-        return f"{' | '.join(changes_text)}" if changes_text else "Без изменений"
 
     def check_karma_and_generate_sequence(self, current_turn):
         """
@@ -311,12 +290,6 @@ class EventManager:
                 # Передаем изменения в экономический модуль
                 self.economics.update_resource_now(resource, current_value + change)
 
-        # Применение изменений отношений
-        if "relation_change" in effects:
-            factions = self.get_relations_for_faction(self.player_faction)
-            for faction in factions:
-                if random.choice([True, False]):
-                    self.update_relation(self.player_faction, faction, effects["relation_change"])
 
     def get_resource_amount(self, resource_type):
         """Получение текущего значения ресурса."""
@@ -332,21 +305,6 @@ class EventManager:
             INSERT OR REPLACE INTO resources (faction, resource_type, amount)
             VALUES (?, ?, COALESCE((SELECT amount FROM resources WHERE faction = ? AND resource_type = ?), 0) + ?)
         """, (self.player_faction, resource_type, self.player_faction, resource_type, change))
-        self.db_connection.commit()
-
-    def get_relations_for_faction(self, faction):
-        """Получение всех фракций, с которыми есть отношения."""
-        cursor = self.db_connection.cursor()
-        cursor.execute("SELECT faction2 FROM relations WHERE faction1 = ?", (faction,))
-        return [row[0] for row in cursor.fetchall()]
-
-    def update_relation(self, faction1, faction2, change):
-        """Обновление отношений между фракциями."""
-        cursor = self.db_connection.cursor()
-        cursor.execute("""
-            INSERT OR REPLACE INTO relations (faction1, faction2, relationship)
-            VALUES (?, ?, COALESCE((SELECT relationship FROM relations WHERE faction1 = ? AND faction2 = ?), 0) + ?)
-        """, (faction1, faction2, faction1, faction2, change))
         self.db_connection.commit()
 
     def update_karma(self, faction, karma_change):

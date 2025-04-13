@@ -119,7 +119,8 @@ def clear_tables(conn):
         "turn",
         "armies",
         "political_systems",
-        "karma"
+        "karma",
+        "user_faction"
     ]
 
     cursor = conn.cursor()
