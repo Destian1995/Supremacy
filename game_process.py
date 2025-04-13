@@ -91,20 +91,20 @@ class ResourceBox(BoxLayout):
     def __init__(self, resource_manager, **kwargs):
         super(ResourceBox, self).__init__(**kwargs)
         self.resource_manager = resource_manager
-        self.orientation = 'horizontal'
-        self.size_hint = (0.8, 0.14)
-        self.pos_hint = {'center_x': 0.36, 'center_y': 1}
-        self.padding = [0, 0, 0, 0]  # Внешние отступы
-        self.spacing = -65  # Расстояние между метками
-
+        self.orientation = 'vertical'  # Вертикальное расположение ресурсов
+        self.size_hint = (0.2, 0.3)  # Занимает 20% ширины и 30% высоты экрана
+        self.pos_hint = {'x': 0, 'top': 1}  # Расположен в левом верхнем углу
+        self.padding = [10, 10, 10, 10]  # Внешние отступы
+        self.spacing = 5  # Расстояние между метками
         with self.canvas.before:
-            Color(0.2, 0.2, 0.2, 1)  # Цвет фона
+            Color(0.15, 0.15, 0.15, 1)  # Темно-серый фон
             self.rect = Rectangle(size=self.size, pos=self.pos)
         self.bind(size=self.update_rect, pos=self.update_rect)
-
         # Сохраняем метки для ресурсов, чтобы обновлять их при изменении значений
         self.labels = {}
         self.update_resources()
+        # Связываем изменение размеров виджета с обновлением шрифтов
+        self.bind(size=self.update_font_sizes)
 
     def update_rect(self, *args):
         """Обновление размеров и позиции прямоугольника фона."""
@@ -114,23 +114,38 @@ class ResourceBox(BoxLayout):
     def update_resources(self):
         """Обновление отображаемых ресурсов."""
         resources = self.resource_manager.get_resources()
-
+        # Очищаем старые виджеты
+        self.clear_widgets()
+        self.labels.clear()
+        # Добавляем новые метки для ресурсов
         for resource_name, value in resources.items():
-            if resource_name in self.labels:
-                # Обновляем текст существующей метки
-                self.labels[resource_name].text = f"{resource_name}: {value}"
-            else:
-                # Создаем новую метку, если она не существует
-                label = Label(
-                    text=f"{resource_name}: {value}",
-                    size_hint_y=None,
-                    height=35,  # Уменьшенная высота метки
-                    font_size=13,  # Уменьшенный размер шрифта
-                    color=(1, 1, 1, 1)  # Белый цвет текста
-                )
-                self.labels[resource_name] = label
-                self.add_widget(label)
+            label = Label(
+                text=f"{resource_name}: {value}",
+                size_hint_y=None,
+                height=self.calculate_label_height(),
+                font_size=self.calculate_font_size(),
+                color=(1, 1, 1, 1),  # Белый цвет текста
+                markup=True  # Поддержка форматирования текста
+            )
+            self.labels[resource_name] = label
+            self.add_widget(label)
 
+    def calculate_font_size(self):
+        """Расчет размера шрифта на основе высоты виджета."""
+        base_font_size = 14  # Базовый размер шрифта
+        scale_factor = self.height / 800  # Масштабирование относительно высоты экрана
+        return max(base_font_size * scale_factor, 10)  # Минимальный размер шрифта
+
+    def calculate_label_height(self):
+        """Расчет высоты метки на основе размера шрифта."""
+        return self.calculate_font_size() * 2  # Высота метки в два раза больше размера шрифта
+
+    def update_font_sizes(self, *args):
+        """Обновление размеров шрифтов всех меток при изменении размеров виджета."""
+        new_font_size = self.calculate_font_size()
+        for label in self.labels.values():
+            label.font_size = new_font_size
+            label.height = self.calculate_label_height()
 
 # Класс для кнопки с изображением
 class ImageButton(ButtonBehavior, Image):

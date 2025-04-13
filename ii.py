@@ -394,13 +394,13 @@ class AIController:
     def build_in_city(self, building_type, count):
         """
         Строительство зданий в городе.
+        :param building_type: Тип здания ("Больница" или "Фабрика").
+        :param count: Максимальное количество зданий для постройки.
         """
         cost = 175 if building_type == 'Больница' else 175
-        total_cost = cost * count
 
-        # Проверяем актуальные города, принадлежащие фракции
-        self.cities = self.load_cities()  # Загружаем актуальный список городов
-
+        # Загружаем актуальные данные о городах фракции
+        self.cities = self.load_cities()
         if not self.cities:
             print(f"Нет доступных городов для строительства у фракции '{self.faction}'.")
             return False
@@ -431,20 +431,45 @@ class AIController:
             import random
             target_city = random.choice(list(self.cities.values()))
 
+        # Загружаем актуальные данные о зданиях в выбранном городе
+        self.load_buildings()
+        city_buildings = self.buildings.get(target_city, {"Здания": {"Больница": 0, "Фабрика": 0}})
+        current_factories = city_buildings["Здания"].get("Фабрика", 0)
+        current_hospitals = city_buildings["Здания"].get("Больница", 0)
+        total_buildings = current_factories + current_hospitals
+
+        # Максимальное количество зданий в городе
+        max_buildings_per_city = 250
+
+        # Вычисляем, сколько еще можно построить зданий в городе
+        remaining_slots = max_buildings_per_city - total_buildings
+        if remaining_slots <= 0:
+            print(f"В городе {target_city} достигнут лимит зданий ({max_buildings_per_city}).")
+            return False
+
+        # Ограничиваем количество зданий, которое можно построить, минимальным значением
+        # между запрошенным количеством (`count`) и доступными слотами (`remaining_slots`)
+        count_to_build = min(count, remaining_slots)
+
+        # Проверяем, достаточно ли денег для постройки
+        total_cost = cost * count_to_build
+        if self.resources['Кроны'] < total_cost:
+            print(f"Недостаточно денег для постройки {count_to_build} зданий в городе {target_city}.")
+            return False
+
         # Увеличиваем количество зданий в выбранном городе
         self.buildings.setdefault(target_city, {"Здания": {"Больница": 0, "Фабрика": 0}})
-        self.buildings[target_city]["Здания"][building_type] += count
+        self.buildings[target_city]["Здания"][building_type] += count_to_build
 
         # Обновляем глобальные переменные
         if building_type == 'Больница':
-            self.hospitals += count
+            self.hospitals += count_to_build
         elif building_type == 'Фабрика':
-            self.factories += count
+            self.factories += count_to_build
 
         # Списываем кроны
         self.resources['Кроны'] -= total_cost
-
-        print(f"Построено {count} {building_type} в городе {target_city}")
+        print(f"Построено {count_to_build} {building_type} в городе {target_city}")
 
         # Увеличиваем счетчик ходов после первого цикла строительства
         if self.turn == 0 and self.hospitals + self.factories >= 4:
@@ -848,13 +873,17 @@ class AIController:
                     self.population -= loss
                 self.free_peoples = 0  # Все рабочие обнуляются, так как Сырья нет
 
-            # Проверка, чтобы ресурсы не опускались ниже 0
+            # Проверка, чтобы ресурсы не опускались ниже 0 и не превышали максимальные значения
             self.resources.update({
-                "Кроны": max(int(self.money), 0),
-                "Рабочие": max(int(self.free_peoples), 0),
-                "Сырье": max(int(self.raw_material), 0),
-                "Население": max(int(self.population), 0)
+                "Кроны": max(min(int(self.money), 10_000_000_000), 0),  # Не более 10 млрд
+                "Рабочие": max(min(int(self.free_peoples), 10_000_000), 0),  # Не более 10 млн
+                "Сырье": max(min(int(self.raw_material), 10_000_000_000), 0),  # Не более 10 млрд
+                "Население": max(min(int(self.population), 100_000_000), 0)  # Не более 100 млн
             })
+            self.money = self.resources['Кроны']
+            self.free_peoples = self.resources['Рабочие']
+            self.raw_material = self.resources['Сырье']
+            self.population = self.resources['Население']
 
             # Потребление армии
             self.calculate_and_deduct_consumption()
