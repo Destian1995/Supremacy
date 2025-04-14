@@ -279,7 +279,7 @@ def strike_to_infrastructure(city_name, weapon_characteristics, db_connection):
         print(f"В городе '{city_name}' нет зданий.")
         return
 
-    DAMAGE_PER_BUILDING = 80000
+    DAMAGE_PER_BUILDING = 20000
     effective_weapon_damage = weapon_characteristics['damage']
 
     damage_info = {}

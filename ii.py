@@ -443,7 +443,7 @@ class AIController:
         total_buildings = current_factories + current_hospitals
 
         # Максимальное количество зданий в городе
-        max_buildings_per_city = 250
+        max_buildings_per_city = 500
 
         # Вычисляем, сколько еще можно построить зданий в городе
         remaining_slots = max_buildings_per_city - total_buildings
@@ -669,7 +669,7 @@ class AIController:
         """
         Рассчитывает максимальный лимит армии на основе базового значения и бонуса от городов.
         """
-        base_limit = 1_000_000  # Базовый лимит 1 млн
+        base_limit = 400_000  # Базовый лимит 1 млн
         city_bonus = 100_000 * len(self.cities)  # Бонус за каждый город
         total_limit = base_limit + city_bonus
         return total_limit

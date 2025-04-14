@@ -90,14 +90,14 @@ def save_building_change(faction_name, city, building_type, delta):
 
 class Faction:
     def __init__(self, name):
-        self.city_count = None
+        self.city_count = 0
         self.faction = name
         self.db_path = 'game_data.db'  # Путь к базе данных
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
         self.resources = self.load_resources_from_db()  # Загрузка ресурсов
         self.buildings = self.load_buildings()  # Загрузка зданий
-        self.trade_agreements = self.load_trade_agreements()  # Загрузка торговых соглашений
+        self.trade_agreements = self.load_trade_agreements()
         self.cities = self.load_cities()  # Загрузка городов
         self.hospitals = 0
         self.factories = 0
@@ -111,7 +111,6 @@ class Faction:
         self.food_peoples = 0
         self.tax_effects = 0
         self.clear_up_peoples = 0
-        self.max_army_limit = 0
         self.current_consumption = 0
         self.turn = 0
         self.last_turn_loaded = -1  # Последний загруженный номер хода
@@ -127,7 +126,7 @@ class Faction:
             'Рабочие': self.free_peoples,
             'Сырье': self.raw_material,
             'Население': self.population,
-            'Текущее потребление': self.current_consumption,
+            'Потребление': self.current_consumption,
             'Лимит армии': self.max_army_limit
         }
         self.economic_params = {
@@ -405,7 +404,7 @@ class Faction:
         self.resources['Рабочие'] = self.free_peoples
         self.resources['Сырье'] = self.raw_material
         self.resources['Население'] = self.population
-        self.resources['Текущее потребление'] = self.current_consumption
+        self.resources['Потребление'] = self.current_consumption
         self.resources['Лимит армии'] = self.max_army_limit
         self.save_resources_to_db()
         return self.resources
@@ -582,6 +581,17 @@ class Faction:
         except sqlite3.Error as e:
             print(f"Ошибка при сохранении ресурсов в базу данных: {e}")
 
+    @property
+    def max_army_limit(self):
+        """
+        Динамически рассчитывает максимальный лимит армии
+        на основе базового значения и бонуса от городов.
+        """
+        print('-----------------------------------------------ЧИСЛО ГОРОДОВ---', self.city_count)
+        base_limit = 400_000
+        city_bonus = 100_000 * self.city_count
+        return base_limit + city_bonus
+
     def update_ally_resources_from_db(self):
         """
         Обновляет ресурсы от союзников из таблицы trade_agreements.
@@ -743,14 +753,6 @@ class Faction:
         except sqlite3.Error as e:
             print(f"Ошибка при обновлении отношений для фракции {faction}: {e}")
 
-    def calculate_army_limit(self):
-        """
-        Рассчитывает максимальный лимит армии на основе базового значения и бонуса от городов.
-        """
-        base_limit = 1_000_000  # Базовый лимит 1 млн
-        city_bonus = 100_000 * len(self.cities)  # Бонус за каждый город
-        total_limit = base_limit + city_bonus
-        return total_limit
 
     def calculate_and_deduct_consumption(self):
         """
@@ -796,14 +798,10 @@ class Faction:
                     # Расчет потребления для данного типа юнита
                     self.current_consumption += faction_units[unit_name]['consumption'] * unit_count
 
-            # Шаг 3: Расчет базового лимита
-            base_limit = 1_000_000  # Базовый лимит 1 млн
-            city_bonus = 100_000 * len(self.cities)  # Бонус за каждый город
-            total_limit = base_limit + city_bonus
 
             # Шаг 4: Проверка превышения лимита
-            if self.current_consumption > total_limit:
-                excess_consumption = self.current_consumption - total_limit
+            if self.current_consumption > self.max_army_limit:
+                excess_consumption = self.current_consumption - self.max_army_limit
                 starving_units = []  # Список юнитов, которые голодают
 
                 # Логика сокращения армии на 15% от числа юнитов
@@ -856,9 +854,8 @@ class Faction:
             print(f"Общее потребление сырья: {self.current_consumption}")
             print(f"Остаток сырья у фракции: {self.raw_material}")
 
-            # Обновляем текущее потребление в ресурсах
-            self.resources['Текущее потребление'] = self.current_consumption
-            self.resources['Лимит армии'] = total_limit
+            # Обновляем потребление в ресурсах
+            self.resources['Потребление'] = self.current_consumption
 
             # Сохраняем ресурсы в базу данных
             self.save_resources_to_db()
@@ -866,9 +863,8 @@ class Faction:
         except Exception as e:
             print(f"Произошла ошибка: {e}")
 
-            # Обновляем текущее потребление в ресурсах
-            self.resources['Текущее потребление'] = self.current_consumption
-            self.resources['Лимит армии'] = total_limit
+            # Обновляем потребление в ресурсах
+            self.resources['Потребление'] = self.current_consumption
 
 
 
@@ -881,7 +877,7 @@ class Faction:
         # Обновляем данные о зданиях из таблицы buildings
         self.turn += 1
         self.load_buildings()
-
+        self.load_cities()
         # Генерируем новую цену на сырье
         self.generate_raw_material_price()
 
@@ -890,11 +886,11 @@ class Faction:
 
         # Коэффициенты для каждой фракции
         faction_coefficients = {
-            'Аркадия': {'money_loss': 100, 'food_gain': 600, 'food_loss': 1.4},
-            'Селестия': {'money_loss': 200, 'food_gain': 540, 'food_loss': 1.1},
-            'Хиперион': {'money_loss': 200, 'food_gain': 530, 'food_loss': 0.9},
-            'Этерия': {'money_loss': 300, 'food_gain': 500, 'food_loss': 0.5},
-            'Халидон': {'money_loss': 300, 'food_gain': 500, 'food_loss': 0.4},
+            'Аркадия': {'money_loss': 150, 'food_loss': 0.4},
+            'Селестия': {'money_loss': 200, 'food_loss': 0.1},
+            'Хиперион': {'money_loss': 200, 'food_loss': 0.09},
+            'Этерия': {'money_loss': 300, 'food_loss': 0.05},
+            'Халидон': {'money_loss': 300, 'food_loss': 0.04},
         }
 
         # Получение коэффициентов для текущей фракции
@@ -944,18 +940,16 @@ class Faction:
             "Рабочие": max(min(int(self.free_peoples), 10_000_000), 0),  # Не более 10 млн
             "Сырье": max(min(int(self.raw_material), 10_000_000_000), 0),  # Не более 10 млрд
             "Население": max(min(int(self.population), 100_000_000), 0),  # Не более 100 млн
-            "Текущее потребление": self.current_consumption,  # Используем рассчитанное значение
+            "Потребление": self.current_consumption,  # Используем рассчитанное значение
             "Лимит армии": self.max_army_limit
         })
         self.money = self.resources['Кроны']
         self.free_peoples = self.resources['Рабочие']
         self.raw_material = self.resources['Сырье']
         self.population = self.resources['Население']
-        self.max_army_limit = self.resources['Лимит армии']
-        self.current_consumption = self.resources['Текущее потребление']
+        self.current_consumption = self.resources['Потребление']
         # Применяем бонусы игроку
         self.apply_player_bonuses()
-        self.max_army_limit = self.calculate_army_limit()
         # Списываем потребление войсками
         self.calculate_and_deduct_consumption()
         # Сохраняем обновленные ресурсы в базу данных
@@ -997,7 +991,7 @@ class Faction:
 
     def buildings_info_fraction(self):
         if self.faction == 'Аркадия':
-            return 100
+            return 150
         if self.faction == 'Селестия':
             return 200
         if self.faction == 'Хиперион':
@@ -1040,13 +1034,13 @@ class Faction:
 
         # Генерация новой цены
         if current_turn == 1:  # Если это первый ход
-            self.current_raw_material_price = random.randint(800, 42000)
+            self.current_raw_material_price = random.randint(800, 48000)
             self.raw_material_price_history.append(self.current_raw_material_price)
         else:
             # Генерация новой цены на основе текущей
-            self.current_raw_material_price = self.raw_material_price_history[-1] + random.randint(-3700, 3500)
+            self.current_raw_material_price = self.raw_material_price_history[-1] + random.randint(-3700, 3900)
             self.current_raw_material_price = max(
-                800, min(42000, self.current_raw_material_price)  # Ограничиваем диапазон
+                800, min(48000, self.current_raw_material_price)  # Ограничиваем диапазон
             )
             self.raw_material_price_history.append(self.current_raw_material_price)
 
@@ -1162,7 +1156,7 @@ def build_structure(building, city, faction, quantity, on_complete):
     total_buildings = current_factories + current_hospitals
 
     # Максимальное количество зданий в городе
-    max_buildings_per_city = 250
+    max_buildings_per_city = 500
 
     # Проверяем, не превышает ли новое количество зданий лимит
     if total_buildings + quantity > max_buildings_per_city:

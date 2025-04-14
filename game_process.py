@@ -293,7 +293,7 @@ class GameScreen(Screen):
 
         # Логирование или обновление интерфейса после хода
         print(f"Ход {self.turn_counter} завершён")
-        self.event_now = random.randint(4, 7)
+        self.event_now = random.randint(9, 10)
         # Проверяем, нужно ли запустить событие
         if self.turn_counter % self.event_now == 0:
             print("Генерация события...")
