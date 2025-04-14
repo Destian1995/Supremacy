@@ -90,7 +90,6 @@ def save_building_change(faction_name, city, building_type, delta):
 
 class Faction:
     def __init__(self, name):
-        self.city_count = 0
         self.faction = name
         self.db_path = 'game_data.db'  # Путь к базе данных
         self.conn = sqlite3.connect(self.db_path)
@@ -98,6 +97,7 @@ class Faction:
         self.resources = self.load_resources_from_db()  # Загрузка ресурсов
         self.buildings = self.load_buildings()  # Загрузка зданий
         self.trade_agreements = self.load_trade_agreements()
+        self.city_count = 0
         self.cities = self.load_cities()  # Загрузка городов
         self.hospitals = 0
         self.factories = 0
