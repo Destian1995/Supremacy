@@ -15,8 +15,6 @@ from kivy.graphics import Color, RoundedRectangle
 from strike import strike_to_city
 
 import threading
-import strike
-import json
 import time
 import sqlite3
 

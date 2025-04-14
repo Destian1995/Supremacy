@@ -111,7 +111,6 @@ class Faction:
         self.food_peoples = 0
         self.tax_effects = 0
         self.clear_up_peoples = 0
-        self.total_consumption = 0
         self.max_army_limit = 0
         self.current_consumption = 0
         self.turn = 0
@@ -753,35 +752,6 @@ class Faction:
         total_limit = base_limit + city_bonus
         return total_limit
 
-    def calculate_current_consumption(self):
-        """
-        Рассчитывает текущее потребление армии.
-        """
-        try:
-            self.total_consumption = 0  # Сбрасываем предыдущее значение
-            # Выгрузка всех гарнизонов из таблицы garrisons
-            self.cursor.execute("""
-                SELECT city_id, unit_name, unit_count 
-                FROM garrisons
-            """)
-            garrisons = self.cursor.fetchall()
-            # Для каждого гарнизона находим соответствующий юнит в таблице units
-            for garrison in garrisons:
-                city_id, unit_name, unit_count = garrison
-                # Получаем потребление юнита
-                self.cursor.execute("""
-                    SELECT consumption, faction 
-                    FROM units 
-                    WHERE unit_name = ?
-                """, (unit_name,))
-                unit_data = self.cursor.fetchone()
-                if unit_data:
-                    consumption, unit_faction = unit_data
-                    if unit_faction == self.faction:
-                        self.total_consumption += consumption * unit_count
-        except Exception as e:
-            print(f"Ошибка при расчете текущего потребления: {e}")
-
     def calculate_and_deduct_consumption(self):
         """
         Метод для расчета потребления сырья гарнизонами текущей фракции
@@ -790,6 +760,7 @@ class Faction:
         уменьшая количество юнитов на 15% от их числа.
         """
         try:
+            self.current_consumption = 0
             # Шаг 1: Выгрузка всех гарнизонов из таблицы garrisons
             self.cursor.execute("""
                 SELECT city_id, unit_name, unit_count 
@@ -823,7 +794,7 @@ class Faction:
                 # Учитываем только юниты текущей фракции
                 if faction_units[unit_name]['faction'] == self.faction:
                     # Расчет потребления для данного типа юнита
-                    self.total_consumption += faction_units[unit_name]['consumption'] * unit_count
+                    self.current_consumption += faction_units[unit_name]['consumption'] * unit_count
 
             # Шаг 3: Расчет базового лимита
             base_limit = 1_000_000  # Базовый лимит 1 млн
@@ -831,8 +802,8 @@ class Faction:
             total_limit = base_limit + city_bonus
 
             # Шаг 4: Проверка превышения лимита
-            if self.total_consumption > total_limit:
-                excess_consumption = self.total_consumption - total_limit
+            if self.current_consumption > total_limit:
+                excess_consumption = self.current_consumption - total_limit
                 starving_units = []  # Список юнитов, которые голодают
 
                 # Логика сокращения армии на 15% от числа юнитов
@@ -862,7 +833,7 @@ class Faction:
                             """, (city_id, unit_name))
                         else:
                             # Пересчитываем потребление для оставшихся юнитов
-                            self.total_consumption -= faction_units[unit_name]['consumption'] * reduction
+                            self.current_consumption -= faction_units[unit_name]['consumption'] * reduction
 
                         # Уменьшаем избыточное потребление
                         excess_consumption -= faction_units[unit_name]['consumption'] * reduction
@@ -881,12 +852,11 @@ class Faction:
                 print(f"Армия сокращена до допустимого лимита.")
 
             # Шаг 5: Вычитание общего потребления из сырья фракции
-            self.raw_material -= self.total_consumption
-            print(f"Общее потребление сырья: {self.total_consumption}")
+            self.raw_material -= self.current_consumption
+            print(f"Общее потребление сырья: {self.current_consumption}")
             print(f"Остаток сырья у фракции: {self.raw_material}")
 
             # Обновляем текущее потребление в ресурсах
-            self.current_consumption = self.total_consumption
             self.resources['Текущее потребление'] = self.current_consumption
             self.resources['Лимит армии'] = total_limit
 
@@ -897,15 +867,10 @@ class Faction:
             print(f"Произошла ошибка: {e}")
 
             # Обновляем текущее потребление в ресурсах
-            self.current_consumption = self.total_consumption
             self.resources['Текущее потребление'] = self.current_consumption
             self.resources['Лимит армии'] = total_limit
 
-            # Сохраняем ресурсы в базу данных
-            self.save_resources_to_db()
 
-        except Exception as e:
-            print(f"Произошла ошибка: {e}")
 
     def update_resources(self):
         """
@@ -915,8 +880,6 @@ class Faction:
         print('-----------------ХОДИТ ИГРОК-----------', self.faction.upper)
         # Обновляем данные о зданиях из таблицы buildings
         self.turn += 1
-        self.calculate_current_consumption()
-        self.current_consumption = self.total_consumption
         self.load_buildings()
 
         # Генерируем новую цену на сырье
@@ -959,7 +922,7 @@ class Faction:
         # Учитываем, что одна фабрика может прокормить 1000 людей
         self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
         self.food_info = (
-                int((self.factories * 1000) - (self.population * coeffs['food_loss'])) - self.total_consumption)
+                int((self.factories * 1000) - (self.population * coeffs['food_loss'])) - self.current_consumption)
         self.food_peoples = int(self.population * coeffs['food_loss'])
 
         # Проверяем, будет ли население увеличиваться
