@@ -278,14 +278,6 @@ class GameScreen(Screen):
         self.faction.update_resources()
         self.resource_box.update_resources()
 
-        # Путь к каталогу с файлами
-        attack_in_city_dir = r'files\config\attack_in_city'
-        # Проставляем 'True' во всех файлах в каталоге после нападения
-        for filename in os.listdir(attack_in_city_dir):
-            if filename.endswith('_check.txt'):
-                file_path = os.path.join(attack_in_city_dir, filename)
-                with open(file_path, 'w', encoding='utf-8') as file:
-                    file.write("True")
 
         # Выполнение хода для всех ИИ
         for ai_controller in self.ai_controllers.values():

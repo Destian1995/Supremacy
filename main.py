@@ -14,8 +14,7 @@ from kivy.core.text import Label as CoreLabel
 import random
 from game_process import GameScreen
 from ui import *
-import os
-import json
+import ast
 import logging
 import sqlite3
 
@@ -23,10 +22,48 @@ import sqlite3
 screen_width, screen_height = 1200, 800
 
 
-def load_kingdom_data(file_path):
-    with open(file_path, 'r', encoding='utf-8') as file:
-        data = json.load(file)
-    return data
+def load_cities_from_db(selected_kingdom):
+    """
+    Функция загружает данные о городах для выбранного княжества из таблицы city.
+
+    :param selected_kingdom: Название выбранного княжества.
+    :return: Список словарей с данными о городах.
+    """
+    # Подключение к базе данных
+    conn = sqlite3.connect('game_data.db')
+    cursor = conn.cursor()
+
+    try:
+        # Запрос к таблице city для получения данных по выбранному княжеству
+        query = """
+        SELECT id, kingdom, color, fortress_name, coordinates
+        FROM city
+        WHERE kingdom = ?
+        """
+        cursor.execute(query, (selected_kingdom,))
+        rows = cursor.fetchall()
+
+        # Преобразование данных в список словарей
+        cities = []
+        for row in rows:
+            city_data = {
+                'id': row[0],
+                'kingdom': row[1],
+                'color': row[2],
+                'fortress_name': row[3],
+                'coordinates': row[4]  # Предполагается, что координаты хранятся как строка "x,y"
+            }
+            cities.append(city_data)
+
+        return cities
+
+    except sqlite3.Error as e:
+        print(f"Ошибка при работе с базой данных: {e}")
+        return []
+
+    finally:
+        # Закрытие соединения с базой данных
+        conn.close()
 
 
 def restore_from_backup():
@@ -138,23 +175,6 @@ def clear_tables(conn):
         conn.rollback()  # Откат изменений в случае ошибки
 
 
-
-def delete_dipforce_files():
-    """Удаляет указанные файлы в поддиректориях files/config/status/dipforce."""
-    filenames = {'halidon.json', 'giperion.json', 'eteria.json', 'celestia.json', 'arkadia.json'}
-    folder_path = os.path.join("files", "config", "status", "dipforce")
-
-    for root, _, files in os.walk(folder_path):  # Рекурсивный обход всех поддиректорий
-        for file in files:
-            if file in filenames:
-                file_path = os.path.join(root, file)
-                try:
-                    os.remove(file_path)
-                    print(f"Файл {file_path} удалён.")
-                except Exception as e:
-                    print(f"Ошибка при удалении {file_path}: {e}")
-
-
 class HallOfFameWidget(FloatLayout):
     def __init__(self, **kwargs):
         super(HallOfFameWidget, self).__init__(**kwargs)
@@ -258,14 +278,21 @@ class MapWidget(Widget):
                 print(f"Ошибка при загрузке данных о городах: {e}")
                 return
 
+            # Проверяем, есть ли данные
+            if not fortresses_data:
+                print("Нет данных о городах в базе данных.")
+                return
+
             # Отрисовываем крепости всех фракций
             for fortress in fortresses_data:
                 fortress_name, kingdom, coords_str = fortress
                 try:
-                    # Преобразуем строку координат в список
-                    original_coords = json.loads(coords_str)  # Пример: "[400, 300]" -> [400, 300]
-                    fort_x, fort_y = original_coords
-                except (json.JSONDecodeError, ValueError) as e:
+                    # Преобразуем строку координат в кортеж
+                    coords = ast.literal_eval(coords_str)  # Пример: "[1020, 500]" -> (1020, 500)
+                    if len(coords) != 2:
+                        raise ValueError("Неверный формат координат")
+                    fort_x, fort_y = coords
+                except (ValueError, SyntaxError) as e:
                     print(f"Ошибка при разборе координат города '{fortress_name}': {e}")
                     continue
 
@@ -276,15 +303,20 @@ class MapWidget(Widget):
                 # Получаем путь к изображению для текущей фракции
                 image_path = faction_images.get(kingdom, 'files/buildings/default.png')
 
+                # Проверяем существование файла
+                import os
+                if not os.path.exists(image_path):
+                    image_path = 'files/buildings/default.png'
+
                 # Сохраняем прямоугольник и владельца для проверки касания
-                # Используем оригинальные координаты, а не сдвинутые
                 fort_rect = (drawn_x, drawn_y, 40, 40)  # Размеры изображения (например, 40x40)
-                self.fortress_rectangles.append((fort_rect, {"coordinates": original_coords}, kingdom))
+                self.fortress_rectangles.append((fort_rect, {"coordinates": (fort_x, fort_y)}, kingdom))
 
                 # Рисуем изображение крепости
                 Rectangle(source=image_path, pos=(drawn_x, drawn_y), size=(40, 40))
 
                 # Добавляем название города под значком
+                fortress_name = fortress_name[:20] + "..." if len(fortress_name) > 20 else fortress_name
                 label = CoreLabel(text=fortress_name, font_size=12, color=(0, 0, 0, 1))
                 label.refresh()
                 text_texture = label.texture
@@ -577,20 +609,24 @@ class KingdomSelectionWidget(FloatLayout):
             print("Фракция не выбрана. Пожалуйста, выберите фракцию перед началом игры.")
             return
 
-        # Загружаем данные из файла
-        file_path = os.path.join('files', 'config', 'city.json')
-        data = load_kingdom_data(file_path)
+        if selected_kingdom is None:
+            print("Фракция не выбрана. Пожалуйста, выберите фракцию перед началом игры.")
+            return
 
-        # Получаем города и крепости для выбранного княжества
-        cities = data['kingdoms'][selected_kingdom]['fortresses']
+        # Загружаем данные из базы данных
+        cities = load_cities_from_db(selected_kingdom)
+
+        if not cities:
+            print("Для выбранного княжества не найдено городов.")
+            return
+
         # Очистка временных таблиц
         # Подключение к базе данных
         conn = sqlite3.connect('game_data.db')
         clear_tables(conn)
         # Закрытие соединения
         conn.close()
-        # Удаление дипломатических файлов
-        delete_dipforce_files()
+
         # Загрузка дампа дефолтных файлов.
         restore_from_backup()
         # Передаем выбранное княжество на новый экран игры

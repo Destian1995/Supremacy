@@ -1436,73 +1436,6 @@ def show_popup_message(title, message):
 
 #-------------------------------------
 
-
-def create_economy_rating_table():
-    """Создает таблицу рейтинга экономик на основе данных из таблицы buildings."""
-    # Подключение к базе данных
-    try:
-        with sqlite3.connect('game_data.db') as conn:
-            cursor = conn.cursor()
-
-            # Получение данных о зданиях
-            cursor.execute("""
-                SELECT faction, SUM(count) AS total_buildings 
-                FROM buildings 
-                GROUP BY faction
-            """)
-            economy_points = {row[0]: row[1] for row in cursor.fetchall()}
-
-            max_points = max(economy_points.values(), default=1)
-
-            layout = GridLayout(cols=3, size_hint_y=None, spacing=5, padding=10)
-            layout.bind(minimum_height=layout.setter('height'))
-
-            def add_header_with_background(text):
-                header = Label(
-                    text=text,
-                    bold=True,
-                    color=(1, 1, 1, 1),
-                    size_hint_y=None,
-                    height=40
-                )
-                with header.canvas.before:
-                    Color(0.2, 0.6, 1, 1)  # Синий фон
-                    header.rect = Rectangle(pos=header.pos, size=header.size)
-                header.bind(
-                    pos=lambda _, value: setattr(header.rect, 'pos', value),
-                    size=lambda _, value: setattr(header.rect, 'size', value)
-                )
-                return header
-
-            layout.add_widget(add_header_with_background("Фракция"))
-            layout.add_widget(add_header_with_background("Рейтинг (%)"))
-            layout.add_widget(add_header_with_background("Плотность застройки"))
-
-            rank_colors = {
-                0: (1, 1, 1, 1),       # Белый (1-й)
-                1: (0, 0.8, 0.8, 1),   # Бирюзовый (2-й)
-                2: (0, 1, 0, 1),       # Зеленый (3-й)
-                3: (1, 1, 0, 1),       # Желтый (4-й)
-                4: (1, 0, 0, 1)        # Красный (5-й)
-            }
-
-            sorted_factions = sorted(economy_points.items(), key=lambda x: x[1], reverse=True)
-            for rank, (faction, points) in enumerate(sorted_factions):
-                rating = (points / max_points) * 100 if max_points > 0 else 0
-                russian_name = faction_names.get(faction, faction)
-                row_color = rank_colors.get(rank, (0.5, 0.5, 0.5, 1))
-
-                layout.add_widget(Label(text=russian_name, color=row_color, size_hint_y=None, height=40))
-                layout.add_widget(Label(text=f"{rating:.2f}%", color=row_color, size_hint_y=None, height=40))
-                layout.add_widget(Label(text=str(points), color=row_color, size_hint_y=None, height=40))
-
-            return layout
-
-    except Exception as e:
-        print(f"Ошибка при работе с базой данных: {e}")
-        return GridLayout()
-
-
 def calculate_army_strength():
     """Рассчитывает силу армий для каждой фракции."""
     class_coefficients = {
@@ -1586,9 +1519,9 @@ def create_army_rating_table():
         )
         return header
 
-    layout.add_widget(add_header_with_background("Фракция"))
-    layout.add_widget(add_header_with_background("Рейтинг (%)"))
-    layout.add_widget(add_header_with_background("Общая сила"))
+    layout.add_widget(add_header_with_background("Страна"))
+    layout.add_widget(add_header_with_background("Рейтинг"))
+    layout.add_widget(add_header_with_background("Мощь"))
 
     rank_colors = {
         0: (1, 1, 1, 1),       # Белый (1-й)
@@ -1618,60 +1551,23 @@ def create_army_rating_table():
     return layout
 
 
-def create_ratings_tab():
-    """Создает вкладку 'Рейтинги' с выпадающим меню для выбора таблиц."""
-    # Основной контейнер
-    layout = BoxLayout(orientation="vertical")
-
-    # Выпадающее меню для выбора таблицы
-    spinner = Spinner(
-        text="Выберите рейтинг",
-        values=("Рейтинг армий", "Рейтинг экономик"),
-        size_hint=(1, None),
-        height=40,
-        background_color=(0.2, 0.6, 1, 1),  # Синий фон
-        color=(1, 1, 1, 1)  # Белый текст
-    )
-
-    # Контейнер для отображения выбранной таблицы
-    content_area = BoxLayout(orientation="vertical", size_hint=(1, 1))
-
-    # Функция для обновления содержимого при выборе элемента из Spinner
-    def update_content(instance, value):
-        content_area.clear_widgets()  # Очищаем текущее содержимое
-        if value == "Рейтинг армий":
-            table_layout = create_army_rating_table()
-        elif value == "Рейтинг экономик":
-            table_layout = create_economy_rating_table()
-        else:
-            table_layout = Label(text="Нет данных", color=(1, 1, 1, 1))
-
-        scroll_view = ScrollView(size_hint=(1, 1))
-        scroll_view.add_widget(table_layout)
-        content_area.add_widget(scroll_view)
-
-    # Привязываем обработчик к событию выбора элемента
-    spinner.bind(text=update_content)
-
-    # Добавляем выпадающее меню и контейнер с содержимым
-    layout.add_widget(spinner)
-    layout.add_widget(content_area)
-
-    return layout
-
-
 def show_ratings_popup():
-    """Открывает всплывающее окно с рейтингами."""
-    content = create_ratings_tab()
+    """Открывает всплывающее окно с рейтингом армий."""
+    # Создаем таблицу рейтинга армий
+    table_layout = create_army_rating_table()
+
+    # Оборачиваем таблицу в ScrollView
+    scroll_view = ScrollView(size_hint=(1, 1))
+    scroll_view.add_widget(table_layout)
+
+    # Создаем всплывающее окно
     popup = Popup(
-        title="Рейтинги",
-        content=content,
+        title="Рейтинг армий",
+        content=scroll_view,
         size_hint=(0.8, 0.8),
         auto_dismiss=True
     )
     popup.open()
-
-
 
 
 #------------------------------------------------------------------
@@ -1714,7 +1610,7 @@ def start_politic_mode(faction, game_area, class_faction):
     negotiate_btn = create_styled_button("Новый договор", lambda x: show_new_agreement_window(faction, game_area, class_faction))
     form_alliance_btn = create_styled_button("Управление союзниками", lambda x: print("Управление союзниками"))
     declare_raite_btn = create_styled_button(
-        "Рейтинги",
+        "Сила армий",
         lambda x: show_ratings_popup()
     )
 
