@@ -1530,8 +1530,10 @@ class FortressInfoPopup(Popup):
 
                 # Проверяем данные о юнитах атакующей стороны
                 cursor.execute("""
-                    SELECT unit_name, unit_count, unit_image FROM garrisons WHERE city_id = ?
-                """, (source_fortress_name,))
+                    SELECT unit_name, unit_count, unit_image 
+                    FROM garrisons 
+                    WHERE city_id = ? AND unit_name = ?
+                """, (source_fortress_name, unit_name))
                 attacking_garrison = cursor.fetchall()
 
                 if not attacking_garrison:

@@ -134,7 +134,7 @@ class ArmyCash:
         # Отображение сообщения об успехе
         self.show_message(
             title="Успех",
-            message=f"Юнит {unit_name} нанят! "
+            message=f"{unit_name} нанят! \n"
                     f"Потрачено: {format_number(required_crowns)} крон и {format_number(required_workers)} рабочих."
         )
         return True

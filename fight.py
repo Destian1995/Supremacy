@@ -116,23 +116,36 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
     """
     print('attacking_fraction:', attacking_fraction)
     print('defending_fraction:', defending_fraction)
+
     cursor = db_connection.cursor()
     try:
+        # Проверка, что соединение с базой данных активно
+        if not db_connection or not cursor:
+            raise ValueError("Соединение с базой данных не установлено или курсор недоступен.")
+
         # SQL-запрос для выборки значения faction
         query = "SELECT faction FROM user_faction"
         cursor.execute(query)
 
         # Получение первого значения из результата (если оно есть)
         result = cursor.fetchone()
-        if result:
-            user_faction = result[0]  # Значение faction
-        else:
-            user_faction = None
+        user_faction = result.get('faction')
+
     except Exception as e:
+        # Выводим подробную информацию об ошибке
+        import traceback
         print(f"Ошибка при выгрузке значения faction: {e}")
+        traceback.print_exc()  # Печатаем трассировку стека для диагностики
         user_faction = None
+
+    print('-----------------------------------------------------***********--user_faction', user_faction)
+
+    # Исправленная проверка принадлежности фракции
     if user_faction == attacking_fraction or user_faction == defending_fraction:
         user_faction = 1
+    else:
+        user_faction = 0
+    print('-----------------------------------------------------***********--user_faction', user_faction)
     # Объединяем войска одной стороны
     attacking_army = merge_units(attacking_army)
     defending_army = merge_units(defending_army)
@@ -296,8 +309,8 @@ def battle_units(attacking_unit, defending_unit, city, user_faction):
     return attacking_unit, defending_unit
 
 def update_garrisons_after_battle(winner, attacking_city, defending_city,
-                                  attacking_army, defending_army, attacking_fraction,
-                                  defending_fraction, cursor):
+                                  attacking_army, defending_army,
+                                  attacking_fraction, defending_fraction, cursor):
     """
     Обновляет гарнизоны после боя.
     """
@@ -310,20 +323,21 @@ def update_garrisons_after_battle(winner, attacking_city, defending_city,
                     DELETE FROM garrisons WHERE city_id = ?
                 """, (defending_city,))
 
-                # Перемещаем атакующую армию в захваченный город с изображениями
+                # Перемещаем оставшиеся атакующие войска в захваченный город
                 for unit in attacking_army:
-                    cursor.execute("""
-                        INSERT INTO garrisons (city_id, unit_name, unit_count, unit_image)
-                        VALUES (?, ?, ?, ?)
-                        ON CONFLICT(city_id, unit_name) DO UPDATE SET
-                        unit_count = excluded.unit_count,
-                        unit_image = excluded.unit_image
-                    """, (
-                        defending_city,
-                        unit['unit_name'],
-                        unit['unit_count'],
-                        unit.get('unit_image', '')  # Берем изображение из данных юнита
-                    ))
+                    if unit['unit_count'] > 0:
+                        cursor.execute("""
+                            INSERT INTO garrisons (city_id, unit_name, unit_count, unit_image)
+                            VALUES (?, ?, ?, ?)
+                            ON CONFLICT(city_id, unit_name) DO UPDATE SET
+                            unit_count = excluded.unit_count,
+                            unit_image = excluded.unit_image
+                        """, (
+                            defending_city,
+                            unit['unit_name'],
+                            unit['unit_count'],
+                            unit.get('unit_image', '')
+                        ))
 
                 # Обновляем принадлежность города
                 cursor.execute("""
@@ -342,30 +356,47 @@ def update_garrisons_after_battle(winner, attacking_city, defending_city,
 
             else:
                 # Если победила обороняющаяся сторона
-                # Удаляем гарнизон атакующей стороны из захваченного города
-                cursor.execute("""
-                    DELETE FROM garrisons WHERE city_id = ?
-                """, (defending_city,))
-
-                # Восстанавливаем гарнизон обороняющейся стороны
+                # Восстанавливаем оставшийся гарнизон обороняющейся стороны
                 for unit in defending_army:
-                    cursor.execute("""
-                        INSERT INTO garrisons (city_id, unit_name, unit_count, unit_image)
-                        VALUES (?, ?, ?, ?)
-                        ON CONFLICT(city_id, unit_name) DO UPDATE SET
-                        unit_count = excluded.unit_count,
-                        unit_image = excluded.unit_image
-                    """, (
-                        defending_city,
-                        unit['unit_name'],
-                        unit['unit_count'],
-                        unit.get('unit_image', '')  # Берем изображение из данных юнита
-                    ))
+                    if unit['unit_count'] > 0:
+                        cursor.execute("""
+                            INSERT INTO garrisons (city_id, unit_name, unit_count, unit_image)
+                            VALUES (?, ?, ?, ?)
+                            ON CONFLICT(city_id, unit_name) DO UPDATE SET
+                            unit_count = excluded.unit_count,
+                            unit_image = excluded.unit_image
+                        """, (
+                            defending_city,
+                            unit['unit_name'],
+                            unit['unit_count'],
+                            unit.get('unit_image', '')
+                        ))
 
-            # Очищаем гарнизон атакующего города
+            # Обновляем гарнизон атакующего города
+            original_counts = {}
+            # Сначала получаем текущие количества юнитов в атакующем городе
             cursor.execute("""
-                DELETE FROM garrisons WHERE city_id = ?
+                SELECT unit_name, unit_count FROM garrisons WHERE city_id = ?
             """, (attacking_city,))
+            for row in cursor.fetchall():
+                original_counts[row['unit_name']] = row['unit_count']
+
+            for unit in attacking_army:
+                remaining_in_source = original_counts.get(unit['unit_name'], 0) - unit['initial_count']
+                if remaining_in_source > 0:
+                    # Обновляем количество, если остались юниты
+                    cursor.execute("""
+                        UPDATE garrisons 
+                        SET unit_count = ? 
+                        WHERE city_id = ? AND unit_name = ?
+                    """, (remaining_in_source, attacking_city, unit['unit_name']))
+                else:
+                    # Удаляем юнит полностью, если не осталось
+                    cursor.execute("""
+                        DELETE FROM garrisons 
+                        WHERE city_id = ? AND unit_name = ?
+                    """, (attacking_city, unit['unit_name']))
+
     except sqlite3.Error as e:
         print(f"Ошибка при обновлении гарнизонов: {e}")
 
