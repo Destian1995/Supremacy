@@ -14,6 +14,7 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.graphics import Color, RoundedRectangle
 from strike import strike_to_city
 
+from economic import format_number
 import threading
 import time
 import sqlite3
@@ -113,16 +114,12 @@ class ArmyCash:
         required_crowns = int(crowns) * int(quantity)
         required_workers = int(workers) * int(quantity)
 
-        # Отладочный вывод: стоимость найма
-        print(f"[DEBUG] Попытка нанять {quantity} юнитов '{unit_name}'. "
-              f"Требуемые ресурсы: Кроны={required_crowns}, Рабочие={required_workers}")
-
         # Проверка наличия ресурсов
         if not self.deduct_resources(required_crowns, required_workers):
             self.show_message(
                 title="Ошибка найма",
                 message=f"Нанять юнитов невозможно: недостаточно ресурсов.\n"
-                        f"Необходимые: {required_crowns} крон и {required_workers} рабочих."
+                        f"Необходимые: {format_number(required_crowns)} крон и {format_number(required_workers)} рабочих."
             )
             return False
 
@@ -138,7 +135,7 @@ class ArmyCash:
         self.show_message(
             title="Успех",
             message=f"Юнит {unit_name} нанят! "
-                    f"Потрачено: {required_crowns} крон и {required_workers} рабочих."
+                    f"Потрачено: {format_number(required_crowns)} крон и {format_number(required_workers)} рабочих."
         )
         return True
 
@@ -197,16 +194,13 @@ class ArmyCash:
         required_crowns = int(crowns) * int(quantity)
         required_workers = int(workers) * int(quantity)
 
-        # Отладочный вывод: стоимость найма
-        print(f"[DEBUG] Попытка нанять {quantity} юнитов '{weapon_name}'. "
-              f"Требуемые ресурсы: Кроны={required_crowns}, Рабочие={required_workers}")
 
         # Проверка наличия ресурсов
         if not self.deduct_resources(required_crowns, required_workers):
             self.show_message(
                 title="Ошибка найма",
                 message=f"Нанять юнитов невозможно: недостаточно ресурсов.\n"
-                        f"Необходимые: {required_crowns} крон и {required_workers} рабочих."
+                        f"Необходимые: {format_number(required_crowns)} крон и {format_number(required_workers)} рабочих."
             )
             return False
         return True
