@@ -1,15 +1,8 @@
 from kivy.animation import Animation
-from kivy.graphics import Color, Ellipse, Rectangle
 from kivy.app import App
+from kivy.graphics import Line
 from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.button import Button
-from kivy.uix.label import Label
-from kivy.uix.image import Image
-from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
 from kivy.uix.widget import Widget
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.textinput import TextInput
-from kivy.graphics import Rectangle, Color
 from kivy.core.text import Label as CoreLabel
 import random
 from game_process import GameScreen
@@ -219,71 +212,110 @@ class HallOfFameWidget(FloatLayout):
         app.root.add_widget(MenuWidget())
 
 
-
-
-
 class MapWidget(Widget):
     def __init__(self, selected_kingdom=None, player_kingdom=None, **kwargs):
         super(MapWidget, self).__init__(**kwargs)
         self.touch_start = None  # Стартовая позиция касания
         self.conn = sqlite3.connect('game_data.db', check_same_thread=False)
+        self.cursor = self.conn.cursor()  # Инициализация курсора
         self.fortress_rectangles = []  # Список для хранения крепостей
+        self.roads = []  # Список для хранения линий дорог
+        self.city_labels = []  # Список для хранения текстовых меток городов
+        self.city_icons = []  # Список для хранения иконок городов
         self.current_player_kingdom = player_kingdom  # Текущее королевство игрока
         self.map_pos = self.map_positions_start()  # Позиция карты
         print(self.current_player_kingdom)
+
         # Отрисовка карты
-        with self.canvas:
+        with self.canvas.before:  # Все статические элементы (фон и дороги) рисуются перед городами
             self.map_image = Rectangle(source='files/map/map.png', pos=self.map_pos, size=(screen_width, screen_height))
-        # Отрисовка всех крепостей
+
+        # Отрисовка дорог (один раз при инициализации)
+        self.draw_roads()
+
+        # Отрисовка всех крепостей и текстовых меток
         self.draw_fortresses()
 
-    def map_positions_start(self):
-        if self.current_player_kingdom == 'Хиперион':
-            return [-200, -100]
-        elif self.current_player_kingdom == 'Аркадия':
-            return [0, -240]
-        elif self.current_player_kingdom == 'Селестия':
-            return [0, 0]
-        elif self.current_player_kingdom == 'Этерия':
-            return [-400, -210]
-        elif self.current_player_kingdom == 'Халидон':
-            return [-360, 0]
+    def draw_roads(self):
+        """
+        Отрисовывает дороги между близкими городами (расстояние ≤ 250).
+        Линии теперь ещё тоньше и менее заметны.
+        """
+        # Запрашиваем данные о городах из базы данных
+        try:
+            cursor = self.cursor
+            cursor.execute("""
+                SELECT fortress_name, coordinates 
+                FROM city
+            """)
+            fortresses_data = cursor.fetchall()
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке данных о городах: {e}")
+            return
+
+        # Создаем список координат всех городов
+        all_coordinates = []
+        for fortress in fortresses_data:
+            fortress_name, coords_str = fortress
+            try:
+                # Преобразуем строку координат в кортеж
+                coords = ast.literal_eval(coords_str)  # Пример: "[1020, 500]" -> (1020, 500)
+                if len(coords) != 2:
+                    raise ValueError("Неверный формат координат")
+                all_coordinates.append((fortress_name, coords))
+            except (ValueError, SyntaxError) as e:
+                print(f"Ошибка при разборе координат города '{fortress_name}': {e}")
+                continue
+
+        # Отрисовываем дороги между близкими городами
+        with self.canvas.before:  # Дороги рисуются перед изображениями городов
+            Color(0, 0, 0, 0.5)  # Очень бледно-серый цвет с низкой прозрачностью
+            for i, (source_name, (x1, y1)) in enumerate(all_coordinates):
+                for j, (destination_name, (x2, y2)) in enumerate(all_coordinates):
+                    if i < j:  # Чтобы не рисовать дважды одну и ту же дорогу
+                        # Вычисляем расстояние между городами
+                        distance = abs(x1 - x2) + abs(y1 - y2)
+                        if distance <= 220:
+                            # Генерируем извилистую линию
+                            points = self.generate_wavy_line(x1, y1, x2, y2)
+                            # Пересчитываем координаты для отрисовки с учетом сдвига карты
+                            shifted_points = self.shift_points(points, self.map_pos)
+                            # Рисуем линию
+                            line = Line(points=shifted_points, width=0.5)  # Ширина линии уменьшена до 0.5
+                            # Сохраняем данные о линии
+                            self.roads.append((line, points))
 
     def draw_fortresses(self):
+        """
+        Отрисовывает все крепости и их названия на карте.
+        """
         self.fortress_rectangles.clear()
-        self.canvas.clear()
+        self.city_labels.clear()
+        self.city_icons.clear()  # Очищаем список иконок городов
 
-        # Отрисовываем фон карты
-        with self.canvas:
-            self.map_image = Rectangle(source='files/map/map.png', pos=self.map_pos, size=(screen_width, screen_height))
+        # Запрашиваем данные о городах из базы данных
+        try:
+            cursor = self.cursor
+            cursor.execute("""
+                SELECT fortress_name, kingdom, coordinates 
+                FROM city
+            """)
+            fortresses_data = cursor.fetchall()
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке данных о городах: {e}")
+            return
 
-            # Словарь для соответствия фракций и изображений
-            faction_images = {
-                'Хиперион': 'files/buildings/giperion.png',
-                'Аркадия': 'files/buildings/arkadia.png',
-                'Селестия': 'files/buildings/celestia.png',
-                'Этерия': 'files/buildings/eteria.png',
-                'Халидон': 'files/buildings/halidon.png'
-            }
+        # Словарь для соответствия фракций и изображений
+        faction_images = {
+            'Хиперион': 'files/buildings/giperion.png',
+            'Аркадия': 'files/buildings/arkadia.png',
+            'Селестия': 'files/buildings/celestia.png',
+            'Этерия': 'files/buildings/eteria.png',
+            'Халидон': 'files/buildings/halidon.png'
+        }
 
-            # Запрашиваем данные о городах из базы данных
-            try:
-                cursor = self.conn.cursor()
-                cursor.execute("""
-                    SELECT fortress_name, kingdom, coordinates 
-                    FROM city
-                """)
-                fortresses_data = cursor.fetchall()
-            except sqlite3.Error as e:
-                print(f"Ошибка при загрузке данных о городах: {e}")
-                return
-
-            # Проверяем, есть ли данные
-            if not fortresses_data:
-                print("Нет данных о городах в базе данных.")
-                return
-
-            # Отрисовываем крепости всех фракций
+        # Отрисовываем крепости всех фракций
+        with self.canvas.after:  # Изображения городов рисуются поверх дорог
             for fortress in fortresses_data:
                 fortress_name, kingdom, coords_str = fortress
                 try:
@@ -308,12 +340,14 @@ class MapWidget(Widget):
                 if not os.path.exists(image_path):
                     image_path = 'files/buildings/default.png'
 
-                # Сохраняем прямоугольник и владельца для проверки касания
-                fort_rect = (drawn_x, drawn_y, 40, 40)  # Размеры изображения (например, 40x40)
-                self.fortress_rectangles.append((fort_rect, {"coordinates": (fort_x, fort_y)}, kingdom))
-
                 # Рисуем изображение крепости
-                Rectangle(source=image_path, pos=(drawn_x, drawn_y), size=(40, 40))
+                Color(1, 1, 1, 1)  # Сброс цвета на белый/полный
+                icon = Rectangle(source=image_path, pos=(drawn_x, drawn_y), size=(40, 40))
+                self.city_icons.append((icon, {"coordinates": (fort_x, fort_y)}))  # Сохраняем иконку
+
+                # Сохраняем прямоугольник и владельца для проверки касания
+                fort_rect = [drawn_x, drawn_y, 40, 40]  # Используем список вместо кортежа
+                self.fortress_rectangles.append((fort_rect, {"coordinates": (fort_x, fort_y)}, kingdom))
 
                 # Добавляем название города под значком
                 fortress_name = fortress_name[:20] + "..." if len(fortress_name) > 20 else fortress_name
@@ -327,8 +361,109 @@ class MapWidget(Widget):
                 text_y = drawn_y - text_height - 5  # Размещаем ниже значка
 
                 # Рисуем текст
-                Color(1, 1, 1, 1)  # Белый цвет текста
-                Rectangle(texture=text_texture, pos=(text_x, text_y), size=(text_width, text_height))
+                with self.canvas.after:
+                    Color(1, 1, 1, 1)  # Белый цвет текста
+                    text_rect = Rectangle(texture=text_texture, pos=(text_x, text_y), size=(text_width, text_height))
+                    self.city_labels.append((text_rect, {"coordinates": (fort_x, fort_y)}))
+
+    def generate_wavy_line(self, x1, y1, x2, y2):
+        """
+        Генерирует извилистую линию между двумя точками.
+        :param x1, y1: Координаты начальной точки.
+        :param x2, y2: Координаты конечной точки.
+        :return: Список точек для отрисовки линии.
+        """
+        import random
+        points = []
+        num_segments = 5  # Количество сегментов для извилистости
+        dx = (x2 - x1) / num_segments
+        dy = (y2 - y1) / num_segments
+        for i in range(num_segments + 1):
+            # Добавляем случайное отклонение к каждой точке
+            offset_x = random.uniform(-10, 10)
+            offset_y = random.uniform(-10, 10)
+            x = x1 + i * dx + offset_x
+            y = y1 + i * dy + offset_y
+            points.extend([x, y])
+        return points
+
+    def shift_points(self, points, map_pos):
+        """
+        Сдвигает точки линии на основе текущей позиции карты.
+        :param points: Список точек линии.
+        :param map_pos: Текущая позиция карты.
+        :return: Список сдвинутых точек.
+        """
+        shifted_points = []
+        for i in range(0, len(points), 2):
+            x = points[i] + map_pos[0]
+            y = points[i + 1] + map_pos[1]
+            shifted_points.extend([x, y])
+        return shifted_points
+
+
+
+
+    def update_map_position(self):
+        """
+        Обновляет позицию карты, городов, текстовых меток и дорог.
+        """
+        # Обновляем позицию изображения карты
+        self.map_image.pos = self.map_pos
+
+        # Обновляем позиции иконок городов
+        for icon, icon_data in self.city_icons:
+            icon_x, icon_y = icon_data["coordinates"]
+            icon.pos = (
+                icon_x + self.map_pos[0] + 4,  # Обновляем X
+                icon_y + self.map_pos[1] + 2  # Обновляем Y
+            )
+
+        # Обновляем позиции городов (для проверки касания)
+        for rect, fortress_data, _ in self.fortress_rectangles:
+            fort_x, fort_y = fortress_data["coordinates"]
+            rect[0] = fort_x + self.map_pos[0] + 4  # Обновляем X
+            rect[1] = fort_y + self.map_pos[1] + 2  # Обновляем Y
+
+        # Обновляем позиции текстовых меток
+        for text_rect, label_data in self.city_labels:
+            label_x, label_y = label_data["coordinates"]
+            text_x = label_x + self.map_pos[0] + 4 + (40 - text_rect.size[0]) / 2
+            text_y = label_y + self.map_pos[1] + 2 - text_rect.size[1] - 5
+            text_rect.pos = (text_x, text_y)
+
+        # Обновляем позиции дорог
+        for line, original_points in self.roads:
+            shifted_points = self.shift_points(original_points, self.map_pos)
+            line.points = shifted_points
+
+    def on_touch_move(self, touch):
+        """
+        Двигаем карту при перемещении касания.
+        """
+        if self.touch_start:
+            dx = touch.x - self.touch_start[0]
+            dy = touch.y - self.touch_start[1]
+            self.touch_start = touch.pos  # Обновляем точку касания
+
+            # Обновляем позицию карты
+            self.map_pos[0] += dx
+            self.map_pos[1] += dy
+
+            # Обновляем позиции карты, городов, текстовых меток и дорог
+            self.update_map_position()
+
+    def map_positions_start(self):
+        if self.current_player_kingdom == 'Хиперион':
+            return [-200, -100]
+        elif self.current_player_kingdom == 'Аркадия':
+            return [0, -240]
+        elif self.current_player_kingdom == 'Селестия':
+            return [0, 0]
+        elif self.current_player_kingdom == 'Этерия':
+            return [-400, -210]
+        elif self.current_player_kingdom == 'Халидон':
+            return [-360, 0]
 
     def check_fortress_click(self, touch):
         # Проверяем, была ли нажата крепость
@@ -351,25 +486,6 @@ class MapWidget(Widget):
         if touch.is_mouse_scrolling:
             return  # Игнорируем скроллинг
         self.touch_start = touch.pos
-
-    def on_touch_move(self, touch):
-        # Двигаем карту при перемещении касания
-        if self.touch_start:
-            dx = touch.x - self.touch_start[0]
-            dy = touch.y - self.touch_start[1]
-            self.touch_start = touch.pos  # Обновляем точку касания
-            # Обновляем позицию карты
-            self.map_pos[0] += dx
-            self.map_pos[1] += dy
-            self.update_map_position()
-
-    def update_map_position(self):
-        # Обновляем позицию изображения карты
-        self.map_image.pos = self.map_pos
-        # Очищаем canvas и снова рисуем карту и крепости
-        self.canvas.clear()
-        self.draw_map()  # Вызываем отрисовку карты
-        self.draw_fortresses()
 
     def on_touch_up(self, touch):
         # Обрабатываем отпускание касания
