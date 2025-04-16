@@ -1,3 +1,4 @@
+from kivy.uix.image import Image
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
@@ -140,6 +141,19 @@ class AdvisorView(FloatLayout):
         )
         relations_button.bind(on_press=lambda x: self.show_relations("Состояние отношений"))
 
+        progress_button = Button(
+            text="Прогресс",
+            size_hint=(1, 1),
+            background_normal='',
+            background_color=(0.5, 0.2, 0.8, 1),
+            color=(1, 1, 1, 1),
+            font_size=Window.height * 0.02,
+            bold=True,
+            border=(0, 0, 0, 0)
+        )
+        progress_button.bind(on_press=lambda x: self.show_progress())
+
+        bottom_panel.add_widget(progress_button)
         bottom_panel.add_widget(political_system_button)
         bottom_panel.add_widget(relations_button)
 
@@ -836,3 +850,262 @@ class AdvisorView(FloatLayout):
             return (0.1, 0.3, 0.9, 1)
         else:
             return (1, 1, 1, 1)
+
+    def show_progress(self):
+        """Отображает окно с прогрессом (Атака, Защита, Дипломатия)."""
+        # Основной контейнер
+        main_layout = FloatLayout(
+            size_hint=(1, 1)
+        )
+
+        # Добавляем фоновое изображение
+        background_image_path = f'files/sov/sov_{translation_dict.get(self.faction)}.jpg'
+        if os.path.exists(background_image_path):
+            background = Image(
+                source=background_image_path,
+                allow_stretch=True,  # Растягиваем изображение
+                keep_ratio=False,  # Не сохраняем пропорции
+                size_hint=(1, 1),  # Занимает всё окно
+                pos_hint={'x': 0, 'y': 0}
+            )
+            main_layout.add_widget(background)
+        else:
+            print(f"Фоновое изображение не найдено: {background_image_path}")
+
+        # Заголовок
+        header = Label(
+            text="Прогресс",
+            font_size=Window.height * 0.05,
+            bold=True,
+            size_hint_y=None,
+            height=Window.height * 0.06,
+            color=(1, 1, 1, 1),  # Белый цвет текста для видимости
+            pos_hint={'top': 1, 'center_x': 0.5}
+        )
+        main_layout.add_widget(header)
+
+        # Контейнер для счетчиков баллов
+        scores_layout = BoxLayout(
+            orientation='horizontal',
+            spacing=dp(10),
+            size_hint=(1, None),
+            height=Window.height * 0.08,
+            pos_hint={'top': 0.92, 'center_x': 0.5}
+        )
+
+        # Счетчик боевых баллов
+        self.battle_score_label = Label(
+            text=f"[b]Боевые баллы:[/b] {self.get_battle_score()}",
+            markup=True,
+            font_size=Window.height * 0.032,
+            color=(1, 1, 1, 1),  # Белый цвет текста
+            size_hint=(0.5, 1)
+        )
+        scores_layout.add_widget(self.battle_score_label)
+
+        # Счетчик дипломатических баллов
+        self.diplomacy_score_label = Label(
+            text=f"[b]Дипл. баллы:[/b] {self.get_diplomacy_score()}",
+            markup=True,
+            font_size=Window.height * 0.032,
+            color=(1, 1, 1, 1),  # Белый цвет текста
+            size_hint=(0.5, 1)
+        )
+        scores_layout.add_widget(self.diplomacy_score_label)
+
+        main_layout.add_widget(scores_layout)
+
+        # Контейнер для показателей
+        stats_layout = BoxLayout(
+            orientation='vertical',
+            spacing=dp(10),
+            size_hint=(1, None),
+            height=Window.height * 0.6,
+            pos_hint={'center_x': 0.5, 'center_y': 0.45}
+        )
+
+        # Атака
+        attack_layout = BoxLayout(
+            orientation='horizontal',
+            spacing=dp(10),
+            size_hint=(1, None),
+            height=Window.height * 0.12
+        )
+        attack_label = Label(
+            text="Атака",
+            font_size=Window.height * 0.032,
+            bold=True,
+            color=(1, 0, 0, 1),
+            size_hint=(0.3, 1)
+        )
+        attack_layout.add_widget(attack_label)
+        attack_bars = self.create_progress_bars(self.get_attack_progress())
+        attack_layout.add_widget(attack_bars)
+        self.attack_upgrade_button = Button(
+            text="+",
+            font_size=Window.height * 0.025,
+            background_color=(0, 0.7, 0.3, 1),
+            size_hint=(0.2, 1)
+        )
+        self.attack_upgrade_button.bind(on_press=self.upgrade_attack)
+        attack_layout.add_widget(self.attack_upgrade_button)
+        stats_layout.add_widget(attack_layout)
+
+        # Защита
+        defense_layout = BoxLayout(
+            orientation='horizontal',
+            spacing=dp(10),
+            size_hint=(1, None),
+            height=Window.height * 0.12
+        )
+        defense_label = Label(
+            text="Защита",
+            font_size=Window.height * 0.032,
+            bold=True,
+            color=(0, 0, 1, 1),
+            size_hint=(0.3, 1)
+        )
+        defense_layout.add_widget(defense_label)
+        defense_bars = self.create_progress_bars(self.get_defense_progress())
+        defense_layout.add_widget(defense_bars)
+        self.defense_upgrade_button = Button(
+            text="+",
+            font_size=Window.height * 0.025,
+            background_color=(0, 0.7, 0.3, 1),
+            size_hint=(0.2, 1)
+        )
+        self.defense_upgrade_button.bind(on_press=self.upgrade_defense)
+        defense_layout.add_widget(self.defense_upgrade_button)
+        stats_layout.add_widget(defense_layout)
+
+        # Дипломатия
+        diplomacy_layout = BoxLayout(
+            orientation='horizontal',
+            spacing=dp(10),
+            size_hint=(1, None),
+            height=Window.height * 0.12
+        )
+        diplomacy_label = Label(
+            text="Дипломатия",
+            font_size=Window.height * 0.032,
+            bold=True,
+            color=(0, 1, 0, 1),
+            size_hint=(0.3, 1)
+        )
+        diplomacy_layout.add_widget(diplomacy_label)
+        diplomacy_bars = self.create_progress_bars(self.get_diplomacy_progress())
+        diplomacy_layout.add_widget(diplomacy_bars)
+        self.diplomacy_upgrade_button = Button(
+            text="+",
+            font_size=Window.height * 0.025,
+            background_color=(0, 0.7, 0.3, 1),
+            size_hint=(0.2, 1)
+        )
+        self.diplomacy_upgrade_button.bind(on_press=self.upgrade_diplomacy)
+        diplomacy_layout.add_widget(self.diplomacy_upgrade_button)
+        stats_layout.add_widget(diplomacy_layout)
+
+        main_layout.add_widget(stats_layout)
+
+        # Настройка попапа
+        popup = Popup(
+            title='',
+            content=main_layout,
+            size_hint=(0.8, 0.8),
+            background_color=(0, 0, 0, 0),  # Прозрачный фон попапа
+            overlay_color=(0, 0, 0, 0.2)
+        )
+        popup.open()
+
+    def create_progress_bars(self, progress):
+        """Создает 10 прямоугольников для отображения прогресса."""
+        bars_layout = GridLayout(
+            cols=10,
+            spacing=dp(2),
+            size_hint=(1, None),  # Фиксированная высота
+            height=Window.height * 0.06  # Высота контейнера
+        )
+        for i in range(10):
+            bar_color = (0, 0.7, 0.3, 1) if i < progress else (0.8, 0.8, 0.8, 1)  # Зеленый или серый
+            bar = Button(
+                background_color=bar_color,
+                background_normal='',
+                size_hint=(1, 1)  # Каждая палочка занимает всю доступную ячейку
+            )
+            bars_layout.add_widget(bar)
+        return bars_layout
+
+    def update_bars_colors(self, bars_layout, progress):
+        """Обновляет цвета палочек в существующем прогресс-баре."""
+        # Перебираем виджеты в обратном порядке, чтобы индексация совпадала с визуальным порядком слева направо
+        for i, bar in enumerate(reversed(bars_layout.children)):
+            if i < progress:
+                bar.background_color = (0, 0.7, 0.3, 1)  # Зеленый
+            else:
+                bar.background_color = (0.8, 0.8, 0.8, 1)  # Серый
+
+    # Методы для получения текущих значений (заглушки)
+    def get_battle_score(self):
+        """Возвращает текущие боевые баллы."""
+        self._battle_score = getattr(self, '_battle_score', 10)
+        return self._battle_score
+
+    def get_diplomacy_score(self):
+        """Возвращает текущие дипломатические баллы."""
+        self._diplomacy_score = getattr(self, '_diplomacy_score', 5)
+        return self._diplomacy_score
+
+    def get_attack_progress(self):
+        """Возвращает прогресс атаки."""
+        self._attack_progress = getattr(self, '_attack_progress', 0)
+        return self._attack_progress
+
+    def get_defense_progress(self):
+        """Возвращает прогресс защиты."""
+        self._defense_progress = getattr(self, '_defense_progress', 0)
+        return self._defense_progress
+
+    def get_diplomacy_progress(self):
+        """Возвращает прогресс дипломатии."""
+        self._diplomacy_progress = getattr(self, '_diplomacy_progress', 0)
+        return self._diplomacy_progress
+
+    # Методы для обновления показателей
+    def upgrade_attack(self, instance):
+        """Увеличивает прогресс атаки, если есть боевые баллы."""
+        if self._battle_score > 0 and self._attack_progress < 10:
+            self._battle_score -= 1
+            self._attack_progress += 1
+            self.update_progress_display()
+
+    def upgrade_defense(self, instance):
+        """Увеличивает прогресс защиты, если есть боевые баллы."""
+        if self._battle_score > 0 and self._defense_progress < 10:
+            self._battle_score -= 1
+            self._defense_progress += 1
+            self.update_progress_display()
+
+    def upgrade_diplomacy(self, instance):
+        """Увеличивает прогресс дипломатии, если есть дипломатические баллы."""
+        if self._diplomacy_score > 0 and self._diplomacy_progress < 10:
+            self._diplomacy_score -= 1
+            self._diplomacy_progress += 1
+            self.update_progress_display()
+
+    def update_progress_display(self):
+        """Обновляет отображение прогресса и счетчиков баллов."""
+        # Обновляем счетчики баллов
+        self.battle_score_label.text = f"[b]Боевые баллы:[/b] {self._battle_score}"
+        self.diplomacy_score_label.text = f"[b]Дипл. баллы:[/b] {self._diplomacy_score}"
+
+        # Обновляем цвета прогресс-баров для Атаки
+        attack_bars_layout = self.attack_upgrade_button.parent.children[1]
+        self.update_bars_colors(attack_bars_layout, self._attack_progress)
+
+        # Обновляем цвета прогресс-баров для Защиты
+        defense_bars_layout = self.defense_upgrade_button.parent.children[1]
+        self.update_bars_colors(defense_bars_layout, self._defense_progress)
+
+        # Обновляем цвета прогресс-баров для Дипломатии
+        diplomacy_bars_layout = self.diplomacy_upgrade_button.parent.children[1]
+        self.update_bars_colors(diplomacy_bars_layout, self._diplomacy_progress)
