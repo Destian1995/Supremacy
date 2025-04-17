@@ -142,7 +142,7 @@ class AdvisorView(FloatLayout):
         relations_button.bind(on_press=lambda x: self.show_relations("Состояние отношений"))
 
         progress_button = Button(
-            text="Прогресс",
+            text="Опыт",
             size_hint=(1, 1),
             background_normal='',
             background_color=(0.5, 0.2, 0.8, 1),
@@ -902,17 +902,6 @@ class AdvisorView(FloatLayout):
             size_hint=(0.5, 1)
         )
         scores_layout.add_widget(self.battle_score_label)
-
-        # Счетчик дипломатических баллов
-        self.diplomacy_score_label = Label(
-            text=f"[b]Дипл. баллы:[/b] {self.get_diplomacy_score()}",
-            markup=True,
-            font_size=Window.height * 0.032,
-            color=(1, 1, 1, 1),  # Белый цвет текста
-            size_hint=(0.5, 1)
-        )
-        scores_layout.add_widget(self.diplomacy_score_label)
-
         main_layout.add_widget(scores_layout)
 
         # Контейнер для показателей
@@ -978,33 +967,6 @@ class AdvisorView(FloatLayout):
         defense_layout.add_widget(self.defense_upgrade_button)
         stats_layout.add_widget(defense_layout)
 
-        # Дипломатия
-        diplomacy_layout = BoxLayout(
-            orientation='horizontal',
-            spacing=dp(10),
-            size_hint=(1, None),
-            height=Window.height * 0.12
-        )
-        diplomacy_label = Label(
-            text="Дипломатия",
-            font_size=Window.height * 0.032,
-            bold=True,
-            color=(0, 1, 0, 1),
-            size_hint=(0.3, 1)
-        )
-        diplomacy_layout.add_widget(diplomacy_label)
-        diplomacy_bars = self.create_progress_bars(self.get_diplomacy_progress())
-        diplomacy_layout.add_widget(diplomacy_bars)
-        self.diplomacy_upgrade_button = Button(
-            text="+",
-            font_size=Window.height * 0.025,
-            background_color=(0, 0.7, 0.3, 1),
-            size_hint=(0.2, 1)
-        )
-        self.diplomacy_upgrade_button.bind(on_press=self.upgrade_diplomacy)
-        diplomacy_layout.add_widget(self.diplomacy_upgrade_button)
-        stats_layout.add_widget(diplomacy_layout)
-
         main_layout.add_widget(stats_layout)
 
         # Настройка попапа
@@ -1050,11 +1012,6 @@ class AdvisorView(FloatLayout):
         self._battle_score = getattr(self, '_battle_score', 10)
         return self._battle_score
 
-    def get_diplomacy_score(self):
-        """Возвращает текущие дипломатические баллы."""
-        self._diplomacy_score = getattr(self, '_diplomacy_score', 5)
-        return self._diplomacy_score
-
     def get_attack_progress(self):
         """Возвращает прогресс атаки."""
         self._attack_progress = getattr(self, '_attack_progress', 0)
@@ -1064,11 +1021,6 @@ class AdvisorView(FloatLayout):
         """Возвращает прогресс защиты."""
         self._defense_progress = getattr(self, '_defense_progress', 0)
         return self._defense_progress
-
-    def get_diplomacy_progress(self):
-        """Возвращает прогресс дипломатии."""
-        self._diplomacy_progress = getattr(self, '_diplomacy_progress', 0)
-        return self._diplomacy_progress
 
     # Методы для обновления показателей
     def upgrade_attack(self, instance):
@@ -1085,18 +1037,11 @@ class AdvisorView(FloatLayout):
             self._defense_progress += 1
             self.update_progress_display()
 
-    def upgrade_diplomacy(self, instance):
-        """Увеличивает прогресс дипломатии, если есть дипломатические баллы."""
-        if self._diplomacy_score > 0 and self._diplomacy_progress < 10:
-            self._diplomacy_score -= 1
-            self._diplomacy_progress += 1
-            self.update_progress_display()
 
     def update_progress_display(self):
         """Обновляет отображение прогресса и счетчиков баллов."""
         # Обновляем счетчики баллов
-        self.battle_score_label.text = f"[b]Боевые баллы:[/b] {self._battle_score}"
-        self.diplomacy_score_label.text = f"[b]Дипл. баллы:[/b] {self._diplomacy_score}"
+        self.battle_score_label.text = f"[b]Лимит очков:[/b] {self._battle_score}"
 
         # Обновляем цвета прогресс-баров для Атаки
         attack_bars_layout = self.attack_upgrade_button.parent.children[1]
@@ -1105,7 +1050,3 @@ class AdvisorView(FloatLayout):
         # Обновляем цвета прогресс-баров для Защиты
         defense_bars_layout = self.defense_upgrade_button.parent.children[1]
         self.update_bars_colors(defense_bars_layout, self._defense_progress)
-
-        # Обновляем цвета прогресс-баров для Дипломатии
-        diplomacy_bars_layout = self.diplomacy_upgrade_button.parent.children[1]
-        self.update_bars_colors(diplomacy_bars_layout, self._diplomacy_progress)

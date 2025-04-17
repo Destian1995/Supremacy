@@ -29,7 +29,7 @@ def merge_units(army):
             merged_army[unit_name]['unit_count'] += unit['unit_count']
     return list(merged_army.values())
 
-# Окно отчета боя
+
 def show_battle_report(report_data):
     print('================================================================')
     print('report_data', report_data)
@@ -109,6 +109,64 @@ def show_battle_report(report_data):
     popup.open()
 
 
+def calculate_experience(losing_side, db_connection):
+    experience_points = {
+        '1': 0.5,
+        '2': 1.4,
+        '3': 2.3,
+        '4': 7.0
+    }
+
+    total_experience = 0
+
+    for unit in losing_side:
+        try:
+            print(f"Обработка юнита: {unit.get('unit_name')}")
+            print(f"Данные юнита: {unit}")
+
+            if 'units_stats' not in unit or 'Класс юнита' not in unit['units_stats']:
+                print(f"Проблема с данными юнита: {unit.get('unit_name')}")
+                continue
+
+            unit_class = unit['units_stats']['Класс юнита']
+            killed_units = unit['killed_count']
+
+            if killed_units > 0 and unit_class in experience_points:
+                experience = experience_points[unit_class] * killed_units
+                total_experience += experience
+                print(f"Юнит: {unit['unit_name']}, Класс: {unit_class}, Убито: {killed_units}, Опыт: {experience}")
+        except Exception as e:
+            print(f"Ошибка при обработке юнита {unit.get('unit_name')}: {e}")
+
+    if total_experience > 0:
+        try:
+            cursor = db_connection.cursor()
+            db_connection.execute("BEGIN")
+
+            # Проверяем, существует ли уже запись с id=1
+            cursor.execute("SELECT COUNT(*) FROM experience WHERE id = 1")
+            exists = cursor.fetchone()
+
+            if exists['COUNT(*)'] > 0:
+                # Обновляем существующее значение
+                cursor.execute("""
+                    UPDATE experience
+                    SET experience_value = experience_value + ?
+                    WHERE id = 1
+                """, (total_experience,))
+            else:
+                # Вставляем новую запись
+                cursor.execute("""
+                    INSERT INTO experience (id, experience_value)
+                    VALUES (1, ?)
+                """, (total_experience,))
+
+            db_connection.commit()
+        except Exception as e:
+            db_connection.rollback()
+            print(f"Ошибка при обновлении таблицы experience: {e}")
+
+
 def fight(attacking_city, defending_city, defending_army, attacking_army, attacking_fraction, defending_fraction,
           db_connection):
     """
@@ -138,22 +196,21 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
         traceback.print_exc()  # Печатаем трассировку стека для диагностики
         user_faction = None
 
-    print('-----------------------------------------------------***********--user_faction', user_faction)
-
     # Исправленная проверка принадлежности фракции
+    is_user_faction_involved = False
     if user_faction == attacking_fraction or user_faction == defending_fraction:
-        user_faction = 1
-    else:
-        user_faction = 0
-    print('-----------------------------------------------------***********--user_faction', user_faction)
+        is_user_faction_involved = True
+
     # Объединяем войска одной стороны
     attacking_army = merge_units(attacking_army)
     defending_army = merge_units(defending_army)
     # Сохраняем начальные значения ДО боя
     for unit in attacking_army:
         unit['initial_count'] = unit['unit_count']
+        unit['killed_count'] = unit['unit_count']
     for unit in defending_army:
         unit['initial_count'] = unit['unit_count']
+        unit['killed_count'] = unit['unit_count']
 
     # Вспомогательная функция для определения приоритета юнита
     def get_unit_priority(unit):
@@ -196,8 +253,21 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
         cursor=db_connection.cursor()
     )
 
-    # Показываем отчет
-    if user_faction == 1:
+    # Определяем победителя
+    winner = 'attacking' if any(int(u['unit_count']) > 0 for u in attacking_army) else 'defending'
+
+    print(f"Winner: {winner}, User faction: {user_faction}")
+    print(f"Attacking fraction: {attacking_fraction}, Defending fraction: {defending_fraction}")
+
+    # Если победила фракция игрока
+    if is_user_faction_involved:
+        if winner == 'attacking' and attacking_fraction == user_faction:
+            calculate_experience(defending_army, db_connection)
+        elif winner == 'defending' and defending_fraction == user_faction:
+            calculate_experience(attacking_army, db_connection)
+
+    # Показываем отчет, если игрок участвовал в бою
+    if is_user_faction_involved:
         show_battle_report(report_data)
 
 
@@ -413,7 +483,6 @@ def damage_to_infrastructure(all_damage, city_name, user_faction):
     :param city_name: Название города, по которому наносится урон.
     """
     global conn, damage_info
-    print('Начинаем расчет урона по инфраструктуре')
 
     # Константа для урона, необходимого для разрушения одного здания
     DAMAGE_PER_BUILDING = 45900
@@ -438,7 +507,6 @@ def damage_to_infrastructure(all_damage, city_name, user_faction):
             city_data[building_type] = count
 
         if not city_data:
-            print(f"Город '{city_name}' не найден в базе данных или в нем нет зданий.")
             return
 
         print(f"Данные инфраструктуры до удара: {city_data}")

@@ -79,7 +79,8 @@ def restore_from_backup():
             ("diplomacies_default", "diplomacies"),
             ("relations_default", "relations"),
             ("resources_default", "resources"),
-            ("cities_default", "cities")
+            ("cities_default", "cities"),
+            ("units_default", "units")
         ]
 
         # Проверяем существование всех стандартных таблиц
@@ -150,7 +151,9 @@ def clear_tables(conn):
         "armies",
         "political_systems",
         "karma",
-        "user_faction"
+        "user_faction",
+        "units",
+        "experience"
     ]
 
     cursor = conn.cursor()
