@@ -53,7 +53,9 @@ class AdvisorView(FloatLayout):
         self.db = 'game_data.db'
         self.db_connection = sqlite3.connect(self.db)  # Подключение к базе данных
         self.cursor = self.db_connection.cursor()
-
+        self._exp_points = 0
+        self._attack_progress = 0
+        self._defense_progress = 0
         # Инициализация таблицы political_systems
         self.initialize_political_systems()
         # Настройки темы
@@ -853,6 +855,7 @@ class AdvisorView(FloatLayout):
 
     def show_progress(self):
         """Отображает окно с прогрессом (Атака, Защита, Дипломатия)."""
+        self.load_progress()
         # Основной контейнер
         main_layout = FloatLayout(
             size_hint=(1, 1)
@@ -872,37 +875,61 @@ class AdvisorView(FloatLayout):
         else:
             print(f"Фоновое изображение не найдено: {background_image_path}")
 
-        # Заголовок
-        header = Label(
-            text="Прогресс",
-            font_size=Window.height * 0.05,
-            bold=True,
-            size_hint_y=None,
-            height=Window.height * 0.06,
-            color=(1, 1, 1, 1),  # Белый цвет текста для видимости
-            pos_hint={'top': 1, 'center_x': 0.5}
-        )
-        main_layout.add_widget(header)
+        from kivy.graphics import Color, Rectangle
+        from kivy.uix.boxlayout import BoxLayout
 
-        # Контейнер для счетчиков баллов
-        scores_layout = BoxLayout(
-            orientation='horizontal',
-            spacing=dp(10),
-            size_hint=(1, None),
-            height=Window.height * 0.08,
-            pos_hint={'top': 0.92, 'center_x': 0.5}
+        # Цвет фона по фракции
+        faction_colors = {
+            "Аркадия": (0.2, 0.4, 0.9, 0.8),
+            "Селестия": (0.2, 0.7, 0.3, 0.8),
+            "Хиперион": (0.5, 0.2, 0.6, 0.8),
+            "Этерия": (0, 0, 0, 0.8),
+            "Халидон": (0.6, 0.5, 0.1, 0.8),
+        }
+        color = faction_colors.get(self.faction, (0.2, 0.2, 0.2, 0.8))
+
+        # Визуальный блок в левом верхнем углу
+        top_left_box = BoxLayout(
+            orientation='vertical',
+            spacing=dp(4),
+            padding=dp(6),
+            size_hint=(None, None),
+            size=(Window.width * 0.4, Window.height * 0.12),
+            pos_hint={'x': 0.02, 'top': 0.98}
         )
 
-        # Счетчик боевых баллов
+        with top_left_box.canvas.before:
+            Color(*color)
+            self.top_left_rect = Rectangle(size=top_left_box.size, pos=top_left_box.pos)
+
+        top_left_box.bind(size=lambda inst, val: setattr(self.top_left_rect, 'size', val))
+        top_left_box.bind(pos=lambda inst, val: setattr(self.top_left_rect, 'pos', val))
+
+        # Надпись об очках
         self.battle_score_label = Label(
-            text=f"[b]Боевые баллы:[/b] {self.get_battle_score()}",
+            text=f"[b]Начисленные очки:[/b] {self.get_battle_score()}",
             markup=True,
-            font_size=Window.height * 0.032,
-            color=(1, 1, 1, 1),  # Белый цвет текста
-            size_hint=(0.5, 1)
+            font_size=Window.height * 0.028,
+            color=(1, 1, 1, 1),
+            halign="left",
+            valign="middle"
         )
-        scores_layout.add_widget(self.battle_score_label)
-        main_layout.add_widget(scores_layout)
+        self.battle_score_label.bind(size=self.battle_score_label.setter('text_size'))
+        top_left_box.add_widget(self.battle_score_label)
+
+        # Подпись о лимите
+        max_hint = Label(
+            text="[i]Максимум 10 баллов[/i]",
+            markup=True,
+            font_size=Window.height * 0.024,
+            color=(1, 1, 1, 0.8),
+            halign="left",
+            valign="middle"
+        )
+        max_hint.bind(size=max_hint.setter('text_size'))
+        top_left_box.add_widget(max_hint)
+
+        main_layout.add_widget(top_left_box)
 
         # Контейнер для показателей
         stats_layout = BoxLayout(
@@ -938,6 +965,15 @@ class AdvisorView(FloatLayout):
         )
         self.attack_upgrade_button.bind(on_press=self.upgrade_attack)
         attack_layout.add_widget(self.attack_upgrade_button)
+
+        # Плашка для атаки
+        with attack_layout.canvas.before:
+            Color(1, 0, 0, 0.2)  # Красная плашка
+            self.attack_rect = Rectangle(size=attack_layout.size, pos=attack_layout.pos)
+
+        attack_layout.bind(size=lambda inst, val: setattr(self.attack_rect, 'size', val))
+        attack_layout.bind(pos=lambda inst, val: setattr(self.attack_rect, 'pos', val))
+
         stats_layout.add_widget(attack_layout)
 
         # Защита
@@ -965,6 +1001,15 @@ class AdvisorView(FloatLayout):
         )
         self.defense_upgrade_button.bind(on_press=self.upgrade_defense)
         defense_layout.add_widget(self.defense_upgrade_button)
+
+        # Плашка для защиты
+        with defense_layout.canvas.before:
+            Color(0, 0, 1, 0.2)  # Синяя плашка
+            self.defense_rect = Rectangle(size=defense_layout.size, pos=defense_layout.pos)
+
+        defense_layout.bind(size=lambda inst, val: setattr(self.defense_rect, 'size', val))
+        defense_layout.bind(pos=lambda inst, val: setattr(self.defense_rect, 'pos', val))
+
         stats_layout.add_widget(defense_layout)
 
         main_layout.add_widget(stats_layout)
@@ -997,46 +1042,156 @@ class AdvisorView(FloatLayout):
             bars_layout.add_widget(bar)
         return bars_layout
 
-    def update_bars_colors(self, bars_layout, progress):
-        """Обновляет цвета палочек в существующем прогресс-баре."""
-        # Перебираем виджеты в обратном порядке, чтобы индексация совпадала с визуальным порядком слева направо
-        for i, bar in enumerate(reversed(bars_layout.children)):
-            if i < progress:
-                bar.background_color = (0, 0.7, 0.3, 1)  # Зеленый
+    def load_progress(self):
+        """Загружает прогресс из базы данных."""
+        try:
+            conn = sqlite3.connect(self.db)
+            cursor = conn.cursor()
+            cursor.execute("SELECT exp_points, attack_points, defense_points FROM experience WHERE id = 1")
+            row = cursor.fetchone()
+            if row:
+                self._exp_points, self._attack_progress, self._defense_progress = row
             else:
-                bar.background_color = (0.8, 0.8, 0.8, 1)  # Серый
+                self._exp_points, self._attack_progress, self._defense_progress = 0, 0, 0
+            conn.close()
+        except Exception as e:
+            print(f"Ошибка загрузки прогресса из базы данных: {e}")
+            self._exp_points, self._attack_progress, self._defense_progress = 0, 0, 0
 
-    # Методы для получения текущих значений (заглушки)
+    def save_progress(self):
+        """Сохраняет прогресс в базу данных."""
+        try:
+            conn = sqlite3.connect(self.db)
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE experience
+                SET exp_points = ?, attack_points = ?, defense_points = ?
+                WHERE id = 1
+            """, (self._exp_points, self._attack_progress, self._defense_progress))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Ошибка сохранения прогресса в базу данных: {e}")
+
+    def apply_unit_modifiers(self):
+        """Увеличивает характеристики юнитов текущей фракции на основе прокачанных баллов."""
+        attack_bonus = self.calculate_bonus(self._attack_progress)
+        defense_bonus = self.calculate_bonus(self._defense_progress)
+
+        try:
+            conn = sqlite3.connect(self.db)
+            cursor = conn.cursor()
+
+            # Получаем всех юнитов текущей фракции
+            cursor.execute("""
+                SELECT id, attack, defense
+                FROM units
+                WHERE faction = ?
+            """, (self.faction,))
+            units = cursor.fetchall()
+
+            for unit_id, current_attack, current_defense in units:
+                new_attack = current_attack + attack_bonus
+                new_defense = current_defense + defense_bonus
+                cursor.execute("""
+                    UPDATE units
+                    SET attack = ?, defense = ?
+                    WHERE id = ?
+                """, (new_attack, new_defense, unit_id))
+
+            conn.commit()
+            conn.close()
+            print(f"Юниты фракции '{self.faction}' обновлены: +{attack_bonus} атаки, +{defense_bonus} защиты.")
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении характеристик юнитов: {e}")
+
+    def calculate_bonus(self, points):
+        bonus = 0
+        if points >= 1:
+            bonus += min(points, 4) * 10
+        if points >= 5:
+            bonus += (min(points, 6) - 4) * 25
+        if points >= 7:
+            bonus += (min(points, 9) - 6) * 50
+        if points == 10:
+            bonus += 100
+        return bonus
+
+    def calculate_battle_score_from_db(self):
+        """
+        Вычисляет боевые баллы на основе общего опыта из БД.
+        """
+        # Загрузка общего количества опыта из базы данных
+        total_experience = 0
+        try:
+            conn = sqlite3.connect(self.db)
+            cursor = conn.cursor()
+            cursor.execute("SELECT experience_value FROM experience WHERE id = 1")
+            row = cursor.fetchone()
+            if row and row[0] is not None:
+                total_experience = row[0]
+            conn.close()
+        except Exception as e:
+            print(f"Ошибка чтения опыта из базы данных: {e}")
+
+        # Определение порогов для боевых баллов
+        thresholds = [
+            (4, 10000),  # 4 балла по 10 тыс.
+            (3, 25000),  # 3 балла по 25 тыс.
+            (2, 35000),  # 2 балла по 35 тыс.
+            (1, 45000)  # 1 балл по 45 тыс.
+        ]
+
+        battle_points = 0
+
+        # Расчет боевых баллов
+        for count, step in thresholds:
+            for _ in range(count):
+                if total_experience >= step:
+                    battle_points += 1
+                    total_experience -= step
+                else:
+                    return battle_points
+
+        return battle_points
+
+    def get_available_battle_score(self):
+        """Возвращает оставшееся количество боевых баллов после траты на атаку и защиту."""
+        total = self.calculate_battle_score_from_db()
+        used = self._attack_progress + self._defense_progress
+        return max(0, total - used)
+
     def get_battle_score(self):
-        """Возвращает текущие боевые баллы."""
-        self._battle_score = getattr(self, '_battle_score', 10)
+        """Возвращает боевые баллы из расчета опыта."""
+        self._battle_score = self.get_available_battle_score()
         return self._battle_score
 
     def get_attack_progress(self):
         """Возвращает прогресс атаки."""
-        self._attack_progress = getattr(self, '_attack_progress', 0)
         return self._attack_progress
 
     def get_defense_progress(self):
         """Возвращает прогресс защиты."""
-        self._defense_progress = getattr(self, '_defense_progress', 0)
         return self._defense_progress
 
-    # Методы для обновления показателей
     def upgrade_attack(self, instance):
         """Увеличивает прогресс атаки, если есть боевые баллы."""
-        if self._battle_score > 0 and self._attack_progress < 10:
+        if self._battle_score > 0 and self._attack_progress <= 10:
             self._battle_score -= 1
             self._attack_progress += 1
+            self.save_progress()
             self.update_progress_display()
+            self.apply_unit_modifiers()
 
     def upgrade_defense(self, instance):
         """Увеличивает прогресс защиты, если есть боевые баллы."""
-        if self._battle_score > 0 and self._defense_progress < 10:
+        if self._battle_score > 0 and self._defense_progress <= 10:
             self._battle_score -= 1
             self._defense_progress += 1
+            self.save_progress()
             self.update_progress_display()
-
+            self.apply_unit_modifiers()
 
     def update_progress_display(self):
         """Обновляет отображение прогресса и счетчиков баллов."""
@@ -1050,3 +1205,12 @@ class AdvisorView(FloatLayout):
         # Обновляем цвета прогресс-баров для Защиты
         defense_bars_layout = self.defense_upgrade_button.parent.children[1]
         self.update_bars_colors(defense_bars_layout, self._defense_progress)
+
+    def update_bars_colors(self, bars_layout, progress):
+        """Обновляет цвета палочек в существующем прогресс-баре."""
+        for i, bar in enumerate(reversed(bars_layout.children)):
+            if i < progress:
+                bar.background_color = (0, 0.7, 0.3, 1)  # Зеленый
+            else:
+                bar.background_color = (0.8, 0.8, 0.8, 1)  # Серый
+
