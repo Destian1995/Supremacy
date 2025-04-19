@@ -8,8 +8,7 @@ from kivy.uix.popup import Popup
 from kivy.uix.gridlayout import GridLayout
 from kivy.graphics import Line
 from kivy.uix.scrollview import ScrollView
-from kivy.graphics import Color, Rectangle
-from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
 from kivy.uix.progressbar import ProgressBar
 import sqlite3
 import time
@@ -116,7 +115,7 @@ class ManageFriend(Popup):
             dd_resources.add_widget(btn_res)
 
         # Кнопка "Ресурсы", при нажатии открывает второе меню справа
-        btn_resources = Button(text="Ресурсы →", size_hint_y=None, height=40)
+        btn_resources = Button(text="Ресурсы ->", size_hint_y=None, height=40)
         btn_resources.bind(on_release=lambda btn: dd_resources.open(btn))
 
         # Другие действия
@@ -130,7 +129,7 @@ class ManageFriend(Popup):
         dd_main.add_widget(btn_defense)
         dd_main.add_widget(btn_attack)
 
-        main_btn = Button(text="→", size_hint_y=None, height=40)
+        main_btn = Button(text="Запросить", size_hint_y=None, height=40)
         main_btn.bind(on_release=lambda btn: dd_main.open(btn))
         return main_btn
 
