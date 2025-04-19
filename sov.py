@@ -951,7 +951,7 @@ class AdvisorView(FloatLayout):
             text="Атака",
             font_size=Window.height * 0.032,
             bold=True,
-            color=(1, 0, 0, 1),
+            color=(1, 1, 1, 1),
             size_hint=(0.3, 1)
         )
         attack_layout.add_widget(attack_label)
@@ -987,7 +987,7 @@ class AdvisorView(FloatLayout):
             text="Защита",
             font_size=Window.height * 0.032,
             bold=True,
-            color=(0, 0, 1, 1),
+            color=(1, 1, 1, 1),
             size_hint=(0.3, 1)
         )
         defense_layout.add_widget(defense_label)

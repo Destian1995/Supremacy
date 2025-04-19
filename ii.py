@@ -224,10 +224,11 @@ class AIController:
     def save_resources_to_db(self):
         """
         Сохраняет текущие ресурсы фракции в таблицу resources.
+        Обновляет только существующие записи, не добавляет новые.
         """
         try:
             for resource_type, amount in self.resources.items():
-                # Сначала проверяем, существует ли запись
+                # Проверяем, существует ли запись
                 self.cursor.execute('''
                     SELECT amount
                     FROM resources
@@ -243,13 +244,10 @@ class AIController:
                         WHERE faction = ? AND resource_type = ?
                     ''', (amount, self.faction, resource_type))
                 else:
-                    # Создаем новую запись
-                    self.cursor.execute('''
-                        INSERT INTO resources (faction, resource_type, amount)
-                        VALUES (?, ?, ?)
-                    ''', (self.faction, resource_type, amount))
+                    # Если записи нет, пропускаем её (не добавляем новую)
+                    pass
 
-            # Сохраняем изменения
+            # Сохраняем изменения в базе данных
             self.db_connection.commit()
         except sqlite3.Error as e:
             print(f"Ошибка при сохранении ресурсов: {e}")
@@ -1346,11 +1344,11 @@ class AIController:
             print(f"Ошибка при поиске ближайшего города: {e}")
             return None
 
-    def relocate_units(self, from_city_id, to_city_id, unit_name, unit_count, unit_image):
+    def relocate_units(self, from_city_name, to_city_name, unit_name, unit_count, unit_image):
         """
         Передислоцирует юниты между городами.
-        :param from_city_id: ID города отправления
-        :param to_city_id: ID города назначения
+        :param from_city_name: Название города отправления
+        :param to_city_name: Название города назначения
         :param unit_name: Название юнита
         :param unit_count: Количество юнитов
         :param unit_image: Изображение юнита
@@ -1361,17 +1359,17 @@ class AIController:
                 UPDATE garrisons
                 SET unit_count = unit_count - ?
                 WHERE city_id = ? AND unit_name = ?
-            """, (unit_count, from_city_id, unit_name))
+            """, (unit_count, from_city_name, unit_name))
 
             # Увеличиваем количество юнитов в целевом городе
             self.cursor.execute("""
                 INSERT INTO garrisons (city_id, unit_name, unit_count, unit_image)
                 VALUES (?, ?, ?, ?)
                 ON CONFLICT(city_id, unit_name) DO UPDATE SET unit_count = unit_count + ?
-            """, (to_city_id, unit_name, unit_count, unit_image, unit_count))
+            """, (to_city_name, unit_name, unit_count, unit_image, unit_count))
 
             self.db_connection.commit()
-            print(f"Передислокация {unit_count} юнитов {unit_name} из города {from_city_id} в город {to_city_id}.")
+            print(f"Передислокация {unit_count} юнитов {unit_name} из города {from_city_name} в город {to_city_name}.")
         except sqlite3.Error as e:
             print(f"Ошибка при передислокации юнитов: {e}")
 
@@ -1716,39 +1714,294 @@ class AIController:
         except Exception as e:
             print(f"Ошибка при проверке и объявлении войны: {e}")
 
-    # ---------------------------------------------------------------------
-
-    # Основная логика хода ИИ
-    def make_turn(self):
+    def process_queries(self):
         """
-        Основная логика хода ИИ фракции.
+        Обрабатывает запросы из таблицы queries.
+        Для каждого запроса проверяет, является ли фракция союзником,
+        и выполняет соответствующие действия на основе заполненных столбцов.
+        После обработки всех запросов очищает таблицу queries, только если ходит союзник.
         """
-        print(f'---------ХОДИТ ФРАКЦИЯ: {self.faction}-------------------')
         try:
-            # 1. Обновляем ресурсы из базы данных
-            self.update_resources()
-            # 2. Проверяем и объявляем войну, если необходимо
-            self.check_and_declare_war()
-            # 3. Применяем бонусы от политической системы
-            self.apply_political_system_bonus()
-            # 4. Изменяем отношения на основе политической системы
-            self.update_relations_based_on_political_system()
-            # 5. Загружаем данные о зданиях
-            self.update_buildings_from_db()
-            # 6. Управление строительством (90% крон на строительство)
-            self.manage_buildings()
-            # 7. Продажа сырья (99% сырья, если его больше 10000)
-            resources_sold = self.sell_resources()
-            # 8. Найм армии (на оставшиеся деньги после строительства и продажи сырья)
-            if resources_sold:
-                self.hire_army()
-            # 9. Сохраняем все изменения в базу данных
-            self.save_all_data()
-            # Увеличиваем счетчик ходов
-            self.turn += 1
-            print(f'-----------КОНЕЦ {self.turn} ХОДА----------------  ФРАКЦИИ', self.faction)
+            # Загружаем все запросы из таблицы queries
+            query = """
+                SELECT resource, defense_city, attack_city, faction
+                FROM queries
+            """
+            self.cursor.execute(query)
+            rows = self.cursor.fetchall()
+
+            is_ally_turn = False  # Флаг для отслеживания, был ли ход союзника
+
+            for row in rows:
+                resource, defense_city, attack_city, faction = row
+
+                # Проверяем, является ли фракция союзником
+                is_ally = self.is_faction_ally(faction)
+                if not is_ally:
+                    print(f"Фракция {faction} не является союзником. Пропускаем запрос.")
+                    continue
+
+                is_ally_turn = True  # Устанавливаем флаг, если хотя бы один запрос выполнен для союзника
+
+                # Если заполнен столбец resource
+                if resource:
+                    self.transfer_resource_to_ally(faction, resource)
+
+                # Если заполнен столбец defense_city
+                if defense_city:
+                    self.reinforce_defense_in_city(defense_city, faction)
+
+                # Если заполнен столбец attack_city
+                if attack_city:
+                    self.launch_attack_on_city(attack_city, faction)
+
+            # Очищаем таблицу queries, только если был ход союзника
+            if is_ally_turn:
+                self.clear_queries_table()
+                print("Обработка запросов завершена. Таблица queries очищена.")
+            else:
+                print("Обработка запросов завершена. Таблица queries не очищена, так как ходили не союзники.")
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при обработке запросов: {e}")
+
+    def clear_queries_table(self):
+        """
+        Очищает таблицу queries.
+        """
+        try:
+            query = "DELETE FROM queries"
+            self.cursor.execute(query)
+            self.db_connection.commit()
+            print("Таблица queries успешно очищена.")
+        except sqlite3.Error as e:
+            print(f"Ошибка при очистке таблицы queries: {e}")
+
+    def is_faction_ally(self, faction):
+        """
+        Проверяет, является ли указанная фракция союзником текущей фракции.
+        :param faction: Название фракции
+        :return: True, если союзник ('союз'); False, если нет
+        """
+        try:
+            # Загружаем статус дипломатии с указанной фракцией
+            query = """
+                SELECT relationship
+                FROM diplomacies
+                WHERE faction1 = ? AND faction2 = ?
+            """
+            self.cursor.execute(query, (self.faction, faction))
+            result = self.cursor.fetchone()
+
+            # Если запись найдена и статус равен 'союз', возвращаем True
+            if result and result[0] == 'союз':
+                return True
+
+            # Во всех остальных случаях возвращаем False
+            return False
+        except sqlite3.Error as e:
+            print(f"Ошибка при проверке союзника: {e}")
+            return False
+
+    def transfer_resource_to_ally(self, faction, resource_type):
+        """
+        Передает 40% ресурса указанного типа союзной фракции.
+        Данные о передаче записываются в таблицу trade_agreements.
+        :param faction: Название союзной фракции (target_faction)
+        :param resource_type: Тип ресурса (initiator_type_resource и target_type_resource)
+        """
+        try:
+            # Получаем текущее количество ресурса у текущей фракции
+            current_amount = self.resources.get(resource_type, 0)
+            if current_amount <= 0:
+                print(f"Нет доступных ресурсов типа {resource_type} для передачи.")
+                return
+
+            # Вычисляем 40% от текущего количества ресурса
+            amount_to_transfer = int(current_amount * 0.4)
+
+            # Уменьшаем количество ресурса у текущей фракции
+            self.resources[resource_type] -= amount_to_transfer
+
+            # Записываем данные о передаче в таблицу trade_agreements
+            self.cursor.execute("""
+                INSERT INTO trade_agreements (
+                    initiator, 
+                    target_faction, 
+                    initiator_type_resource, 
+                    initiator_summ_resource, 
+                    target_type_resource, 
+                    target_summ_resource,
+                    agree
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                self.faction,  # initiator (текущая фракция)
+                faction,  # target_faction (союзная фракция)
+                resource_type,  # initiator_type_resource (тип ресурса)
+                amount_to_transfer,  # initiator_summ_resource (переданное количество)
+                "",  # target_type_resource (тип ресурса у союзника)
+                "",  # target_summ_resource (полученное количество)
+                1  # agree (статус сделки
+            ))
+
+            # Сохраняем изменения в базе данных
+            self.db_connection.commit()
+
+            print(f"Передано {amount_to_transfer} {resource_type} союзной фракции {faction}.")
+        except sqlite3.Error as e:
+            print(f"Ошибка при передаче ресурсов: {e}")
+
+    def reinforce_defense_in_city(self, city_name, faction):
+        """
+        Направляет 40% защитных юнитов в указанный город.
+        :param city_name: Название города
+        :param faction: Название союзной фракции
+        """
+        try:
+            # Собираем защитные юниты из всех городов текущей фракции
+            defensive_units = self.collect_defensive_units()
+
+            if not defensive_units:
+                print("Нет доступных защитных юнитов для передислокации.")
+                return
+
+            # Вычисляем 40% от общего количества защитных юнитов
+            total_units = sum(unit["unit_count"] for unit in defensive_units)
+            units_to_relocate = int(total_units * 0.4)
+
+            # Распределяем юниты между городами
+            relocated_units = []
+            remaining_units = units_to_relocate
+            for unit in defensive_units:
+                if remaining_units <= 0:
+                    break
+                units_from_this = min(unit["unit_count"], remaining_units)
+                relocated_units.append({
+                    "city_id": unit["city_id"],  # Город отправления
+                    "unit_name": unit["unit_name"],
+                    "unit_count": units_from_this,
+                    "unit_image": unit["unit_image"]
+                })
+                remaining_units -= units_from_this
+
+            print('*******************************************relocated_units :', relocated_units)
+
+            # Передислоцируем юниты в указанный город
+            for unit in relocated_units:
+                self.relocate_units(
+                    from_city_name=unit["city_id"],
+                    to_city_name=city_name,
+                    unit_name=unit["unit_name"],
+                    unit_count=unit["unit_count"],
+                    unit_image=unit["unit_image"]
+                )
+
+            print(f"Передислоцировано {units_to_relocate} защитных юнитов в город {city_name}.")
         except Exception as e:
-            print(f"Ошибка при выполнении хода: {e}")
+            print(f"Ошибка при усилении обороны: {e}")
+
+    def collect_defensive_units(self):
+        """
+        Собирает защитные юниты из всех городов текущей фракции.
+        :return: Список защитных юнитов с информацией о городе отправления
+        """
+        try:
+            query = """
+                SELECT g.city_id, g.unit_name, g.unit_count, u.defense, g.unit_image
+                FROM garrisons g
+                JOIN units u ON g.unit_name = u.unit_name
+                WHERE u.faction = ? AND u.defense > u.attack
+            """
+            self.cursor.execute(query, (self.faction,))
+            rows = self.cursor.fetchall()
+
+            defensive_units = []
+            for row in rows:
+                city_id, unit_name, unit_count, defense, unit_image = row
+                defensive_units.append({
+                    "city_id": city_id,
+                    "unit_name": unit_name,
+                    "unit_count": unit_count,
+                    "unit_image": unit_image
+                })
+
+            return defensive_units
+        except sqlite3.Error as e:
+            print(f"Ошибка при сборе защитных юнитов: {e}")
+            return []
+        except ValueError as ve:
+            print(f"Ошибка при обработке данных: {ve}")
+            return []
+
+    def launch_attack_on_city(self, city_name, faction):
+        """
+        Атакует указанный город 60% атакующих юнитов.
+        :param city_name: Название города
+        :param faction: Название целевой фракции
+        """
+        try:
+            # Собираем атакующие юниты из всех городов текущей фракции
+            attacking_units = self.collect_attacking_units()
+
+            if not attacking_units:
+                print("Нет доступных атакующих юнитов для атаки.")
+                return
+
+            # Вычисляем 60% от общего количества атакующих юнитов
+            total_units = sum(unit["unit_count"] for unit in attacking_units)
+            units_to_attack = int(total_units * 0.6)
+
+            # Распределяем юниты между городами
+            attack_army = []
+            remaining_units = units_to_attack
+            for unit in attacking_units:
+                if remaining_units <= 0:
+                    break
+                units_from_this = min(unit["unit_count"], remaining_units)
+                attack_army.append({
+                    "unit_name": unit["unit_name"],
+                    "unit_count": units_from_this,
+                    "unit_image": unit["unit_image"]
+                })
+                remaining_units -= units_from_this
+
+            # Атакуем указанный город
+            self.attack_city(city_name, faction)
+
+            print(f"Атакован город {city_name} с использованием {units_to_attack} атакующих юнитов.")
+        except Exception as e:
+            print(f"Ошибка при атаке города: {e}")
+
+    def collect_attacking_units(self):
+        """
+        Собирает атакующие юниты из всех городов текущей фракции.
+        :return: Список атакующих юнитов
+        """
+        try:
+            query = """
+                SELECT g.city_id, g.unit_name, g.unit_count, u.attack, g.unit_image
+                FROM garrisons g
+                JOIN units u ON g.unit_name = u.unit_name
+                WHERE u.faction = ? AND u.attack > 50
+            """
+            self.cursor.execute(query, (self.faction,))
+            rows = self.cursor.fetchall()
+
+            attacking_units = []
+            for row in rows:
+                city_id, unit_name, unit_count, attack, unit_image = row
+                attacking_units.append({
+                    "city_id": city_id,
+                    "unit_name": unit_name,
+                    "unit_count": unit_count,
+                    "unit_image": unit_image
+                })
+
+            return attacking_units
+        except sqlite3.Error as e:
+            print(f"Ошибка при сборе атакующих юнитов: {e}")
+            return []
 
     def apply_political_system_bonus(self):
         """
@@ -1814,3 +2067,39 @@ class AIController:
             self.db_connection.commit()
         except sqlite3.Error as e:
             print(f"Ошибка при обновлении отношений для фракции {faction}: {e}")
+
+    # ---------------------------------------------------------------------
+
+    # Основная логика хода ИИ
+    def make_turn(self):
+        """
+        Основная логика хода ИИ фракции.
+        """
+        print(f'---------ХОДИТ ФРАКЦИЯ: {self.faction}-------------------')
+        try:
+            # 1. Обновляем ресурсы из базы данных
+            self.update_resources()
+            self.process_queries()
+            # 2. Проверяем и объявляем войну, если необходимо
+            self.check_and_declare_war()
+            # 3. Применяем бонусы от политической системы
+            self.apply_political_system_bonus()
+            # 4. Изменяем отношения на основе политической системы
+            self.update_relations_based_on_political_system()
+            # 5. Загружаем данные о зданиях
+            self.update_buildings_from_db()
+            # 6. Управление строительством (90% крон на строительство)
+            self.manage_buildings()
+            # 7. Продажа сырья (99% сырья, если его больше 10000)
+            resources_sold = self.sell_resources()
+            # 8. Найм армии (на оставшиеся деньги после строительства и продажи сырья)
+            if resources_sold:
+                self.hire_army()
+            # 9. Сохраняем все изменения в базу данных
+            self.save_all_data()
+            # Увеличиваем счетчик ходов
+            self.turn += 1
+            print(f'-----------КОНЕЦ {self.turn} ХОДА----------------  ФРАКЦИИ', self.faction)
+        except Exception as e:
+            print(f"Ошибка при выполнении хода: {e}")
+

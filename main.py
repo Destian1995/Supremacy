@@ -1,3 +1,5 @@
+import os
+
 from kivy.animation import Animation
 from kivy.app import App
 from kivy.graphics import Line
@@ -14,6 +16,16 @@ from kivy.clock import Clock
 # Размеры окна
 screen_width, screen_height = 1200, 800
 
+def save_last_clicked_city(city_name: str):
+    conn = sqlite3.connect('game_data.db')
+    cur = conn.cursor()
+    # если строки ещё нет, вставим, иначе перепишем
+    cur.execute(
+        "INSERT OR REPLACE INTO last_click (id, city_name) VALUES (1, ?)",
+        (city_name,)
+    )
+    conn.commit()
+    conn.close()
 
 def load_cities_from_db(selected_kingdom):
     """
@@ -153,7 +165,8 @@ def clear_tables(conn):
         "karma",
         "user_faction",
         "units",
-        "experience"
+        "experience",
+        "queries"
     ]
 
     cursor = conn.cursor()
@@ -249,7 +262,11 @@ class MapWidget(Widget):
 
         # Отрисовываем фон карты
         with self.canvas:
-            self.map_image = Rectangle(source='files/map/map.png', pos=self.map_pos, size=(screen_width, screen_height))
+            self.map_image = Rectangle(
+                source='files/map/map.png',
+                pos=self.map_pos,
+                size=(screen_width, screen_height)
+            )
 
             # Словарь для соответствия фракций и изображений
             faction_images = {
@@ -278,11 +295,9 @@ class MapWidget(Widget):
                 return
 
             # Отрисовываем крепости всех фракций
-            for fortress in fortresses_data:
-                fortress_name, kingdom, coords_str = fortress
+            for fortress_name, kingdom, coords_str in fortresses_data:
                 try:
-                    # Преобразуем строку координат в кортеж
-                    coords = ast.literal_eval(coords_str)  # Пример: "[1020, 500]" -> (1020, 500)
+                    coords = ast.literal_eval(coords_str)
                     if len(coords) != 2:
                         raise ValueError("Неверный формат координат")
                     fort_x, fort_y = coords
@@ -291,54 +306,58 @@ class MapWidget(Widget):
                     continue
 
                 # Сдвигаем изображение только для отрисовки
-                drawn_x = fort_x + self.map_pos[0] + 4  # Сдвиг вправо
-                drawn_y = fort_y + self.map_pos[1] + 2  # Сдвиг вверх
+                drawn_x = fort_x + self.map_pos[0] + 4
+                drawn_y = fort_y + self.map_pos[1] + 2
 
                 # Получаем путь к изображению для текущей фракции
                 image_path = faction_images.get(kingdom, 'files/buildings/default.png')
-
-                # Проверяем существование файла
-                import os
                 if not os.path.exists(image_path):
                     image_path = 'files/buildings/default.png'
 
-                # Сохраняем прямоугольник и владельца для проверки касания
-                fort_rect = (drawn_x, drawn_y, 40, 40)  # Размеры изображения (например, 40x40)
-                self.fortress_rectangles.append((fort_rect, {"coordinates": (fort_x, fort_y)}, kingdom))
+                # Сохраняем прямоугольник, имя и владельца для проверки касания
+                fort_rect = (drawn_x, drawn_y, 40, 40)
+                self.fortress_rectangles.append((
+                    fort_rect,
+                    {"coordinates": (fort_x, fort_y), "name": fortress_name},
+                    kingdom
+                ))
 
                 # Рисуем изображение крепости
                 Rectangle(source=image_path, pos=(drawn_x, drawn_y), size=(40, 40))
 
                 # Добавляем название города под значком
-                fortress_name = fortress_name[:20] + "..." if len(fortress_name) > 20 else fortress_name
-                label = CoreLabel(text=fortress_name, font_size=12, color=(0, 0, 0, 1))
+                display_name = (fortress_name[:20] + "...") if len(fortress_name) > 20 else fortress_name
+                label = CoreLabel(text=display_name, font_size=12, color=(0, 0, 0, 1))
                 label.refresh()
                 text_texture = label.texture
                 text_width, text_height = text_texture.size
 
-                # Вычисляем позицию текста (центрируем его под значком)
-                text_x = drawn_x + (40 - text_width) / 2  # Центрируем по ширине
-                text_y = drawn_y - text_height - 5  # Размещаем ниже значка
+                text_x = drawn_x + (40 - text_width) / 2
+                text_y = drawn_y - text_height - 5
 
-                # Рисуем текст
-                Color(1, 1, 1, 1)  # Белый цвет текста
+                Color(1, 1, 1, 1)
                 Rectangle(texture=text_texture, pos=(text_x, text_y), size=(text_width, text_height))
 
     def check_fortress_click(self, touch):
         # Проверяем, была ли нажата крепость
         for fort_rect, fortress_data, owner in self.fortress_rectangles:
-            if (fort_rect[0] <= touch.x <= fort_rect[0] + fort_rect[2] and
-                    fort_rect[1] <= touch.y <= fort_rect[1] + fort_rect[3]):
-                # Получаем оригинальные координаты крепости
-                fortress_coords = fortress_data["coordinates"]  # Оригинальные координаты
+            x, y, w, h = fort_rect
+            if x <= touch.x <= x + w and y <= touch.y <= y + h:
+                # Сохраняем последний клик
+                save_last_clicked_city(fortress_data["name"])
+
+                # Открываем окно с информацией
                 popup = FortressInfoPopup(
                     kingdom=owner,
-                    city_coords=fortress_coords,
+                    city_coords=fortress_data["coordinates"],
                     player_fraction=self.current_player_kingdom
                 )
                 popup.open()
                 print(
-                    f"Крепость {fortress_coords} принадлежит {'вашему' if owner == self.current_player_kingdom else 'чужому'} королевству!")
+                    f"Крепость {fortress_data['coordinates']} "
+                    f"принадлежит {'вашему' if owner == self.current_player_kingdom else 'чужому'} королевству!"
+                )
+                break
 
     def on_touch_down(self, touch):
         # Запоминаем начальную точку касания

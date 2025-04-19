@@ -187,7 +187,13 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
 
         # Получение первого значения из результата (если оно есть)
         result = cursor.fetchone()
-        user_faction = result.get('faction')
+
+        # Проверяем, что результат не пустой и содержит данные
+        if result is None:
+            raise ValueError("Не удалось получить значение faction из базы данных.")
+
+        # Кортеж преобразуем в значение (первый элемент кортежа)
+        user_faction = result[0]  # Извлекаем значение из кортежа
 
     except Exception as e:
         # Выводим подробную информацию об ошибке
@@ -269,7 +275,6 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
     # Показываем отчет, если игрок участвовал в бою
     if is_user_faction_involved:
         show_battle_report(report_data)
-
 
 def generate_battle_report(attacking_army, defending_army):
     """

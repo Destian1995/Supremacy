@@ -25,7 +25,7 @@ import threading
 # Глобальная блокировка для работы с БД
 db_lock = threading.Lock()
 from kivy.uix.behaviors import ButtonBehavior
-import json
+from manage_friend import ManageFriend
 
 translation_dict = {
     "Аркадия": "arkadia",
@@ -614,7 +614,7 @@ def show_cultural_exchange_form(faction, game_area, class_faction):
     # Описание
     description_label = Label(
         text="Обмен культурными ценностями повышает доверие между фракциями (+7% к отношениям).\n"
-             "Стоимость: от 6 млн. крон.",
+             "Стоимость: от 100 тыс. крон.",
         size_hint=(1, None),
         height=font_size * 4,
         font_size=font_size,
@@ -681,7 +681,7 @@ def show_cultural_exchange_form(faction, game_area, class_faction):
 
             # Получаем текущий баланс крон игрока через PoliticalCash
             current_balance = political_cash.resources["Кроны"]
-            cost = int(0.2 * current_balance) + 6_000_000  # Стоимость договора
+            cost = int(0.2 * current_balance) + 100_000  # Стоимость договора
 
             if current_balance < cost:
                 show_warning(f"Недостаточно средств, требуется {cost} крон.")
@@ -1217,7 +1217,7 @@ from kivy.uix.popup import Popup
 
 from kivy.uix.popup import Popup
 
-def show_declare_war_form(faction, game_area):
+def show_declare_war_form(faction):
     """Окно формы для объявления войны."""
     # Рассчитываем базовый размер шрифта
     font_size = calculate_font_size()
@@ -1573,7 +1573,7 @@ def show_ratings_popup():
 #------------------------------------------------------------------
 def start_politic_mode(faction, game_area, class_faction):
     """Инициализация политического режима для выбранной фракции"""
-    # Создаем layout для кнопок
+    # основное окно политических кнопок
     politics_layout = BoxLayout(
         orientation='horizontal',
         size_hint=(1, 0.1),
@@ -1582,9 +1582,11 @@ def start_politic_mode(faction, game_area, class_faction):
         padding=10
     )
 
-    # Функция для создания стильных кнопок
-    def create_styled_button(text, on_press_callback):
-        button = Button(
+    # создаём Popup заранее
+    manage_friend_popup = ManageFriend(faction, game_area)
+
+    def styled_btn(text, callback):
+        btn = Button(
             text=text,
             size_hint_x=0.33,
             size_hint_y=None,
@@ -1594,32 +1596,32 @@ def start_politic_mode(faction, game_area, class_faction):
             font_size=16,
             bold=True
         )
-        with button.canvas.before:
+        # фон кнопки
+        with btn.canvas.before:
             Color(0.2, 0.6, 1, 1)
-            button.rect = Rectangle(pos=button.pos, size=button.size)
+            btn._rect = Rectangle(pos=btn.pos, size=btn.size)
+        btn.bind(pos=lambda inst, val: setattr(inst._rect, 'pos', inst.pos))
+        btn.bind(size=lambda inst, val: setattr(inst._rect, 'size', inst.size))
+        btn.bind(on_release=callback)
+        return btn
 
-        def update_rect(instance, value):
-            instance.rect.pos = instance.pos
-            instance.rect.size = instance.size
-
-        button.bind(pos=update_rect, size=update_rect)
-        button.bind(on_press=on_press_callback)
-        return button
-
-    # Создаем кнопки
-    negotiate_btn = create_styled_button("Новый договор", lambda x: show_new_agreement_window(faction, game_area, class_faction))
-    form_alliance_btn = create_styled_button("Управление союзниками", lambda x: print("Управление союзниками"))
-    declare_raite_btn = create_styled_button(
+    # кнопки политических действий
+    btn_new = styled_btn(
+        "Новый договор",
+        lambda btn: show_new_agreement_window(faction, game_area, class_faction)
+    )
+    btn_allies = styled_btn(
+        "Управление союзниками",
+        lambda btn: manage_friend_popup.open_popup()
+    )
+    btn_army = styled_btn(
         "Сила армий",
-        lambda x: show_ratings_popup()
+        lambda btn: show_ratings_popup()
     )
 
-    # Добавляем кнопки в layout
-    politics_layout.add_widget(negotiate_btn)
-    politics_layout.add_widget(form_alliance_btn)
-    politics_layout.add_widget(declare_raite_btn)
-
-    # Добавляем layout с кнопками в нижнюю часть экрана
+    # добавляем в layout
+    politics_layout.add_widget(btn_new)
+    politics_layout.add_widget(btn_allies)
+    politics_layout.add_widget(btn_army)
     game_area.add_widget(politics_layout)
-
 
