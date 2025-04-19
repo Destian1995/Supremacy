@@ -267,7 +267,7 @@ def show_new_agreement_window(faction, game_area, class_faction):
         ("Торговое соглашение", show_trade_agreement_form),
         ("Договор об культурном обмене", lambda *args: show_cultural_exchange_form(faction, game_area, class_faction)),
         ("Заключение мира", lambda *args: show_peace_form(faction)),
-        ("Заключение альянса", show_alliance_form),
+        ("Заключение альянса", lambda *args: show_alliance_form(faction, game_area, class_faction)),
         ("Объявление войны", show_declare_war_form),
     ]
 
@@ -644,6 +644,15 @@ def show_cultural_exchange_form(faction, game_area, class_faction):
     # Создаем экземпляр PoliticalCash
     political_cash = PoliticalCash(faction, class_faction)
 
+    # Подключаемся к базе данных
+    conn = connect_to_db()
+    cursor = conn.cursor()
+
+    # Получаем количество городов для каждой фракции
+    cursor.execute("SELECT faction, COUNT(*) FROM cities GROUP BY faction")
+    city_counts = {row[0]: row[1] for row in cursor.fetchall()}
+    conn.close()
+
     # Функция для отправки предложения
     def send_proposal(instance):
         """Отправляет предложение, если фракция выбрана и хватает денег."""
@@ -652,39 +661,46 @@ def show_cultural_exchange_form(faction, game_area, class_faction):
             show_warning("Пожалуйста, выберите фракцию!")
             return
 
-        # Проверяем состояние отношений (например, война)
+        # Подключаемся к базе данных
         conn = connect_to_db()
         cursor = conn.cursor()
-        try:
-            cursor.execute(
-                "SELECT relationship FROM relations WHERE faction1 = ? AND faction2 = ?",
-                (faction, target_faction)
-            )
-            relation_value = cursor.fetchone()
 
-            # Если relation_value is None, значит запись не найдена
-            if relation_value is None:
+        try:
+            # Получаем текущие отношения между фракциями
+            cursor.execute(
+                "SELECT relationship FROM relations WHERE (faction1 = ? AND faction2 = ?) OR (faction1 = ? AND "
+                "faction2 = ?)",
+                (faction, target_faction, target_faction, faction)
+            )
+            relation_record = cursor.fetchone()
+
+            if not relation_record:
                 show_warning(f"Отношения между {faction} и {target_faction} не определены!")
                 return
 
-            # Извлекаем значение из кортежа и преобразуем его в целое число
-            try:
-                relationship = int(relation_value[0])  # Преобразуем в int
-            except ValueError:
-                show_warning(f"Ошибка: Некорректное значение отношений между {faction} и {target_faction}!")
+            current_relationship = int(relation_record[0])
+
+            # Проверяем уровень отношений
+            if current_relationship >= 90:
+                show_warning(
+                    f"Текущие отношения с {target_faction}: {current_relationship}\n"
+                    "Отношения уже находятся на высоком уровне.",
+                    color=(1, 0.6, 0, 1)  # Оранжевый цвет для предупреждения
+                )
                 return
 
-            # Проверяем, идет ли война (например, значение < 0)
-            if relationship < 0:
-                show_warning(f"Невозможно отправить предложение: идет война с {target_faction}!")
-                return
+            # Получаем количество городов целевой фракции
+            cursor.execute("SELECT COUNT(*) FROM cities WHERE faction = ?", (target_faction,))
+            target_city_count = cursor.fetchone()[0]
+
+            # Рассчитываем стоимость
+            cost = 100_000 + (50_000 * target_city_count)
 
             # Получаем текущий баланс крон игрока через PoliticalCash
             current_balance = political_cash.resources["Кроны"]
-            cost = int(0.2 * current_balance) + 100_000  # Стоимость договора
 
             if current_balance < cost:
-                show_warning(f"Недостаточно средств, требуется {cost} крон.")
+                show_warning(f"Недостаточно средств, требуется {format_number(cost)} крон.")
                 return
 
             # Списываем средства через PoliticalCash
@@ -693,14 +709,22 @@ def show_cultural_exchange_form(faction, game_area, class_faction):
                 return
 
             # Обновляем отношения в таблице relations
+            new_relationship = min(100, current_relationship + 7)
             cursor.execute(
-                "UPDATE relations SET relationship = relationship + 7 WHERE (faction1 = ? AND faction2 = ?) OR (faction1 = ? AND faction2 = ?)",
-                (faction, target_faction, target_faction, faction)
+                "UPDATE relations SET relationship = ? WHERE (faction1 = ? AND faction2 = ?) OR (faction1 = ? AND "
+                "faction2 = ?)",
+                (new_relationship, faction, target_faction, target_faction, faction)
             )
             conn.commit()
 
-            show_warning(f"Мы улучшили отношения с {target_faction}!", color=(0, 1, 0, 1))
+            show_warning(
+                f"Отношения с {target_faction} улучшены до {new_relationship}\n"
+                f"Списано {format_number(cost)} крон",
+                color=(0, 1, 0, 1)  # Зеленый цвет для успешного сообщения
+            )
 
+        except Exception as e:
+            show_warning(f"Произошла ошибка: {e}")
         finally:
             conn.close()
 
@@ -1029,7 +1053,8 @@ alliance_phrases = {
     "Хиперион": "Пора выбить кому то зубы. Так. На всякий случай"
 }
 
-def show_alliance_form(faction, game_area):
+
+def show_alliance_form(faction, game_area, class_faction):
     """Окно формы для предложения о создании альянса."""
     # Рассчитываем базовый размер шрифта
     font_size = calculate_font_size()
@@ -1100,7 +1125,8 @@ def show_alliance_form(faction, game_area):
 
     # Описание
     description_label = Label(
-        text="Создание альянса возможно только при высоком уровне доверия (>90).\nУровень отношений влияет на возможность заключения союза.",
+        text="Создание альянса возможно только при высоком уровне доверия (>90).\n"
+             "Уровень отношений влияет на возможность заключения союза.",
         size_hint=(1, None),
         height=font_size * 4,  # Высота зависит от количества строк
         font_size=font_size,
@@ -1138,10 +1164,47 @@ def show_alliance_form(faction, game_area):
         # Проверяем уровень отношений
         relation_level = int(relations_data.get(target_faction, 0))
 
-        # Получаем фразу для выбранной фракции
-        alliance_phrase = alliance_phrases.get(target_faction, "Союз заключен!")
+        # Проверяем наличие существующего союза у текущей фракции
+        cursor.execute("""
+            SELECT COUNT(*) FROM diplomacies 
+            WHERE (faction1 = ? OR faction2 = ?) AND relationship = 'союз'
+        """, (faction, faction))
+        existing_alliance_count = cursor.fetchone()[0]
 
+        if existing_alliance_count > 0:
+            show_warning(
+                "У вашей фракции уже есть действующий союз!",
+                color=(1, 0, 0, 1)  # Красный цвет
+            )
+            return
+
+        # Получаем количество городов целевой фракции
+        cursor.execute("SELECT COUNT(*) FROM cities WHERE faction = ?", (target_faction,))
+        target_city_count = cursor.fetchone()[0]
+
+        # Рассчитываем стоимость альянса
+        alliance_cost = 1_000_000 + (150_000 * target_city_count)
+
+        # Получаем текущий баланс фракции
+        political_cash = PoliticalCash(faction, class_faction)
+        current_balance = political_cash.resources["Кроны"]
+
+        # Проверяем достаточно ли средств
+        if current_balance < alliance_cost:
+            show_warning(
+                f"Недостаточно средств для заключения альянса! "
+                f"Требуется {format_number(alliance_cost)} крон.",
+                color=(1, 0, 0, 1)  # Красный цвет
+            )
+            return
+
+        # Проверяем уровень отношений
         if relation_level >= 90:
+            # Списываем средства
+            if not political_cash.deduct_resources(alliance_cost):
+                show_warning("Ошибка при списании средств!")
+                return
+
             # Меняем статус отношений на "союз"
             cursor.execute("""
                 UPDATE diplomacies 
@@ -1150,8 +1213,13 @@ def show_alliance_form(faction, game_area):
             """, (faction, target_faction, target_faction, faction))
             conn.commit()
 
-            # Выводим фразу, соответствующую фракции
-            show_warning(alliance_phrase, color=(0, 1, 0, 1))
+            # Выводим сообщение об успешном заключении альянса
+            alliance_phrase = alliance_phrases.get(target_faction, "Союз заключен!")
+            show_warning(
+                f"{alliance_phrase}\n"
+                f"Списано {format_number(alliance_cost)} крон",
+                color=(0, 1, 0, 1)  # Зеленый цвет
+            )
         elif 75 <= relation_level < 90:
             show_warning("Друг. Мы должны сильнее доверять друг другу, тогда союз будет возможен.")
         elif 50 <= relation_level < 75:
@@ -1191,6 +1259,7 @@ def show_alliance_form(faction, game_area):
         size_hint=(0.5, None),
         height=button_height
     )
+
     def close_connection(*args):
         conn.close()
 
@@ -1611,7 +1680,7 @@ def start_politic_mode(faction, game_area, class_faction):
         lambda btn: show_new_agreement_window(faction, game_area, class_faction)
     )
     btn_allies = styled_btn(
-        "Управление союзниками",
+        "Союзник",
         lambda btn: manage_friend_popup.open_popup()
     )
     btn_army = styled_btn(

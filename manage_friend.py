@@ -51,14 +51,14 @@ def get_allies_for_faction(faction_name):
 
 class ManageFriend(Popup):
     """
-    Окно управления союзниками:
+    Окно союзники:
     отображает список союзников и действия.
     """
 
     def __init__(self, faction_name, game_area, **kwargs):
         super().__init__(**kwargs)
         self.faction_name = faction_name
-        self.title = "Управление союзниками"
+        self.title = "Союзник"
         self.size_hint = (0.8, 0.8)
         self.pos_hint = {'center_x': 0.5, 'center_y': 0.5}
         self.selection_mode = None
