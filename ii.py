@@ -441,7 +441,7 @@ class AIController:
         total_buildings = current_factories + current_hospitals
 
         # Максимальное количество зданий в городе
-        max_buildings_per_city = 500
+        max_buildings_per_city = 50
 
         # Вычисляем, сколько еще можно построить зданий в городе
         remaining_slots = max_buildings_per_city - total_buildings
@@ -905,8 +905,8 @@ class AIController:
             coeffs = faction_coefficients[faction]
 
             # Обновление ресурсов с учетом коэффициентов
-            self.born_peoples = int(self.hospitals * 500)
-            self.work_peoples = int(self.factories * 200)
+            self.born_peoples = int(self.hospitals * 1000)
+            self.work_peoples = int(self.factories * 400)
             self.clear_up_peoples = (self.born_peoples - self.work_peoples + self.tax_effects) + int(
                 self.city_count * (self.population / 100))
 
@@ -920,10 +920,10 @@ class AIController:
             self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
             self.taxes_info = int(self.calculate_tax_income())
 
-            # Учитываем, что одна фабрика может прокормить 1000 людей
-            self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
+            # Учитываем, что одна фабрика может прокормить 10000 людей
+            self.raw_material += int((self.factories * 10000) - (self.population * coeffs['food_loss']))
             self.food_info = (
-                    int((self.factories * 1000) - (self.population * coeffs['food_loss'])) - self.total_consumption)
+                    int((self.factories * 10000) - (self.population * coeffs['food_loss'])) - self.total_consumption)
             self.food_peoples = int(self.population * coeffs['food_loss'])
 
             # Проверяем, будет ли население увеличиваться

@@ -842,8 +842,8 @@ class Faction:
             raise ValueError(f"Фракция '{faction}' не найдена.")
         coeffs = faction_coefficients[faction]
         # Обновление ресурсов с учетом коэффициентов
-        self.born_peoples = int(self.hospitals * 500)
-        self.work_peoples = int(self.factories * 200)
+        self.born_peoples = int(self.hospitals * 5000)
+        self.work_peoples = int(self.factories * 2000)
         self.clear_up_peoples = (self.born_peoples - self.work_peoples + self.tax_effects) + int(
             self.city_count * (self.population / 100))
         # Загружаем текущие значения ресурсов из базы данных
@@ -854,10 +854,10 @@ class Faction:
         self.money_info = int(self.hospitals * coeffs['money_loss'])
         self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
         self.taxes_info = int(self.calculate_tax_income())
-        # Учитываем, что одна фабрика может прокормить 1000 людей
-        self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
+        # Учитываем, что одна фабрика может прокормить 10000 людей
+        self.raw_material += int((self.factories * 10000) - (self.population * coeffs['food_loss']))
         self.food_info = (
-                int((self.factories * 1000) - (self.population * coeffs['food_loss'])) - self.current_consumption)
+                int((self.factories * 10000) - (self.population * coeffs['food_loss'])) - self.current_consumption)
         self.food_peoples = int(self.population * coeffs['food_loss'])
 
         # Проверяем условия для роста населения
@@ -935,15 +935,15 @@ class Faction:
 
     def buildings_info_fraction(self):
         if self.faction == 'Аркадия':
-            return 150
+            return 1500
         if self.faction == 'Селестия':
-            return 200
+            return 2000
         if self.faction == 'Хиперион':
-            return 200
+            return 2000
         if self.faction == 'Этерия':
-            return 300
+            return 3000
         if self.faction == 'Халидон':
-            return 300
+            return 3000
 
     def initialize_raw_material_prices(self):
         """Инициализация истории цен на сырье"""
@@ -978,13 +978,13 @@ class Faction:
 
         # Генерация новой цены
         if current_turn == 1:  # Если это первый ход
-            self.current_raw_material_price = random.randint(4000, 48000)
+            self.current_raw_material_price = random.randint(40000, 480000)
             self.raw_material_price_history.append(self.current_raw_material_price)
         else:
             # Генерация новой цены на основе текущей
-            self.current_raw_material_price = self.raw_material_price_history[-1] + random.randint(-3700, 3900)
+            self.current_raw_material_price = self.raw_material_price_history[-1] + random.randint(-17450, 19450)
             self.current_raw_material_price = max(
-                4000, min(48000, self.current_raw_material_price)  # Ограничиваем диапазон
+                40000, min(480000, self.current_raw_material_price)  # Ограничиваем диапазон
             )
             self.raw_material_price_history.append(self.current_raw_material_price)
 
@@ -1002,7 +1002,7 @@ class Faction:
         :param quantity: Количество лотов (1 лот = 10,000 единиц сырья).
         """
         # Преобразуем количество лотов в единицы сырья
-        total_quantity = quantity * 10000
+        total_quantity = quantity * 100000
         total_cost = self.current_raw_material_price * quantity
 
         if action == 'buy':  # Покупка сырья
@@ -1100,7 +1100,7 @@ def build_structure(building, city, faction, quantity, on_complete):
     total_buildings = current_factories + current_hospitals
 
     # Максимальное количество зданий в городе
-    max_buildings_per_city = 500
+    max_buildings_per_city = 50
 
     # Проверяем, не превышает ли новое количество зданий лимит
     if total_buildings + quantity > max_buildings_per_city:
@@ -1155,8 +1155,8 @@ def open_build_popup(faction):
     # Заполнение таблицы данными
     stats_data = [
         ("1 больница (за ход):",
-         f"+500 рабочих / -{faction.buildings_info_fraction()} крон"),
-        ("1 фабрика (за ход):", "+1000 сырья / -200 рабочих"),
+         f"+5000 рабочих / -{faction.buildings_info_fraction()} крон"),
+        ("1 фабрика (за ход):", "+10000 сырья / -2000 рабочих"),
         ("Количество больниц:", faction.hospitals),
         ("Количество фабрик:", faction.factories),
         ("Количество рабочих на фабриках:", faction.work_peoples),
@@ -1408,9 +1408,9 @@ def open_trade_popup(game_instance):
     # Блок кнопок "Купить" и "Продать"
     button_container = BoxLayout(orientation='vertical', size_hint=(1, 0.4), spacing=10)
 
-    # Надпись "Цена за 1 лот = 10,000 единиц сырья"
+    # Надпись "Цена за 1 лот = 100,000 единиц сырья"
     lot_info_label = Label(
-        text="Цена за 1 лот = 10,000 единиц сырья",
+        text="Цена за 1 лот = 100,000 единиц сырья",
         font_size=18,
         color=(1, 1, 1, 1),
         size_hint=(1, 0.3),
@@ -1473,7 +1473,7 @@ def open_trade_popup(game_instance):
     quantity_label.bind(size=quantity_label.setter('text_size'))
 
     quantity_input = TextInput(
-        hint_text="1 лот = 10,000 единиц",
+        hint_text="1 лот = 100,000 единиц",
         multiline=False,
         font_size=16,
         input_filter='int',
@@ -1505,7 +1505,7 @@ def handle_trade(game_instance, action, quantity, trade_popup):
         quantity = int(quantity)
 
         # Проверяем, что количество сырья для продажи не превышает доступное
-        if action == 'sell' and quantity * 10000 > game_instance.resources["Сырье"]:
+        if action == 'sell' and quantity * 100000 > game_instance.resources["Сырье"]:
             raise ValueError("Недостаточно сырья для продажи.")
 
         result = game_instance.trade_raw_material(action, quantity)
