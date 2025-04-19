@@ -1214,7 +1214,11 @@ class FortressInfoPopup(Popup):
             elif self.is_enemy(current_player_kingdom, destination_owner):
                 # Город назначения — вражеский
                 if total_diff < 220:
-                    self.start_battle(source_fortress_name, destination_fortress_name, unit_name, taken_count)
+                    self.start_battle_group(
+                        source_fortress_name=source_fortress_name,
+                        destination_fortress_name=destination_fortress_name,
+                        attacking_units=self.selected_group
+                    )
                 else:
                     show_popup_message("Логистика не выдержит", "Слишком далеко. Найдите ближайший населенный пункт")
             else:
@@ -1225,6 +1229,91 @@ class FortressInfoPopup(Popup):
             show_popup_message("Ошибка", f"Произошла ошибка при работе с базой данных(transfer): {e}")
         except Exception as e:
             show_popup_message("Ошибка", f"Произошла ошибка при переносе войск: {e}")
+
+    def start_battle_group(self, source_fortress_name, destination_fortress_name, attacking_units):
+        """
+        Запускает сражение между атакующей и обороняющейся сторонами.
+        :param source_fortress_name: Название исходного города/крепости.
+        :param destination_fortress_name: Название целевого города/крепости.
+        :param attacking_units: Список юнитов для атаки.
+        """
+        try:
+            with self.conn:
+                self.conn.row_factory = dict_factory
+                cursor = self.conn.cursor()
+                # Получаем владельцев городов
+                source_owner = self.get_city_owner(source_fortress_name)
+                destination_owner = self.get_city_owner(destination_fortress_name)
+                # Проверяем наличие гарнизона в целевом городе
+                cursor.execute("""
+                    SELECT unit_name, unit_count, unit_image FROM garrisons WHERE city_id = ?
+                """, (destination_fortress_name,))
+                defending_garrison = cursor.fetchall()
+                # Если гарнизон целевого города пуст, захватываем город без боя
+                if not defending_garrison:
+                    self.capture_city(destination_fortress_name, source_owner, source_fortress_name)
+                    self.close_current_popup()  # Закрываем окно интерфейса
+                    return
+                # Собираем имена юнитов для оптимизации запросов
+                unit_names = [
+                    unit['unit_name'] for unit in attacking_units + defending_garrison
+                    if isinstance(unit, dict) and 'unit_name' in unit
+                ]
+                placeholders = ', '.join(['?'] * len(unit_names))
+                cursor.execute(f"""
+                    SELECT unit_name, attack, durability, defense, unit_class, image_path 
+                    FROM units 
+                    WHERE unit_name IN ({placeholders})
+                """, unit_names)
+                unit_stats = {row['unit_name']: dict(row) for row in cursor.fetchall()}
+                # Формируем списки армий
+                attacking_army, defending_army = [], []
+                for unit in attacking_units:
+                    stats = unit_stats.get(unit['unit_name'])
+                    if not stats:
+                        print(f"Ошибка: данные о юните '{unit['unit_name']}' не найдены.")
+                        continue
+                    attacking_army.append({
+                        "unit_name": unit['unit_name'],
+                        "unit_count": unit['unit_count'],
+                        "unit_image": stats.get("image_path", ""),
+                        "units_stats": {
+                            "Урон": stats["attack"],
+                            "Живучесть": stats["durability"],
+                            "Защита": stats["defense"],
+                            "Класс юнита": stats["unit_class"]
+                        }
+                    })
+                for unit in defending_garrison:
+                    stats = unit_stats.get(unit['unit_name'])
+                    if not stats:
+                        print(f"Ошибка: данные о юните '{unit['unit_name']}' не найдены.")
+                        continue
+                    defending_army.append({
+                        "unit_name": unit['unit_name'],
+                        "unit_count": unit['unit_count'],
+                        "unit_image": stats.get("image_path", ""),
+                        "units_stats": {
+                            "Урон": stats["attack"],
+                            "Живучесть": stats["durability"],
+                            "Защита": stats["defense"],
+                            "Класс юнита": stats["unit_class"]
+                        }
+                    })
+            # Запускаем бой (вне транзакции)
+            fight(
+                attacking_city=source_fortress_name,
+                defending_city=destination_fortress_name,
+                defending_army=defending_army,
+                attacking_army=attacking_army,
+                attacking_fraction=source_owner,
+                defending_fraction=destination_owner,
+                db_connection=self.conn
+            )
+            self.close_current_popup()
+        except Exception as e:
+            print(f"Ошибка при запуске боя: {e}")
+            self.close_current_popup()
 
     def get_city_coordinates(self, city_name):
         """
