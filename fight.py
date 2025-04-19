@@ -177,23 +177,20 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
 
     cursor = db_connection.cursor()
     try:
-        # Проверка, что соединение с базой данных активно
-        if not db_connection or not cursor:
-            raise ValueError("Соединение с базой данных не установлено или курсор недоступен.")
-
         # SQL-запрос для выборки значения faction
         query = "SELECT faction FROM user_faction"
         cursor.execute(query)
 
         # Получение первого значения из результата (если оно есть)
         result = cursor.fetchone()
+        print("----------Полученное значение из базы данных:", result)
 
         # Проверяем, что результат не пустой и содержит данные
         if result is None:
             raise ValueError("Не удалось получить значение faction из базы данных.")
 
-        # Кортеж преобразуем в значение (первый элемент кортежа)
-        user_faction = result[0]  # Извлекаем значение из кортежа
+        # Извлекаем значение из словаря
+        user_faction = result['faction']
 
     except Exception as e:
         # Выводим подробную информацию об ошибке
@@ -210,6 +207,7 @@ def fight(attacking_city, defending_city, defending_army, attacking_army, attack
     # Объединяем войска одной стороны
     attacking_army = merge_units(attacking_army)
     defending_army = merge_units(defending_army)
+
     # Сохраняем начальные значения ДО боя
     for unit in attacking_army:
         unit['initial_count'] = unit['unit_count']

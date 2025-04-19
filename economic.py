@@ -826,10 +826,8 @@ class Faction:
         self.load_cities()
         # Генерируем новую цену на сырье
         self.generate_raw_material_price()
-
         # Обновляем ресурсы на основе торговых соглашений
         self.update_trade_resources_from_db()
-
         # Коэффициенты для каждой фракции
         faction_coefficients = {
             'Аркадия': {'money_loss': 150, 'food_loss': 0.4},
@@ -838,38 +836,39 @@ class Faction:
             'Этерия': {'money_loss': 300, 'food_loss': 0.05},
             'Халидон': {'money_loss': 300, 'food_loss': 0.04},
         }
-
         # Получение коэффициентов для текущей фракции
         faction = self.faction
         if faction not in faction_coefficients:
             raise ValueError(f"Фракция '{faction}' не найдена.")
         coeffs = faction_coefficients[faction]
-
         # Обновление ресурсов с учетом коэффициентов
         self.born_peoples = int(self.hospitals * 500)
         self.work_peoples = int(self.factories * 200)
         self.clear_up_peoples = (self.born_peoples - self.work_peoples + self.tax_effects) + int(
             self.city_count * (self.population / 100))
-
         # Загружаем текущие значения ресурсов из базы данных
         self.load_resources_from_db()
-
         # Выполняем расчеты
         self.free_peoples += self.clear_up_peoples
         self.money += int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
         self.money_info = int(self.hospitals * coeffs['money_loss'])
         self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
         self.taxes_info = int(self.calculate_tax_income())
-
         # Учитываем, что одна фабрика может прокормить 1000 людей
         self.raw_material += int((self.factories * 1000) - (self.population * coeffs['food_loss']))
         self.food_info = (
                 int((self.factories * 1000) - (self.population * coeffs['food_loss'])) - self.current_consumption)
         self.food_peoples = int(self.population * coeffs['food_loss'])
 
-        # Проверяем, будет ли население увеличиваться
+        # Проверяем условия для роста населения
         if self.raw_material > 0:
-            self.population += int(self.clear_up_peoples)  # Увеличиваем население только если есть Сырье
+            # Проверяем новое условие: если сырья меньше 200к и население уже больше 1млн
+            if self.raw_material < 200_000 and self.population >= 1_000_000:
+                # Население не увеличивается, только рабочие
+                self.free_peoples += int(self.clear_up_peoples)
+            else:
+                # В противном случае население увеличивается как обычно
+                self.population += int(self.clear_up_peoples)  # Увеличиваем население
         else:
             # Логика убыли населения при недостатке Сырья
             if self.population > 100:
@@ -894,13 +893,13 @@ class Faction:
         self.raw_material = self.resources['Сырье']
         self.population = self.resources['Население']
         self.current_consumption = self.resources['Потребление']
+
         # Применяем бонусы игроку
         self.apply_player_bonuses()
         # Списываем потребление войсками
         self.calculate_and_deduct_consumption()
         # Сохраняем обновленные ресурсы в базу данных
         self.save_resources_to_db()
-
         print(f"Ресурсы обновлены: {self.resources}, Больницы: {self.hospitals}, Фабрики: {self.factories}")
 
     def get_resource_now(self, resource_type):
@@ -979,13 +978,13 @@ class Faction:
 
         # Генерация новой цены
         if current_turn == 1:  # Если это первый ход
-            self.current_raw_material_price = random.randint(800, 48000)
+            self.current_raw_material_price = random.randint(4000, 48000)
             self.raw_material_price_history.append(self.current_raw_material_price)
         else:
             # Генерация новой цены на основе текущей
             self.current_raw_material_price = self.raw_material_price_history[-1] + random.randint(-3700, 3900)
             self.current_raw_material_price = max(
-                800, min(48000, self.current_raw_material_price)  # Ограничиваем диапазон
+                4000, min(48000, self.current_raw_material_price)  # Ограничиваем диапазон
             )
             self.raw_material_price_history.append(self.current_raw_material_price)
 

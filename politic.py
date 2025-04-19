@@ -268,7 +268,7 @@ def show_new_agreement_window(faction, game_area, class_faction):
         ("Договор об культурном обмене", lambda *args: show_cultural_exchange_form(faction, game_area, class_faction)),
         ("Заключение мира", lambda *args: show_peace_form(faction)),
         ("Заключение альянса", lambda *args: show_alliance_form(faction, game_area, class_faction)),
-        ("Объявление войны", show_declare_war_form),
+        ("Объявление войны", lambda *args: show_declare_war_form(faction)),
     ]
 
     for category_name, callback in categories:
@@ -1279,10 +1279,6 @@ def show_alliance_form(faction, game_area, class_faction):
 
     popup.open()
 
-
-
-
-from kivy.uix.popup import Popup
 
 from kivy.uix.popup import Popup
 
