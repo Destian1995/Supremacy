@@ -1693,4 +1693,3 @@ def start_politic_mode(faction, game_area, class_faction):
     politics_layout.add_widget(btn_allies)
     politics_layout.add_widget(btn_army)
     game_area.add_widget(politics_layout)
-
