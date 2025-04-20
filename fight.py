@@ -167,102 +167,108 @@ def calculate_experience(losing_side, db_connection):
             print(f"Ошибка при обновлении таблицы experience: {e}")
 
 
-def fight(attacking_city, defending_city, defending_army, attacking_army,
-          attacking_fraction, defending_fraction, db_connection):
+def fight(attacking_city, defending_city, defending_army, attacking_army, attacking_fraction, defending_fraction,
+          db_connection):
     """
     Основная функция боя между двумя армиями.
-    Если в бою участвует игрок, формирует единый отчёт по всем юнитам.
     """
-    # Получаем фракцию игрока
+    print('attacking_fraction:', attacking_fraction)
+    print('defending_fraction:', defending_fraction)
+
     cursor = db_connection.cursor()
     try:
-        cursor.execute("SELECT faction FROM user_faction")
+        # Проверка, что соединение с базой данных активно
+        if not db_connection or not cursor:
+            raise ValueError("Соединение с базой данных не установлено или курсор недоступен.")
+
+        # SQL-запрос для выборки значения faction
+        query = "SELECT faction FROM user_faction"
+        cursor.execute(query)
+
+        # Получение первого значения из результата (если оно есть)
         result = cursor.fetchone()
-        user_faction = result['faction'] if result else None
+        user_faction = result.get('faction')
+
     except Exception as e:
-        print(f"Ошибка загрузки faction: {e}")
+        # Выводим подробную информацию об ошибке
+        import traceback
+        print(f"Ошибка при выгрузке значения faction: {e}")
+        traceback.print_exc()  # Печатаем трассировку стека для диагностики
         user_faction = None
 
-    is_user_involved = user_faction in (attacking_fraction, defending_fraction)
+    # Исправленная проверка принадлежности фракции
+    is_user_faction_involved = False
+    if user_faction == attacking_fraction or user_faction == defending_fraction:
+        is_user_faction_involved = True
 
-    # Объединяем одинаковые юниты
-    merged_attacking = merge_units(attacking_army)
-    merged_defending = merge_units(defending_army)
+    # Объединяем войска одной стороны
+    attacking_army = merge_units(attacking_army)
+    defending_army = merge_units(defending_army)
+    # Сохраняем начальные значения ДО боя
+    for unit in attacking_army:
+        unit['initial_count'] = unit['unit_count']
+        unit['killed_count'] = unit['unit_count']
+    for unit in defending_army:
+        unit['initial_count'] = unit['unit_count']
+        unit['killed_count'] = unit['unit_count']
 
-    # Инициализируем счётчики для merged списков
-    for u in merged_attacking + merged_defending:
-        u['initial_count'] = u['unit_count']
-        u['killed_count'] = 0
+    # Вспомогательная функция для определения приоритета юнита
+    def get_unit_priority(unit):
+        stats = unit['units_stats']
+        attack = int(stats.get('Урон', 0))
+        defense = int(stats.get('Защита', 0))
+        health = int(stats.get('Живучесть', 0))
 
-    # Приоритет для сортировки: класс, затем урон
-    def priority(u):
-        stats = u['units_stats']
-        return (int(stats.get('Класс юнита', 0)), int(stats.get('Урон', 0)))
+        # Приоритет: если урон больше остальных параметров
+        if attack > defense and attack > health:
+            return 1  # Высший приоритет
+        return 0  # Низший приоритет
 
-    merged_attacking.sort(key=priority, reverse=True)
-    merged_defending.sort(key=priority, reverse=True)
+    # Сортируем армии по классу и внутри класса по приоритету
+    attacking_army.sort(
+        key=lambda x: (int(x['units_stats']['Класс юнита']), -get_unit_priority(x))
+    )
+    defending_army.sort(
+        key=lambda x: (int(x['units_stats']['Класс юнита']), -get_unit_priority(x))
+    )
 
-    # Бой: каждый атакующий против каждого обороняющего
-    for atk in merged_attacking:
-        for df in merged_defending:
-            if atk['unit_count'] > 0 and df['unit_count'] > 0:
-                atk_new, df_new = battle_units(atk, df, defending_city, user_faction)
-                atk['unit_count'], df['unit_count'] = atk_new['unit_count'], df_new['unit_count']
+    # Бой между юнитами
+    for attacking_unit in attacking_army:
+        for defending_unit in defending_army:
+            if int(attacking_unit['unit_count']) > 0 and int(defending_unit['unit_count']) > 0:
+                attacking_unit, defending_unit = battle_units(attacking_unit, defending_unit, defending_city, user_faction)
 
-    # Вычисляем потери после боя
-    for u in merged_attacking + merged_defending:
-        u['killed_count'] = u['initial_count'] - u['unit_count']
+    # Генерация отчета
+    report_data = generate_battle_report(attacking_army, defending_army)
 
-    # Определяем победителя
-    winner = 'attacking' if any(u['unit_count'] > 0 for u in merged_attacking) else 'defending'
-
-    # Обновляем гарнизоны
+    # Обновление гарнизонов в базе данных
     update_garrisons_after_battle(
-        winner=winner,
+        winner='attacking' if any(int(u['unit_count']) > 0 for u in attacking_army) else 'defending',
         attacking_city=attacking_city,
         defending_city=defending_city,
-        attacking_army=merged_attacking,
-        defending_army=merged_defending,
+        attacking_army=attacking_army,
+        defending_army=defending_army,
         attacking_fraction=attacking_fraction,
         defending_fraction=defending_fraction,
         cursor=db_connection.cursor()
     )
 
-    # Начисляем опыт игроку
-    if is_user_involved:
+    # Определяем победителя
+    winner = 'attacking' if any(int(u['unit_count']) > 0 for u in attacking_army) else 'defending'
+
+    print(f"Winner: {winner}, User faction: {user_faction}")
+    print(f"Attacking fraction: {attacking_fraction}, Defending fraction: {defending_fraction}")
+
+    # Если победила фракция игрока
+    if is_user_faction_involved:
         if winner == 'attacking' and attacking_fraction == user_faction:
-            calculate_experience(merged_defending, db_connection)
+            calculate_experience(defending_army, db_connection)
         elif winner == 'defending' and defending_fraction == user_faction:
-            calculate_experience(merged_attacking, db_connection)
+            calculate_experience(attacking_army, db_connection)
 
-    # Подготовка итоговых списков для отчёта: включаем всех юнитов
-    final_report_attacking = []
-    for u in merged_attacking:
-        report_unit = {
-            'unit_name': u['unit_name'],
-            'initial_count': u['initial_count'],
-            'unit_count': u['unit_count'],
-            'killed_count': u['killed_count'],
-        }
-        final_report_attacking.append(report_unit)
-    # Добавляем невооружённые юниты из merge (если есть)
-
-    final_report_defending = []
-    for u in merged_defending:
-        report_unit = {
-            'unit_name': u['unit_name'],
-            'initial_count': u['initial_count'],
-            'unit_count': u['unit_count'],
-            'killed_count': u['killed_count'],
-        }
-        final_report_defending.append(report_unit)
-
-    # Показываем единый отчёт при участии игрока
-    if is_user_involved:
-        report_data = generate_battle_report(final_report_attacking, final_report_defending)
+    # Показываем отчет, если игрок участвовал в бою
+    if is_user_faction_involved:
         show_battle_report(report_data)
-
-
 
 
 def generate_battle_report(attacking_army, defending_army):

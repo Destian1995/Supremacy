@@ -978,13 +978,13 @@ class Faction:
 
         # Генерация новой цены
         if current_turn == 1:  # Если это первый ход
-            self.current_raw_material_price = random.randint(40000, 480000)
+            self.current_raw_material_price = random.randint(4000, 48000)
             self.raw_material_price_history.append(self.current_raw_material_price)
         else:
             # Генерация новой цены на основе текущей
-            self.current_raw_material_price = self.raw_material_price_history[-1] + random.randint(-17450, 19450)
+            self.current_raw_material_price = self.raw_material_price_history[-1] + random.randint(-3450, 3450)
             self.current_raw_material_price = max(
-                40000, min(480000, self.current_raw_material_price)  # Ограничиваем диапазон
+                4000, min(48000, self.current_raw_material_price)  # Ограничиваем диапазон
             )
             self.raw_material_price_history.append(self.current_raw_material_price)
 
@@ -1002,7 +1002,7 @@ class Faction:
         :param quantity: Количество лотов (1 лот = 10,000 единиц сырья).
         """
         # Преобразуем количество лотов в единицы сырья
-        total_quantity = quantity * 100000
+        total_quantity = quantity * 10000
         total_cost = self.current_raw_material_price * quantity
 
         if action == 'buy':  # Покупка сырья
@@ -1410,7 +1410,7 @@ def open_trade_popup(game_instance):
 
     # Надпись "Цена за 1 лот = 100,000 единиц сырья"
     lot_info_label = Label(
-        text="Цена за 1 лот = 100,000 единиц сырья",
+        text="Цена за 1 лот = 10,000 единиц сырья",
         font_size=18,
         color=(1, 1, 1, 1),
         size_hint=(1, 0.3),
@@ -1473,7 +1473,7 @@ def open_trade_popup(game_instance):
     quantity_label.bind(size=quantity_label.setter('text_size'))
 
     quantity_input = TextInput(
-        hint_text="1 лот = 100,000 единиц",
+        hint_text="1 лот = 10,000 единиц",
         multiline=False,
         font_size=16,
         input_filter='int',
@@ -1505,7 +1505,7 @@ def handle_trade(game_instance, action, quantity, trade_popup):
         quantity = int(quantity)
 
         # Проверяем, что количество сырья для продажи не превышает доступное
-        if action == 'sell' and quantity * 100000 > game_instance.resources["Сырье"]:
+        if action == 'sell' and quantity * 10000 > game_instance.resources["Сырье"]:
             raise ValueError("Недостаточно сырья для продажи.")
 
         result = game_instance.trade_raw_material(action, quantity)
