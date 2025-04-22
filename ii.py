@@ -1480,6 +1480,7 @@ class AIController:
                 db_connection=self.db_connection
             )
 
+            print(f"Результат битвы: {result}")
             # Обработка результата битвы
             if result["winner"] == "attacker":
                 print(f"Атака на город {city_name} успешна!")
@@ -1940,6 +1941,7 @@ class AIController:
         :param city_name: Название города
         :param faction: Название целевой фракции
         """
+        print('---------launch_attack_on_city')
         try:
             # Собираем атакующие юниты из всех городов текущей фракции
             attacking_units = self.collect_attacking_units()
