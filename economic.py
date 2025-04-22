@@ -15,7 +15,7 @@ from kivy.uix.floatlayout import FloatLayout
 
 import random
 import sqlite3
-
+import threading
 
 def format_number(number):
     """Форматирует число с добавлением приставок (тыс., млн., млрд., трлн., квадр., квинт., секст., септил., октил., нонил., децил., андец.)"""
@@ -119,6 +119,9 @@ class Faction:
         self.turns = 0  # Счетчик ходов
         self.tax_set = False  # Флаг, установлен ли налог
         self.custom_tax_rate = 0  # Новый атрибут для хранения пользовательской ставки налога
+        self.auto_build_enabled = False
+        self.auto_build_ratio = (1, 1)  # По умолчанию 1:1
+        self.load_auto_build_settings()
         self.cities_buildings = {city['name']: {'Больница': 0, 'Фабрика': 0} for city in self.cities}
 
         self.resources = {
@@ -166,6 +169,177 @@ class Faction:
         for resource_type, amount in rows:
             resources[resource_type] = amount
         return resources
+
+    def save_building_change(faction_name, city, building_type, delta):
+        conn = sqlite3.connect('game_data.db')
+        cursor = conn.cursor()
+        try:
+            # Ищем существующую запись
+            cursor.execute('''
+                SELECT count 
+                FROM buildings 
+                WHERE city_name = ? AND faction = ? AND building_type = ?
+            ''', (city, faction_name, building_type))
+            row = cursor.fetchone()
+
+            if row:
+                # Обновляем существующую запись
+                new_count = max(row[0] + delta, 0)  # Предотвращаем отрицательные значения
+                cursor.execute('''
+                    UPDATE buildings 
+                    SET count = ? 
+                    WHERE city_name = ? AND faction = ? AND building_type = ?
+                ''', (new_count, city, faction_name, building_type))
+            else:
+                # Добавляем новую запись, если delta положительный
+                if delta > 0:
+                    cursor.execute('''
+                        INSERT INTO buildings (city_name, faction, building_type, count)
+                        VALUES (?, ?, ?, ?)
+                    ''', (city, faction_name, building_type, delta))
+            conn.commit()
+        except sqlite3.Error as e:
+            print(f"Ошибка при сохранении изменений в зданиях: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
+
+    def load_auto_build_settings(self):
+        conn = sqlite3.connect('game_data.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT enabled, hospitals_ratio, factories_ratio 
+            FROM auto_build_settings 
+            WHERE faction = ?
+        ''', (self.faction,))
+        result = cursor.fetchone()
+        conn.close()
+        if result:
+            self.auto_build_enabled = bool(result[0])
+            # Сохраняем пропорцию как кортеж целых чисел
+            self.auto_build_ratio = (result[1], result[2])
+        else:
+            self.auto_build_ratio = (1, 1)  # Значение по умолчанию
+
+    def save_auto_build_settings(self):
+        conn = sqlite3.connect('game_data.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO auto_build_settings 
+            (faction, enabled, hospitals_ratio, factories_ratio)
+            VALUES (?, ?, ?, ?)
+        ''', (self.faction, int(self.auto_build_enabled),
+              self.auto_build_ratio[0], self.auto_build_ratio[1]))
+        conn.commit()
+        conn.close()
+
+    def city_has_space(self, city_name):
+        current = self.cities_buildings.get(city_name, {"Больница": 0, "Фабрика": 0})
+        return current["Больница"] + current["Фабрика"] < 500
+
+    # Основной метод автоматического строительства
+    def auto_build(self):
+        """
+        Рассчитывает количество возможных зданий на основе текущих ресурсов
+        и передает результат в методы build_factory и build_hospital.
+        Учитывает лимит в 500 зданий на город и минимальное количество крон (200).
+        """
+        if not self.auto_build_enabled:
+            return
+
+        # Проверяем, достаточно ли денег для строительства
+        if self.money < 200:
+            print("Недостаточно крон для авто-строительства. Минимум требуется 200 крон.")
+            return
+
+        # Загружаем актуальные данные о городах и зданиях
+        self.load_cities()
+        self.load_buildings()
+
+        # Получаем соотношение из настроек авто-строительства
+        hospitals_ratio, factories_ratio = self.auto_build_ratio
+        total_per_cycle = hospitals_ratio + factories_ratio
+
+        if total_per_cycle == 0:
+            return
+
+        # Определяем стоимость одного цикла строительства
+        hospital_cost = 300
+        factory_cost = 200
+        cost_per_cycle = hospitals_ratio * hospital_cost + factories_ratio * factory_cost
+
+        if cost_per_cycle == 0:
+            return
+
+        # Проверяем доступные ресурсы
+        max_cycles_by_money = self.money // cost_per_cycle
+        if max_cycles_by_money == 0:
+            return
+
+        # Проверяем доступное место в городах
+        available_cities = []
+        for city in self.cities:
+            city_name = city['name']
+            current_buildings = self.cities_buildings.get(city_name, {"Больница": 0, "Фабрика": 0})
+            total_current = current_buildings["Больница"] + current_buildings["Фабрика"]
+            space_left = 500 - total_current
+            available_cities.extend([city_name] * (space_left // total_per_cycle))
+
+        # Если доступных городов нет, завершаем выполнение
+        if not available_cities:
+            print("Нет доступных городов для строительства.")
+            return
+
+        max_cycles_by_cities = len(available_cities) // total_per_cycle
+        max_full_cycles = min(max_cycles_by_money, max_cycles_by_cities)
+
+        if max_full_cycles == 0:
+            print("Недостаточно ресурсов или места в городах для строительства.")
+            return
+
+        # Рассчитываем общее количество зданий
+        total_hospitals = hospitals_ratio * max_full_cycles
+        total_factories = factories_ratio * max_full_cycles
+        total_cost = max_full_cycles * cost_per_cycle
+
+        # Списываем средства
+        if not self.cash_build(total_cost):
+            print("Не удалось списать средства для строительства.")
+            return
+
+        # Распределяем здания по городам
+        try:
+            selected_cities = random.sample(available_cities, max_full_cycles * total_per_cycle)
+        except ValueError:
+            print("Ошибка при выборе городов. Возможно, недостаточно доступных городов.")
+            return
+
+        try:
+            # Группируем здания по городам
+            city_buildings = {}
+            for i in range(total_hospitals):
+                city = selected_cities[i]
+                if self.city_has_space(city):  # Проверяем, есть ли место в городе
+                    if city not in city_buildings:
+                        city_buildings[city] = {"Больница": 0, "Фабрика": 0}
+                    city_buildings[city]["Больница"] += 1
+
+            for i in range(total_hospitals, total_hospitals + total_factories):
+                city = selected_cities[i]
+                if self.city_has_space(city):  # Проверяем, есть ли место в городе
+                    if city not in city_buildings:
+                        city_buildings[city] = {"Больница": 0, "Фабрика": 0}
+                    city_buildings[city]["Фабрика"] += 1
+
+            # Строим здания за один вызов для каждого города
+            for city, buildings in city_buildings.items():
+                if buildings["Больница"] > 0:
+                    self.build_hospital(city, quantity=buildings["Больница"])
+                if buildings["Фабрика"] > 0:
+                    self.build_factory(city, quantity=buildings["Фабрика"])
+
+        except Exception as e:
+            print(f"Ошибка в авто-строительстве: {e}")
 
     def load_buildings(self):
         """
@@ -828,6 +1002,8 @@ class Faction:
         self.generate_raw_material_price()
         # Обновляем ресурсы на основе торговых соглашений
         self.update_trade_resources_from_db()
+        self.auto_build()
+
         # Коэффициенты для каждой фракции
         faction_coefficients = {
             'Аркадия': {'money_loss': 150, 'food_loss': 0.4},
@@ -836,28 +1012,36 @@ class Faction:
             'Этерия': {'money_loss': 300, 'food_loss': 0.05},
             'Халидон': {'money_loss': 300, 'food_loss': 0.04},
         }
+
         # Получение коэффициентов для текущей фракции
         faction = self.faction
         if faction not in faction_coefficients:
             raise ValueError(f"Фракция '{faction}' не найдена.")
         coeffs = faction_coefficients[faction]
+
         # Обновление ресурсов с учетом коэффициентов
-        self.born_peoples = int(self.hospitals * 5000)
-        self.work_peoples = int(self.factories * 2000)
+        self.born_peoples = int(self.hospitals * 500)
+        self.work_peoples = int(self.factories * 200)
         self.clear_up_peoples = (self.born_peoples - self.work_peoples + self.tax_effects) + int(
             self.city_count * (self.population / 100))
+
         # Загружаем текущие значения ресурсов из базы данных
         self.load_resources_from_db()
+
         # Выполняем расчеты
         self.free_peoples += self.clear_up_peoples
         self.money += int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
         self.money_info = int(self.hospitals * coeffs['money_loss'])
         self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
         self.taxes_info = int(self.calculate_tax_income())
+
         # Учитываем, что одна фабрика может прокормить 10000 людей
-        self.raw_material += int((self.factories * 10000) - (self.population * coeffs['food_loss']))
+        base_raw_material_production = (self.factories * 1000) - (self.population * coeffs['food_loss'])
+        city_bonus_raw_material = base_raw_material_production * (0.05 * self.city_count)  # Бонус 5% за каждый город
+        self.raw_material += int(base_raw_material_production + city_bonus_raw_material)
+
         self.food_info = (
-                int((self.factories * 10000) - (self.population * coeffs['food_loss'])) - self.current_consumption)
+                int((self.factories * 1000) - (self.population * coeffs['food_loss'])) - self.current_consumption)
         self.food_peoples = int(self.population * coeffs['food_loss'])
 
         # Проверяем условия для роста населения
@@ -1100,7 +1284,7 @@ def build_structure(building, city, faction, quantity, on_complete):
     total_buildings = current_factories + current_hospitals
 
     # Максимальное количество зданий в городе
-    max_buildings_per_city = 50
+    max_buildings_per_city = 500
 
     # Проверяем, не превышает ли новое количество зданий лимит
     if total_buildings + quantity > max_buildings_per_city:
@@ -1155,8 +1339,8 @@ def open_build_popup(faction):
     # Заполнение таблицы данными
     stats_data = [
         ("1 больница (за ход):",
-         f"+5000 рабочих / -{faction.buildings_info_fraction()} крон"),
-        ("1 фабрика (за ход):", "+10000 сырья / -2000 рабочих"),
+         f"+500 рабочих / -{faction.buildings_info_fraction()} крон"),
+        ("1 фабрика (за ход):", "+1000 сырья / -200 рабочих"),
         ("Количество больниц:", faction.hospitals),
         ("Количество фабрик:", faction.factories),
         ("Количество рабочих на фабриках:", faction.work_peoples),
@@ -1220,108 +1404,6 @@ def open_build_popup(faction):
 
     scroll_view.add_widget(stats_table)
     main_layout.add_widget(scroll_view)
-
-    # Нижний блок с кнопками
-    bottom_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.2), spacing=10)
-
-    # Блок выбора зданий
-    building_box = BoxLayout(orientation='vertical', spacing=10)
-    building_main_button = Button(
-        text="Выберите здание",
-        size_hint=(1, None),
-        height=44,
-        background_color=(0.3, 0.4, 0.9, 1),
-    )
-    building_dropdown = DropDown(auto_dismiss=False)
-
-    # Статические элементы для выбора зданий
-    available_buildings = ["Больница", "Фабрика"]
-
-    for building in available_buildings:
-        btn = Button(
-            text=building,
-            size_hint_y=None,
-            height=44,
-            background_color=(0.4, 0.5, 1, 1),
-        )
-        btn.bind(on_release=lambda btn: building_dropdown.select(btn.text))
-        building_dropdown.add_widget(btn)
-
-    building_main_button.bind(on_release=building_dropdown.open)
-    building_dropdown.bind(on_select=lambda instance, x: setattr(building_main_button, 'text', x))
-
-    building_box.add_widget(Label(text="Здания:", size_hint=(1, None), height=30, color=(1, 1, 1, 1)))
-    building_box.add_widget(building_main_button)
-    bottom_layout.add_widget(building_box)
-
-    # Блок выбора города
-    city_box = BoxLayout(orientation='vertical', spacing=10)
-    city_main_button = Button(
-        text="Выберите город",
-        size_hint=(1, None),
-        height=44,
-        background_color=(0.3, 0.8, 0.4, 1),
-    )
-    city_dropdown = DropDown(auto_dismiss=False)
-
-    for city in faction.cities:
-        city_text = city.get('name', 'Неизвестный город')
-        btn = Button(
-            text=city_text,
-            size_hint_y=None,
-            height=44,
-            background_color=(0.4, 0.9, 0.5, 1),
-        )
-        btn.bind(on_release=lambda btn: city_dropdown.select(btn.text))
-        city_dropdown.add_widget(btn)
-
-    city_main_button.bind(on_release=city_dropdown.open)
-    city_dropdown.bind(on_select=lambda instance, x: setattr(city_main_button, 'text', x))
-
-    city_box.add_widget(Label(text="Города:", size_hint=(1, None), height=30, color=(1, 1, 1, 1)))
-    city_box.add_widget(city_main_button)
-    bottom_layout.add_widget(city_box)
-
-    # Поле для ввода количества зданий
-    quantity_input = TextInput(
-        text="1",
-        size_hint=(None, None),
-        width=50,
-        height=44,
-        input_filter="int",
-        multiline=False,
-    )
-    bottom_layout.add_widget(quantity_input)
-
-    # Кнопка "Построить"
-    build_button = Button(
-        text="Построить",
-        size_hint=(None, None),
-        size=(100, 44),
-        background_color=(1, 0.4, 0.4, 1),
-    )
-
-    def on_build_button_press(instance):
-        try:
-            quantity = int(quantity_input.text)
-            if quantity <= 0:
-                raise ValueError("Количество зданий должно быть больше 0.")
-        except ValueError as e:
-            show_error_message(str(e))
-            return
-
-        build_structure(
-            building_main_button.text,
-            city_main_button.text,
-            faction,
-            quantity,
-            rebuild_popup
-        )
-
-    build_button.bind(on_release=on_build_button_press)
-    bottom_layout.add_widget(build_button)
-
-    main_layout.add_widget(bottom_layout)
 
     build_popup.content = main_layout
     build_popup.open()
@@ -1622,6 +1704,92 @@ def open_tax_popup(faction):
     tax_popup.open()
 
 
+def open_auto_build_popup(faction):
+    auto_popup = Popup(
+        title="Министерство развития",
+        size_hint=(0.8, 0.8),
+        background_color=(0.15, 0.15, 0.2, 1)
+    )
+
+    main_layout = BoxLayout(orientation='vertical', spacing=10, padding=20)
+
+    # Шапка с приоритетами
+    header = BoxLayout(size_hint=(1, 0.15))
+    left_label = Label(text="Больницы", color=(0.8, 0.2, 0.2, 1), bold=True)
+    right_label = Label(text="Фабрики", color=(0.2, 0.8, 0.2, 1), bold=True)
+    header.add_widget(left_label)
+    header.add_widget(right_label)
+
+    # Панель управления
+    controls = BoxLayout(orientation='horizontal', size_hint=(1, 0.2), spacing=10)
+    left_btn = Button(text="<<", background_color=(0.4, 0.1, 0.1, 1))
+    slider = Slider(min=0, max=8, value=4, step=1, cursor_size=(20, 20))
+    right_btn = Button(text=">>", background_color=(0.1, 0.4, 0.1, 1))
+    controls.add_widget(left_btn)
+    controls.add_widget(slider)
+    controls.add_widget(right_btn)
+
+    # Индикатор соотношения
+    ratio_layout = BoxLayout(size_hint=(1, 0.2))
+    ratio_display = Label(text="1:1", font_size=24, color=(1, 1, 0.5, 1))
+    ratio_layout.add_widget(ratio_display)
+
+    # Описание
+    description = Label(
+        text="Равное соотношение больниц и фабрик",
+        color=(0.7, 0.7, 0.7, 1),
+        size_hint=(1, 0.2)
+    )
+
+    # Кнопки управления
+    buttons_layout = BoxLayout(size_hint=(1, 0.2), spacing=10)
+    save_btn = Button(text="Сохранить", background_color=(0.2, 0.6, 0.2, 1))
+    cancel_btn = Button(text="Отмена", background_color=(0.6, 0.2, 0.2, 1))
+    buttons_layout.add_widget(save_btn)
+    buttons_layout.add_widget(cancel_btn)
+
+    # Заполнение макета
+    main_layout.add_widget(header)
+    main_layout.add_widget(controls)
+    main_layout.add_widget(ratio_layout)
+    main_layout.add_widget(description)
+    main_layout.add_widget(buttons_layout)
+
+    # Логика обновления
+    RATIOS = [(5, 2), (3, 2), (3, 1), (2, 1), (1, 1), (1, 2), (1, 3), (2, 3), (2, 5)]
+
+    def update_display(instance, value):
+        idx = int(value)
+        ratio = RATIOS[idx]
+        ratio_display.text = f"{ratio[0]}:{ratio[1]}"
+        description.text = f"Строить: {ratio[0]} больниц и {ratio[1]} фабрик за цикл"
+
+        if ratio[0] > ratio[1]:
+            ratio_display.color = (0.8, 0.2, 0.2, 1)
+        elif ratio[1] > ratio[0]:
+            ratio_display.color = (0.2, 0.8, 0.2, 1)
+        else:
+            ratio_display.color = (1, 1, 0.5, 1)
+
+    slider.bind(value=update_display)
+    left_btn.bind(on_press=lambda _: setattr(slider, 'value', max(slider.value - 1, 0)))
+    right_btn.bind(on_press=lambda _: setattr(slider, 'value', min(slider.value + 1, 8)))
+
+    # Сохранение настроек
+    def save_settings(instance):
+        idx = int(slider.value)
+        faction.auto_build_ratio = RATIOS[idx]
+        faction.auto_build_enabled = True
+        faction.save_auto_build_settings()
+        auto_popup.dismiss()
+        show_message("Сохранено", "Настройки автоматического строительства обновлены")
+
+    save_btn.bind(on_press=save_settings)
+    cancel_btn.bind(on_press=auto_popup.dismiss)
+
+    auto_popup.content = main_layout
+    auto_popup.open()
+#--------------------------
 def start_economy_mode(faction, game_area):
     """Инициализация экономического режима для выбранной фракции"""
 
@@ -1664,9 +1832,11 @@ def start_economy_mode(faction, game_area):
         return button
 
     # Создаем кнопки с новым стилем
-    build_btn = create_styled_button("Состояние государства", lambda x: open_build_popup(faction))
+    auto_btn = create_styled_button("Стройка", lambda x: open_auto_build_popup(faction))
+    economy_layout.add_widget(auto_btn)
+    build_btn = create_styled_button("Статистика", lambda x: open_build_popup(faction))
     trade_btn = create_styled_button("Торговля", lambda x: open_trade_popup(faction))
-    tax_btn = create_styled_button("Управление налогами", lambda x: open_tax_popup(faction))
+    tax_btn = create_styled_button("Налоги", lambda x: open_tax_popup(faction))
 
     # Добавляем кнопки в layout
     economy_layout.add_widget(build_btn)
