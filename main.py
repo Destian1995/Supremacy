@@ -166,7 +166,8 @@ def clear_tables(conn):
         "user_faction",
         "units",
         "experience",
-        "queries"
+        "queries",
+        "results"
     ]
 
     cursor = conn.cursor()

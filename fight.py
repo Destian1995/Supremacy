@@ -29,6 +29,50 @@ def merge_units(army):
             merged_army[unit_name]['unit_count'] += unit['unit_count']
     return list(merged_army.values())
 
+def update_results_table(db_connection, faction, units_combat, units_destroyed, enemy_losses):
+    """
+    Обновляет или создает запись в таблице results для указанной фракции.
+    :param db_connection: Соединение с базой данных.
+    :param faction: Название фракции.
+    :param units_combat: Общее число юнитов фракции на начало боя.
+    :param units_destroyed: Общие потери фракции после боя.
+    :param enemy_losses: Потери противника (количество уничтоженных юнитов).
+    """
+    try:
+        cursor = db_connection.cursor()
+        db_connection.execute("BEGIN")
+
+        # Проверяем, существует ли уже запись для этой фракции
+        cursor.execute("SELECT COUNT(*) FROM results WHERE faction = ?", (faction,))
+        exists = cursor.fetchone()[0]
+
+        if exists > 0:
+            # Обновляем существующую запись
+            cursor.execute("""
+                UPDATE results
+                SET 
+                    Units_Combat = Units_Combat + ?, 
+                    Units_Destroyed = Units_Destroyed + ?,
+                    Units_killed = Units_killed + ?
+                WHERE faction = ?
+            """, (units_combat, units_destroyed, enemy_losses, faction))
+        else:
+            # Вставляем новую запись
+            cursor.execute("""
+                INSERT INTO results (
+                    Units_Combat, Units_Destroyed, Units_killed, 
+                    Army_Efficiency_Ratio, Average_Deal_Ratio, 
+                    Average_Net_Profit_Coins, Average_Net_Profit_Raw, 
+                    Economic_Efficiency, faction
+                )
+                VALUES (?, ?, ?, 0, 0, 0, 0, 0, ?)
+            """, (units_combat, units_destroyed, enemy_losses, faction))
+
+        db_connection.commit()
+    except Exception as e:
+        db_connection.rollback()
+        print(f"Ошибка при обновлении таблицы results: {e}")
+
 
 def show_battle_report(report_data):
     print('================================================================')
@@ -171,11 +215,9 @@ def fight(attacking_city, defending_city, defending_army, attacking_army,
           attacking_fraction, defending_fraction, db_connection):
     """
     Основная функция боя между двумя армиями.
-    Если в бою участвует игрок, формирует единый отчёт по всем юнитам.
     """
     db_connection.row_factory = sqlite3.Row
     cursor = db_connection.cursor()
-
     try:
         cursor.execute("SELECT faction FROM user_faction")
         result = cursor.fetchone()
@@ -229,6 +271,16 @@ def fight(attacking_city, defending_city, defending_army, attacking_army,
         cursor=db_connection.cursor()
     )
 
+    # Подготовка данных для таблицы results
+    total_attacking_units = sum(u['initial_count'] for u in merged_attacking)
+    total_defending_units = sum(u['initial_count'] for u in merged_defending)
+    total_attacking_losses = sum(u['killed_count'] for u in merged_attacking)
+    total_defending_losses = sum(u['killed_count'] for u in merged_defending)
+
+    # Обновляем таблицу results
+    update_results_table(db_connection, attacking_fraction, total_attacking_units, total_attacking_losses, total_defending_losses)
+    update_results_table(db_connection, defending_fraction, total_defending_units, total_defending_losses, total_attacking_losses)
+
     # Начисляем опыт игроку
     if is_user_involved:
         if winner == 'attacking' and attacking_fraction == user_faction:
@@ -236,7 +288,7 @@ def fight(attacking_city, defending_city, defending_army, attacking_army,
         elif winner == 'defending' and defending_fraction == user_faction:
             calculate_experience(merged_attacking, db_connection)
 
-    # Подготовка итоговых списков для отчёта: включаем всех юнитов
+    # Подготовка итоговых списков для отчёта
     final_report_attacking = []
     for u in merged_attacking:
         report_unit = {
@@ -246,7 +298,6 @@ def fight(attacking_city, defending_city, defending_army, attacking_army,
             'killed_count': u['killed_count'],
         }
         final_report_attacking.append(report_unit)
-    # Добавляем невооружённые юниты из merge (если есть)
 
     final_report_defending = []
     for u in merged_defending:
@@ -262,8 +313,6 @@ def fight(attacking_city, defending_city, defending_army, attacking_army,
     if is_user_involved:
         report_data = generate_battle_report(final_report_attacking, final_report_defending)
         show_battle_report(report_data)
-
-
 
 
 def generate_battle_report(attacking_army, defending_army):
