@@ -652,13 +652,13 @@ class KingdomSelectionWidget(FloatLayout):
 
 # Основное приложение
 class EmpireApp(App):
-    def build(self):
-        return MenuWidget()
-
-
-class Main(App):
     def __init__(self, **kwargs):
-        super(EmpireApp, self).__init__(**kwargs)  # Запуск приложения
-        self.selected_kingdom = None  # Инициализация атрибутаif __name__ == '__main__':
+        super(EmpireApp, self).__init__(**kwargs)
+        self.selected_kingdom = None  # Атрибут для хранения выбранного королевства
 
-    EmpireApp().run()
+    def build(self):
+        return MenuWidget()  # Возвращаем виджет главного меню
+
+
+if __name__ == '__main__':
+    EmpireApp().run()  # Запуск приложения

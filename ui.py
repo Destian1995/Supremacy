@@ -1213,7 +1213,7 @@ class FortressInfoPopup(Popup):
                     show_popup_message("Логистика не выдержит", "Слишком далеко. Найдите ближайший населенный пункт")
             elif self.is_enemy(current_player_kingdom, destination_owner):
                 # Город назначения — вражеский
-                if total_diff < 220:
+                if total_diff < 225:
                     self.start_battle_group(
                         source_fortress_name=source_fortress_name,
                         destination_fortress_name=destination_fortress_name,

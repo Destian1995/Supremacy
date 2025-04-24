@@ -4,7 +4,7 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.screenmanager import  Screen
+from kivy.uix.screenmanager import Screen
 from kivy.uix.image import Image
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.graphics import Color, Rectangle
@@ -19,6 +19,7 @@ from sov import AdvisorView
 from event_manager import EventManager
 import sqlite3
 import random
+from results_game import ResultsGame
 
 # Список всех фракций
 FACTIONS = ["Аркадия", "Селестия", "Хиперион", "Халидон", "Этерия"]
@@ -87,6 +88,7 @@ class GameStateManager:
         if self.conn:
             self.conn.close()
 
+
 class ResourceBox(BoxLayout):
     def __init__(self, resource_manager, **kwargs):
         super(ResourceBox, self).__init__(**kwargs)
@@ -146,6 +148,7 @@ class ResourceBox(BoxLayout):
         for label in self.labels.values():
             label.font_size = new_font_size
             label.height = self.calculate_label_height()
+
 
 # Класс для кнопки с изображением
 class ImageButton(ButtonBehavior, Image):
@@ -262,7 +265,9 @@ class GameScreen(Screen):
             print(f"Ошибка при сохранении фракции: {e}")
 
     def process_turn(self, instance=None):
-        """Обработка хода игрока и ИИ"""
+        """
+        Обработка хода игрока и ИИ.
+        """
         # Увеличиваем счетчик ходов
         self.turn_counter += 1
 
@@ -278,6 +283,21 @@ class GameScreen(Screen):
         self.faction.update_resources()
         self.resource_box.update_resources()
 
+        # Проверяем условие завершения игры
+        game_continues, reason = self.faction.end_game()  # Получаем статус и причину завершения
+        if not game_continues:
+            print("Условия завершения игры выполнены.")
+
+            # Определяем статус завершения (win или lose)
+            if "все отношения > 95%" in reason or "остались только записи с текущей фракцией" in reason:
+                status = "win"  # Условия победы
+            else:
+                status = "lose"  # Условия поражения
+
+            # Запускаем модуль results_game для обработки результатов
+            results_game_instance = ResultsGame(status, reason)  # Создаем экземпляр класса ResultsGame
+            results_game_instance.show_results(self.selected_faction, status, reason)
+            return  # Прерываем выполнение дальнейших действий
 
         # Выполнение хода для всех ИИ
         for ai_controller in self.ai_controllers.values():
@@ -351,7 +371,6 @@ class GameScreen(Screen):
         self.clear_game_area()
         politic.start_politic_mode(self.selected_faction, self.game_area, self.game_state_manager.faction)
 
-
     def clear_game_area(self):
         """Очистка центральной области."""
         self.game_area.clear_widgets()
@@ -365,7 +384,6 @@ class GameScreen(Screen):
         self.clear_game_area()
         advisor_view = AdvisorView(self.selected_faction)
         self.game_area.add_widget(advisor_view)
-
 
     def init_ai_controllers(self):
         """Создание контроллеров ИИ для каждой фракции кроме выбранной"""
@@ -394,7 +412,6 @@ class GameScreen(Screen):
             VALUES (?, ?)
         ''', (faction, turn_count))
         self.conn.commit()
-
 
     def reset_game(self):
         """Сброс игры (например, при новой игре)."""

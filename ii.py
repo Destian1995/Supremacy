@@ -1298,7 +1298,7 @@ class AIController:
                     allied_coords = allied_coords.strip("[]")  # Убираем [ и ]
                     allied_x, allied_y = map(int, allied_coords.split(','))
                     distance = ((our_x - allied_x) ** 2 + (our_y - allied_y) ** 2) ** 0.5
-                    if distance <= 220 and distance < min_distance:
+                    if distance <= 225 and distance < min_distance:
                         min_distance = distance
                         nearest_city = allied_city_name
             return nearest_city
@@ -1334,7 +1334,7 @@ class AIController:
                     enemy_coords = enemy_coords.strip("[]")  # Убираем [ и ]
                     enemy_x, enemy_y = map(int, enemy_coords.split(','))
                     distance = ((our_x - enemy_x) ** 2 + (our_y - enemy_y) ** 2) ** 0.5
-                    if distance <= 220 and distance < min_distance:
+                    if distance <= 225 and distance < min_distance:
                         min_distance = distance
                         nearest_city = enemy_city_name
 

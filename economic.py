@@ -484,7 +484,7 @@ class Faction:
         :return: Процент изменения населения (положительное или отрицательное значение).
         """
         if tax_rate >= 90:
-            return -69  # Критическая убыль населения (-69%)
+            return -89  # Критическая убыль населения (-89%)
         elif 80 <= tax_rate < 90:
             return -51  # Значительная убыль населения (-51%)
         elif 65 <= tax_rate < 80:
@@ -988,6 +988,45 @@ class Faction:
             # Обновляем потребление в ресурсах
             self.resources['Потребление'] = self.current_consumption
 
+    def update_average_net_profit(self, coins_profit, raw_profit):
+        """
+        Обновляет или создает запись в таблице results для колонок Average_Net_Profit_Coins и Average_Net_Profit_Raw.
+        :param coins_profit: Текущая прибыль по кронам
+        :param raw_profit: Текущая прибыль по сырью
+        """
+        try:
+            # Проверяем существование записи для фракции
+            self.cursor.execute('''
+                SELECT Average_Net_Profit_Coins, Average_Net_Profit_Raw 
+                FROM results 
+                WHERE faction = ?
+            ''', (self.faction,))
+            row = self.cursor.fetchone()
+
+            if row:
+                current_coins_profit, current_raw_profit = row
+
+                # Рассчитываем новые средние значения
+                new_coins_profit = round((current_coins_profit + coins_profit) / 2, 2)
+                new_raw_profit = round((current_raw_profit + raw_profit) / 2, 2)
+
+                # Обновляем существующую запись
+                self.cursor.execute('''
+                    UPDATE results 
+                    SET Average_Net_Profit_Coins = ?, Average_Net_Profit_Raw = ?
+                    WHERE faction = ?
+                ''', (new_coins_profit, new_raw_profit, self.faction))
+            else:
+                # Создаем новую запись
+                self.cursor.execute('''
+                    INSERT INTO results (faction, Average_Net_Profit_Coins, Average_Net_Profit_Raw)
+                    VALUES (?, ?, ?)
+                ''', (self.faction, round(coins_profit, 2), round(raw_profit, 2)))
+
+            self.conn.commit()
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении средней чистой прибыли: {e}")
+
     def update_resources(self):
         """
         Обновление текущих ресурсов с учетом данных из базы данных.
@@ -998,6 +1037,9 @@ class Faction:
         self.turn += 1
         self.load_buildings()
         self.load_cities()
+        # Сохраняем предыдущие значения ресурсов
+        previous_money = self.money
+        previous_raw_material = self.raw_material
         # Генерируем новую цену на сырье
         self.generate_raw_material_price()
         # Обновляем ресурсы на основе торговых соглашений
@@ -1022,9 +1064,7 @@ class Faction:
         # Обновление ресурсов с учетом коэффициентов
         self.born_peoples = int(self.hospitals * 500)
         self.work_peoples = int(self.factories * 200)
-        self.clear_up_peoples = (self.born_peoples - self.work_peoples + self.tax_effects) + int(
-            self.city_count * (self.population / 100))
-
+        self.clear_up_peoples = (self.born_peoples - (self.work_peoples + self.tax_effects))
         # Загружаем текущие значения ресурсов из базы данных
         self.load_resources_from_db()
 
@@ -1035,7 +1075,7 @@ class Faction:
         self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
         self.taxes_info = int(self.calculate_tax_income())
 
-        # Учитываем, что одна фабрика может прокормить 10000 людей
+        # Учитываем, что одна фабрика может прокормить 1000 людей
         base_raw_material_production = (self.factories * 1000) - (self.population * coeffs['food_loss'])
         city_bonus_raw_material = base_raw_material_production * (0.05 * self.city_count)  # Бонус 5% за каждый город
         self.raw_material += int(base_raw_material_production + city_bonus_raw_material)
@@ -1046,13 +1086,7 @@ class Faction:
 
         # Проверяем условия для роста населения
         if self.raw_material > 0:
-            # Проверяем новое условие: если сырья меньше 200к и население уже больше 1млн
-            if self.raw_material < 200_000 and self.population >= 1_000_000:
-                # Население не увеличивается, только рабочие
-                self.free_peoples += int(self.clear_up_peoples)
-            else:
-                # В противном случае население увеличивается как обычно
-                self.population += int(self.clear_up_peoples)  # Увеличиваем население
+            self.population += int(self.clear_up_peoples)
         else:
             # Логика убыли населения при недостатке Сырья
             if self.population > 100:
@@ -1072,12 +1106,13 @@ class Faction:
             "Потребление": self.current_consumption,  # Используем рассчитанное значение
             "Лимит армии": self.max_army_limit
         })
-        self.money = self.resources['Кроны']
-        self.free_peoples = self.resources['Рабочие']
-        self.raw_material = self.resources['Сырье']
-        self.population = self.resources['Население']
-        self.current_consumption = self.resources['Потребление']
 
+        # Рассчитываем чистую прибыль
+        net_profit_coins = round(self.money - previous_money, 2)
+        net_profit_raw = round(self.raw_material - previous_raw_material, 2)
+
+        # Обновляем средние значения чистой прибыли в таблице results
+        self.update_average_net_profit(net_profit_coins, net_profit_raw)
         # Применяем бонусы игроку
         self.apply_player_bonuses()
         # Списываем потребление войсками
@@ -1113,21 +1148,184 @@ class Faction:
 
         return formatted_resources
 
-    def end_game(self):
-        if self.population == 0:
+    def get_city_count(self):
+        """
+        Возвращает текущее количество городов для фракции.
+        :return: Количество городов (целое число).
+        """
+        try:
+            # Выполняем запрос к таблице cities для подсчета городов фракции
+            self.cursor.execute('''
+                SELECT COUNT(*)
+                FROM cities
+                WHERE faction = ?
+            ''', (self.faction,))
+
+            # Получаем результат запроса
+            row = self.cursor.fetchone()
+            if row and isinstance(row[0], int):  # Проверяем, что результат корректен
+                return row[0]  # Возвращаем количество городов
+            else:
+                return 0  # Если записей нет или результат некорректен, возвращаем 0
+        except sqlite3.Error as e:
+            print(f"Ошибка при получении количества городов: {e}")
+            return 0
+
+    def check_all_relations_high(self):
+        """
+        Проверяет, превышают ли все отношения текущей фракции с другими фракциями 95%.
+        :return: True, если все отношения > 95%, иначе False.
+        """
+        try:
+            # Загружаем текущие отношения из таблицы relations
+            self.cursor.execute('''
+                SELECT faction2, relationship
+                FROM relations
+                WHERE faction1 = ?
+            ''', (self.faction,))
+            rows = self.cursor.fetchall()
+
+            if not rows:
+                print("Нет данных об отношениях для фракции.")
+                return False
+
+            # Проверяем каждое отношение
+            for faction2, relationship in rows:
+                if int(relationship) <= 95:
+                    return False  # Если хотя бы одно отношение <= 95, игра не завершается
+
+            print("Все отношения > 95%. Условие завершения игры выполнено.")
+            return True
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при проверке отношений: {e}")
             return False
+
+    def check_remaining_factions(self):
+        """
+        Проверяет, остались ли в таблице relations записи с другими фракциями.
+        :return: True, если остались другие фракции, False, если осталась только текущая фракция.
+        """
+        try:
+            # Выполняем запрос к таблице relations для всех записей с текущей фракцией
+            self.cursor.execute('''
+                SELECT DISTINCT faction2
+                FROM relations
+                WHERE faction1 = ?
+            ''', (self.faction,))
+            rows = self.cursor.fetchall()
+
+            # Если найдены только записи с текущей фракцией, игра завершается
+            remaining_factions = {faction2 for (faction2,) in rows if faction2 != self.faction}
+            if not remaining_factions:
+                print("Остались только записи с текущей фракцией. Условие завершения игры выполнено.")
+                return False
+
+            return True
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при проверке оставшихся фракций: {e}")
+            return False
+
+    def end_game(self):
+        """
+        Проверяет условия завершения игры:
+        - Нулевое население.
+        - Отсутствие городов.
+        - Все отношения > 95%.
+        - Остались ли другие фракции.
+        :return: Кортеж (bool, str), где:
+            - bool: True, если игра продолжается, False, если игра завершена.
+            - str: Сообщение с описанием условий завершения игры.
+        """
+        try:
+            # Проверяем, что население и количество городов корректны
+            population_valid = isinstance(self.population, int) and self.population >= 0
+            city_count_valid = isinstance(self.get_city_count(), int) and self.get_city_count() >= 0
+
+            if not population_valid or not city_count_valid:
+                message = "Некорректные данные о населении или городах."
+                print(message)
+                return False, message
+
+            # Условия завершения игры
+            if self.population == 0:
+                message = "Игра завершена: население отсутствует."
+                print(message)
+                return False, message
+
+            if self.get_city_count() == 0:
+                message = "Игра завершена: города отсутствуют."
+                print(message)
+                return False, message
+
+            # Проверка нового условия: все отношения > 95%
+            if self.check_all_relations_high():
+                message = "Игра завершена: все отношения > 95%."
+                print(message)
+                return False, message
+
+            # Проверка нового условия: остались ли другие фракции
+            if not self.check_remaining_factions():
+                message = "Игра завершена: остались только записи с текущей фракцией."
+                print(message)
+                return False, message
+
+            # Если ни одно из условий не выполнено, игра продолжается
+            return True, "Игра продолжается."
+
+        except Exception as e:
+            message = f"Ошибка при проверке завершения игры: {e}"
+            print(message)
+            return False, message
 
     def buildings_info_fraction(self):
         if self.faction == 'Аркадия':
-            return 1500
+            return 150
         if self.faction == 'Селестия':
-            return 2000
+            return 200
         if self.faction == 'Хиперион':
-            return 2000
+            return 200
         if self.faction == 'Этерия':
-            return 3000
+            return 300
         if self.faction == 'Халидон':
-            return 3000
+            return 300
+
+    def update_economic_efficiency(self, efficiency_value):
+        """
+        Обновляет или создает запись в таблице results для колонки Average_Deal_Ratio.
+        :param efficiency_value: Новое значение эффективности для обработки.
+        """
+        try:
+            # Проверяем существование записи для фракции
+            self.cursor.execute('''
+                SELECT Average_Deal_Ratio
+                FROM results 
+                WHERE faction = ?
+            ''', (self.faction,))
+            row = self.cursor.fetchone()
+
+            if row:
+                # Если запись существует - обновляем среднее значение
+                current_efficiency = row[0]
+                # Округляем результат до двух знаков после запятой
+                new_efficiency = round((current_efficiency + efficiency_value) / 2, 2)
+                self.cursor.execute('''
+                    UPDATE results 
+                    SET Average_Deal_Ratio = ? 
+                    WHERE faction = ?
+                ''', (new_efficiency, self.faction))
+            else:
+                # Если записи нет - создаем новую
+                # Округляем входное значение до двух знаков после запятой
+                self.cursor.execute('''
+                    INSERT INTO results (faction, Average_Deal_Ratio)
+                    VALUES (?, ?)
+                ''', (self.faction, round(efficiency_value, 2)))
+
+            self.conn.commit()
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении экономической эффективности: {e}")
 
     def initialize_raw_material_prices(self):
         """Инициализация истории цен на сырье"""
@@ -1585,19 +1783,27 @@ def handle_trade(game_instance, action, quantity, trade_popup):
             raise ValueError("Не было введено количество лотов. Пожалуйста, введите количество лотов.")
 
         quantity = int(quantity)
+        price_per_lot = game_instance.current_raw_material_price / 10000  # Цена за единицу сырья
 
         # Проверяем, что количество сырья для продажи не превышает доступное
         if action == 'sell' and quantity * 10000 > game_instance.resources["Сырье"]:
             raise ValueError("Недостаточно сырья для продажи.")
 
         result = game_instance.trade_raw_material(action, quantity)
-
         if result:  # Если торговля прошла успешно
+
+            # Рассчитываем экономическую эффективность
+            economic_efficiency = price_per_lot  # Текущая цена деленная на 10000
+
+            # Обновляем значение в таблице results
+            game_instance.update_economic_efficiency(economic_efficiency)
+
             show_message("Успех", f"{'Куплено' if action == 'buy' else 'Продано'} {quantity} лотов сырья.")
         else:  # Если операция не удалась
             show_message("Ошибка", "Не удалось завершить операцию.")
     except ValueError as e:
         show_message("Ошибка", str(e))
+
     trade_popup.dismiss()  # Закрываем попап после операции
 
 
