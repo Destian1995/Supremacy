@@ -1201,6 +1201,7 @@ class FortressInfoPopup(Popup):
             y_diff = abs(source_coords[1] - destination_coords[1])
             total_diff = x_diff + y_diff
             print('total_diff:', total_diff)
+
             # Проверяем статус города назначения
             if destination_owner == current_player_kingdom:
                 # Город назначения — свой
@@ -1251,7 +1252,7 @@ class FortressInfoPopup(Popup):
                 defending_garrison = cursor.fetchall()
                 # Если гарнизон целевого города пуст, захватываем город без боя
                 if not defending_garrison:
-                    self.capture_city(destination_fortress_name, source_owner, source_fortress_name)
+                    self.capture_city(destination_fortress_name, source_owner, attacking_units)
                     self.close_current_popup()  # Закрываем окно интерфейса
                     return
                 # Собираем имена юнитов для оптимизации запросов
@@ -1539,47 +1540,62 @@ class FortressInfoPopup(Popup):
         except Exception as e:
             print(f"Произошла ошибка при переносе данных: {e}")
 
-    def capture_city(self, fortress_name, new_owner, source_city):
+    def capture_city(self, fortress_name, new_owner, attacking_units):
         try:
             cursor = self.cursor
 
-            # 1. Обновляем владельца города в таблице city
+            # 1. Обновляем владельца города
             cursor.execute("""
                 UPDATE city 
                 SET kingdom = ? 
                 WHERE fortress_name = ?
             """, (new_owner, fortress_name))
 
-            # 2. Обновляем фракцию в таблице cities
             cursor.execute("""
                 UPDATE cities 
                 SET faction = ? 
                 WHERE name = ?
             """, (new_owner, fortress_name))
 
-            # 3. Переносим войска из атакующего города в захваченный
-            cursor.execute("""
-                UPDATE garrisons
-                SET city_id = ?
-                WHERE city_id = ?
-            """, (fortress_name, source_city))
+            # 2. Переносим только атакующие юниты
+            for unit in attacking_units:
+                # Удаляем из исходного города
+                cursor.execute("""
+                    UPDATE garrisons 
+                    SET unit_count = unit_count - ? 
+                    WHERE city_id = ? AND unit_name = ?
+                """, (unit["unit_count"], unit["city_id"], unit["unit_name"]))
 
-            # 4. Здания переходят под контроль новой фракции
+                # Удаляем запись, если юнитов больше нет
+                cursor.execute("""
+                    DELETE FROM garrisons 
+                    WHERE city_id = ? AND unit_name = ? AND unit_count <= 0
+                """, (unit["city_id"], unit["unit_name"]))
+
+                # Добавляем в захваченный город
+                cursor.execute("""
+                    INSERT INTO garrisons 
+                    (city_id, unit_name, unit_count, unit_image) 
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(city_id, unit_name) DO UPDATE 
+                    SET unit_count = unit_count + ?
+                """, (fortress_name, unit["unit_name"], unit["unit_count"],
+                      unit["unit_image"], unit["unit_count"]))
+
+            # 3. Передаем здания новому владельцу
             cursor.execute("""
-                UPDATE buildings
-                SET faction = ?
+                UPDATE buildings 
+                SET faction = ? 
                 WHERE city_name = ?
             """, (new_owner, fortress_name))
 
-            # 5. Сохраняем изменения в базе данных
             self.conn.commit()
+            show_popup_message("Успех", f"Город {fortress_name} захвачен!")
+            self.update_garrison()
 
-            print(f"Город '{fortress_name}' успешно захвачен фракцией '{new_owner}'.")
-            show_popup_message("Успех", f"Город '{fortress_name}' захвачен без боя!")
-            self.update_garrison()  # Обновляем интерфейс гарнизона
-
-        except sqlite3.Error as e:
-            print(f"Ошибка при захвате города: {e}")
+        except Exception as e:
+            self.conn.rollback()
+            show_popup_message("Ошибка", f"Ошибка захвата: {e}")
 
     def strike_with_dbs(self, instance):
         # Получаем данные о городе из таблицы cities

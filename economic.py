@@ -1064,7 +1064,7 @@ class Faction:
         # Обновление ресурсов с учетом коэффициентов
         self.born_peoples = int(self.hospitals * 500)
         self.work_peoples = int(self.factories * 200)
-        self.clear_up_peoples = (self.born_peoples - (self.work_peoples + self.tax_effects))
+        self.clear_up_peoples = self.born_peoples - (self.work_peoples - self.tax_effects*2.5)
         # Загружаем текущие значения ресурсов из базы данных
         self.load_resources_from_db()
 
@@ -1075,13 +1075,13 @@ class Faction:
         self.money_up = int(self.calculate_tax_income() - (self.hospitals * coeffs['money_loss']))
         self.taxes_info = int(self.calculate_tax_income())
 
-        # Учитываем, что одна фабрика может прокормить 1000 людей
-        base_raw_material_production = (self.factories * 1000) - (self.population * coeffs['food_loss'])
+        # Учитываем, что одна фабрика может прокормить 10000 людей
+        base_raw_material_production = (self.factories * 10000) - (self.population * coeffs['food_loss'])
         city_bonus_raw_material = base_raw_material_production * (0.05 * self.city_count)  # Бонус 5% за каждый город
         self.raw_material += int(base_raw_material_production + city_bonus_raw_material)
 
         self.food_info = (
-                int((self.factories * 1000) - (self.population * coeffs['food_loss'])) - self.current_consumption)
+                int((self.factories * 10000) - (self.population * coeffs['food_loss'])) - self.current_consumption)
         self.food_peoples = int(self.population * coeffs['food_loss'])
 
         # Проверяем условия для роста населения
