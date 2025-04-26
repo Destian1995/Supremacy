@@ -63,6 +63,30 @@ def transform_filename(file_path):
 
 reverse_translation_dict = {v: k for k, v in translation_dict.items()}
 
+def all_factions(cursor):
+    """
+    Выгружает список активных фракций из таблицы diplomacies.
+    Возвращает уникальный список фракций, у которых статус в relationship не равен "уничтожена".
+    :param cursor: Курсор для работы с базой данных
+    :return: Список активных фракций
+    """
+    try:
+        # Запрос для получения всех уникальных фракций, кроме тех, что имеют статус "уничтожена"
+        query = """
+            SELECT DISTINCT faction 
+            FROM (
+                SELECT faction1 AS faction, relationship FROM diplomacies
+                UNION
+                SELECT faction2 AS faction, relationship FROM diplomacies
+            ) AS all_factions
+            WHERE relationship != 'уничтожена'
+        """
+        cursor.execute(query)
+        factions = [row[0] for row in cursor.fetchall()]
+        return factions
+    except sqlite3.Error as e:
+        print(f"Ошибка при получении списка активных фракций: {e}")
+        return []
 
 # Функция для расчета базового размера шрифта
 def calculate_font_size():
@@ -310,9 +334,10 @@ def show_trade_agreement_form(faction, game_area):
     padding = font_size // 2  # Отступы
     spacing = font_size // 4  # Промежутки между элементами
     conn = sqlite3.connect('game_data.db')
+    cursor = conn.cursor()
     # Список всех фракций
-    all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
-    available_factions = [f for f in all_factions if f != faction]
+    available_factions = all_factions(cursor)  # Получаем активные фракции
+    available_factions = [f for f in available_factions if f != faction]  # Исключаем текущую фракцию
 
     # Создаем контент для Popup
     content = BoxLayout(
@@ -576,9 +601,11 @@ def show_cultural_exchange_form(faction, game_area, class_faction):
     padding = font_size // 2
     spacing = font_size // 4
 
+    conn = sqlite3.connect('game_data.db')
+    cursor = conn.cursor()
     # Список всех фракций
-    all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
-    available_factions = [f for f in all_factions if f != faction]
+    available_factions = all_factions(cursor)  # Получаем активные фракции
+    available_factions = [f for f in available_factions if f != faction]  # Исключаем текущую фракцию
 
     # Создаем контент для Popup
     content = BoxLayout(
@@ -836,10 +863,10 @@ def show_peace_form(player_faction):
             (player_faction,)
         )
         relations = {faction: status for faction, status in cursor.fetchall()}
-
-        # Список всех доступных фракций
-        all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
-        available_factions = [f for f, status in relations.items() if status == "война"]
+        conn = sqlite3.connect('game_data.db')
+        cursor = conn.cursor()
+        active_factions = all_factions(cursor)  # Получаем активные фракции
+        available_factions = [f for f in active_factions if relations.get(f) == "война"]  # Оставляем только воюющие фракции
 
         # Если нет доступных фракций для заключения мира
         if not available_factions:
@@ -1088,9 +1115,11 @@ def show_alliance_form(faction, game_area, class_faction):
     """, (faction, faction))
     relations_data = {row[1] if row[0] == faction else row[0]: row[2] for row in cursor.fetchall()}
 
+    conn = sqlite3.connect('game_data.db')
+    cursor = conn.cursor()
     # Список всех фракций
-    all_factions = ["Селестия", "Аркадия", "Этерия", "Халидон", "Хиперион"]
-    available_factions = [f for f in all_factions if f != faction]
+    available_factions = all_factions(cursor)  # Получаем активные фракции
+    available_factions = [f for f in available_factions if f != faction]  # Исключаем текущую фракцию
 
     # Создаем контент для Popup
     content = BoxLayout(
@@ -1308,11 +1337,10 @@ def show_declare_war_form(faction):
                 show_popup_message("Слишком рано", "Атаковать другие фракции можно только после 16 хода.")
                 return
 
-            # Проверка существования фракции в таблице diplomacies
-            cursor.execute("SELECT COUNT(*) FROM diplomacies WHERE faction1 = ? OR faction2 = ?", (faction, faction))
-            diplomacy_count = cursor.fetchone()[0]
-            if diplomacy_count == 0:
-                show_popup_message("Ошибка", f"Фракция '{faction}' не найдена в таблице 'diplomacies'.")
+            # Получение списка активных фракций
+            active_factions = all_factions(cursor)  # Используем функцию all_factions
+            if faction not in active_factions:
+                show_popup_message("Ошибка", f"Фракция '{faction}' не найдена среди активных фракций.")
                 return
 
             # Получение текущих отношений фракции
@@ -1327,7 +1355,10 @@ def show_declare_war_form(faction):
                 relations[other_faction] = row[2]
 
             # Фильтрация стран, которым можно объявить войну (не "война")
-            available_targets = [country for country, status in relations.items() if status != "война"]
+            available_targets = [
+                country for country, status in relations.items()
+                if status != "война" and country in active_factions  # Только активные фракции
+            ]
             if not available_targets:
                 show_popup_message("Нет целей", "Нет доступных целей для объявления войны.")
                 return

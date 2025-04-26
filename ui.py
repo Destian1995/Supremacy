@@ -11,7 +11,6 @@ from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.slider import Slider
 
-from army import open_weapon_db_management
 from kivy.uix.image import Image as KivyImage
 from kivy.uix.textinput import TextInput
 
@@ -149,17 +148,6 @@ class FortressInfoPopup(Popup):
         )
         send_troops_button.bind(on_press=self.select_troop_type)
         button_layout.add_widget(send_troops_button)
-
-        # Кнопка "Нанести удар ДБ оружием"
-        strike_weapon_button = Button(
-            text="Нанести удар \nДБ оружием",
-            font_size=f'{font_size}sp',
-            size_hint_y=None,
-            height=button_height,
-            background_color=(0.8, 0.6, 0.6, 1)
-        )
-        strike_weapon_button.bind(on_press=self.strike_with_dbs)
-        button_layout.add_widget(strike_weapon_button)
 
         # Кнопка "Разместить армию"
         place_army_button = Button(
@@ -1597,31 +1585,6 @@ class FortressInfoPopup(Popup):
             self.conn.rollback()
             show_popup_message("Ошибка", f"Ошибка захвата: {e}")
 
-    def strike_with_dbs(self, instance):
-        # Получаем данные о городе из таблицы cities
-        coords_str = f"[{self.city_coords[0]}, {self.city_coords[1]}]"
-        self.cursor.execute("""
-            SELECT name FROM cities 
-            WHERE coordinates = ?
-        """, (coords_str,))
-        city_data = self.cursor.fetchone()
-
-        if not city_data:
-            print(f"Город с координатами {self.city_coords} не найден в базе данных")
-            return
-
-        city_name = city_data[0]
-
-        # Вызываем функцию open_weapon_db_management из модуля army
-        open_weapon_db_management(
-            faction=self.player_fraction,  # Фракция
-            army_cash=None,  # Боевой режим
-            city_name_text=city_name,  # Название города
-            coordinates_text=self.city_coords  # Координаты города
-        )
-
-        # Закрываем текущее окно
-        self.dismiss()
 
     def close_current_popup(self):
         """Закрывает текущее всплывающее окно."""

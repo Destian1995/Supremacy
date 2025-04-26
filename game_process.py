@@ -303,8 +303,12 @@ class GameScreen(Screen):
         for ai_controller in self.ai_controllers.values():
             ai_controller.make_turn()
 
+        # Обновляем статус уничтоженных фракций
+        self.update_destroyed_factions()
+
         # Логирование или обновление интерфейса после хода
         print(f"Ход {self.turn_counter} завершён")
+
         self.event_now = random.randint(9, 10)
         # Проверяем, нужно ли запустить событие
         if self.turn_counter % self.event_now == 0:
@@ -384,6 +388,50 @@ class GameScreen(Screen):
         self.clear_game_area()
         advisor_view = AdvisorView(self.selected_faction)
         self.game_area.add_widget(advisor_view)
+
+    def update_destroyed_factions(self):
+        """
+        Обновляет статус фракций в таблице diplomacies.
+        Если у фракции нет ни одного города в таблице city,
+        все записи для этой фракции в таблице diplomacies помечаются как "уничтожена".
+        """
+        try:
+            # Шаг 1: Получаем список всех фракций, у которых есть города
+            self.cursor.execute("""
+                SELECT DISTINCT kingdom
+                FROM city
+            """)
+            factions_with_cities = {row[0] for row in self.cursor.fetchall()}
+
+            # Шаг 2: Получаем все уникальные фракции из таблицы diplomacies
+            self.cursor.execute("""
+                SELECT DISTINCT faction1
+                FROM diplomacies
+            """)
+            all_factions = {row[0] for row in self.cursor.fetchall()}
+
+            # Шаг 3: Определяем фракции, у которых нет ни одного города
+            destroyed_factions = all_factions - factions_with_cities
+
+            if destroyed_factions:
+                print(f"Фракции без городов (уничтожены): {', '.join(destroyed_factions)}")
+
+                # Шаг 4: Обновляем записи в таблице diplomacies для уничтоженных фракций
+                for faction in destroyed_factions:
+                    self.cursor.execute("""
+                        UPDATE diplomacies
+                        SET relationship = ?
+                        WHERE faction1 = ? OR faction2 = ?
+                    """, ("уничтожена", faction, faction))
+                    print(f"Статус фракции '{faction}' обновлен на 'уничтожена'.")
+
+                # Фиксируем изменения в базе данных
+                self.conn.commit()
+            else:
+                print("Все фракции имеют хотя бы один город. Нет уничтоженных фракций.")
+
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении статуса уничтоженных фракций: {e}")
 
     def init_ai_controllers(self):
         """Создание контроллеров ИИ для каждой фракции кроме выбранной"""

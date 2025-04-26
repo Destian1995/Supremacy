@@ -237,13 +237,15 @@ def fight(attacking_city, defending_city, defending_army, attacking_army,
         u['initial_count'] = u['unit_count']
         u['killed_count'] = 0
 
-    # Приоритет для сортировки: класс, затем урон
+    # Приоритет для сортировки: класс (по возрастанию), затем атака (по убыванию)
     def priority(u):
         stats = u['units_stats']
-        return (int(stats.get('Класс юнита', 0)), int(stats.get('Урон', 0)))
+        unit_class = int(stats.get('Класс юнита', 0))  # Класс юнита (чем меньше, тем раньше вступает в бой)
+        attack = int(stats.get('Урон', 0))  # Урон (чем больше, тем раньше вступает в бой)
+        return (unit_class, -attack)  # Сортируем по классу (возрастание), затем по урону (убывание)
 
-    merged_attacking.sort(key=priority, reverse=True)
-    merged_defending.sort(key=priority, reverse=True)
+    merged_attacking.sort(key=priority)
+    merged_defending.sort(key=priority)
 
     # Бой: каждый атакующий против каждого обороняющего
     for atk in merged_attacking:

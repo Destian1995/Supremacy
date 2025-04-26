@@ -452,60 +452,130 @@ class MenuWidget(FloatLayout):
     def __init__(self, **kwargs):
         super(MenuWidget, self).__init__(**kwargs)
 
-        # Список с именами файлов картинок
-        menu_images = ['files/menu/1.jpg', 'files/menu/2.jpg', 'files/menu/3.jpg', 'files/menu/4.jpg',
-                       'files/menu/5.jpg']
+        # Список с именами файлов картинок и соответствующими фракциями
+        self.menu_images = {
+            'files/menu/arkadia.jpg': "Аркадия",
+            'files/menu/celestia.jpg': "Селестия",
+            'files/menu/eteria.jpg': "Этерия",
+            'files/menu/halidon.jpg': "Халидон",
+            'files/menu/giperion.jpg': "Хиперион"
+        }
 
-        # Выбираем случайное изображение
-        random_image = random.choice(menu_images)
+        # Создаем два изображения для плавной смены фона
+        self.bg_image_1 = Image(source=random.choice(list(self.menu_images.keys())), allow_stretch=True, keep_ratio=False)
+        self.bg_image_2 = Image(source=random.choice(list(self.menu_images.keys())), allow_stretch=True, keep_ratio=False, opacity=0)
 
-        # Загружаем выбранное случайное изображение как фон
-        self.add_widget(Image(source=random_image, allow_stretch=True, keep_ratio=False))  # Фон меню
+        # Добавляем оба изображения на виджет
+        self.add_widget(self.bg_image_1)
+        self.add_widget(self.bg_image_2)
 
         # Заголовок
-        title = Label(text="[b][color=000000]Превосходство[/color][/b]", font_size='40sp', markup=True,
-                      size_hint=(1, 0.2), pos_hint={'center_x': 0.5, 'center_y': 0.9})
-        self.add_widget(title)
+        self.title = Label(
+            text="[b][color=FFFFFF]Превосходство[/color][/b]",
+            font_size='40sp',
+            markup=True,
+            size_hint=(1, 0.2),
+            pos_hint={'center_x': 0.5, 'top': 0.95},
+            color=(1, 1, 1, 1)  # Белый текст
+        )
+        self.add_widget(self.title)
 
         # Кнопки
-        btn_start_game = Button(text="Старт новой игры", size_hint=(0.5, 0.1),
-                                pos_hint={'center_x': 0.5, 'center_y': 0.7},
-                                background_normal='', background_color=(0, 0, 0, 1))
+        button_height = 0.1
+        button_spacing = 0.02  # Уменьшенное расстояние между кнопками
+        button_start_y = 0.6  # Начальная позиция по Y для первой кнопки
+
+        btn_start_game = Button(
+            text="В Лэрдон",
+            size_hint=(0.5, button_height),
+            pos_hint={'center_x': 0.5, 'center_y': button_start_y},
+            background_normal='',
+            background_color=(0.2, 0.6, 1, 1),  # Голубой цвет
+            color=(1, 1, 1, 1)  # Белый текст
+        )
         btn_start_game.bind(on_press=self.start_game)
 
-        btn_load_game = Button(text="Загрузка ранее сохраненной", size_hint=(0.5, 0.1),
-                               pos_hint={'center_x': 0.5, 'center_y': 0.5}, background_normal='',
-                               background_color=(0, 0, 0, 1))
-        btn_load_game.bind(on_press=self.load_game)
-
-        btn_hall_of_fame = Button(text="Зал славы", size_hint=(0.5, 0.1), pos_hint={'center_x': 0.5, 'center_y': 0.3},
-                                  background_normal='', background_color=(0, 0, 0, 1))
-        btn_hall_of_fame.bind(on_press=self.show_hall_of_fame)
-
-        btn_exit = Button(text="Выход", size_hint=(0.5, 0.1), pos_hint={'center_x': 0.5, 'center_y': 0.1},
-                          background_normal='', background_color=(0, 0, 0, 1))
+        btn_exit = Button(
+            text="Выход",
+            size_hint=(0.5, button_height),
+            pos_hint={'center_x': 0.5, 'center_y': button_start_y - (button_height + button_spacing)},
+            background_normal='',
+            background_color=(0.2, 0.6, 1, 1),
+            color=(1, 1, 1, 1)
+        )
         btn_exit.bind(on_press=self.exit_game)
 
+        # Добавляем кнопки
         self.add_widget(btn_start_game)
-        self.add_widget(btn_load_game)
-        self.add_widget(btn_hall_of_fame)
         self.add_widget(btn_exit)
+
+        # Запускаем анимацию фона
+        self.current_image = self.bg_image_1
+        self.next_image = self.bg_image_2
+        Clock.schedule_interval(self.animate_background, 5)  # Меняем фон каждые 5 секунд
+
+        # Цвета для заголовка в зависимости от фракции
+        self.faction_colors = {
+            "Аркадия": (0, 0, 1, 1),  # Синий
+            "Хиперион": (0.5, 0, 0.5, 1),  # Фиолетовый
+            "Халидон": (1, 0, 0, 1),  # Красный
+            "Этерия": (1, 1, 0, 1),  # Желтый
+            "Селестия": (0, 0.5, 0, 1)  # Темно-зеленый
+        }
+
+        # Пример: изменение цвета заголовка при старте игры
+        self.change_title_color("Аркадия")  # Можно заменить на текущую фракцию игрока
+
+    def animate_background(self, dt):
+        """Анимация плавной смены фоновых изображений."""
+        # Выбираем новое случайное изображение
+        new_image_source = random.choice(list(self.menu_images.keys()))
+        while new_image_source == self.next_image.source:  # Избегаем повторения текущего изображения
+            new_image_source = random.choice(list(self.menu_images.keys()))
+
+        self.next_image.source = new_image_source
+        self.next_image.opacity = 0  # Начинаем с прозрачности 0
+
+        # Анимация растворения старого изображения
+        fade_out = Animation(opacity=0, duration=2)
+        fade_out.start(self.current_image)
+
+        # Анимация появления нового изображения
+        fade_in = Animation(opacity=1, duration=2)
+        fade_in.start(self.next_image)
+
+        # Меняем местами current_image и next_image
+        self.current_image, self.next_image = self.next_image, self.current_image
+
+        # Определяем фракцию для нового изображения
+        faction = self.menu_images[new_image_source]
+        self.change_title_color(faction)
 
     def start_game(self, instance):
         app = App.get_running_app()
         app.root.clear_widgets()
         app.root.add_widget(KingdomSelectionWidget())
 
-    def load_game(self, instance):
-        print("Загрузка игры...")
-
-    def show_hall_of_fame(self, instance):
-        app = App.get_running_app()
-        app.root.clear_widgets()
-        app.root.add_widget(HallOfFameWidget())
-
     def exit_game(self, instance):
         App.get_running_app().stop()
+
+    def change_title_color(self, faction):
+        """
+        Изменяет цвет заголовка "Превосходство" в зависимости от фракции.
+        :param faction: Название фракции
+        """
+        color = self.faction_colors.get(faction, (1, 1, 1, 1))  # По умолчанию белый
+        self.title.color = color
+        self.title.text = f"[b][color={self.rgb_to_hex(color)}]Превосходство[/color][/b]"
+
+    def rgb_to_hex(self, rgba):
+        """
+        Преобразует RGB(A) кортеж в шестнадцатеричный формат для Kivy.
+        :param rgba: Кортеж (R, G, B, A)
+        :return: Шестнадцатеричная строка (например, "#FFFFFF")
+        """
+        r, g, b, _ = rgba
+        return "#{:02X}{:02X}{:02X}".format(int(r * 255), int(g * 255), int(b * 255))
 
 
 # Виджет выбора княжества
@@ -668,6 +738,13 @@ class KingdomSelectionWidget(FloatLayout):
 
     def start_game(self, instance):
         # Очистка старых данных из БД
+        # Подключение к базе данных
+        conn = sqlite3.connect('game_data.db')
+        clear_tables(conn)
+        # Закрытие соединения
+        conn.close()
+        # Загрузка дампа дефолтных файлов.
+        restore_from_backup()
         # housekeeping()
         app = App.get_running_app()
         selected_kingdom = app.selected_kingdom
@@ -686,15 +763,6 @@ class KingdomSelectionWidget(FloatLayout):
             print("Для выбранного княжества не найдено городов.")
             return
 
-        # Очистка временных таблиц
-        # Подключение к базе данных
-        conn = sqlite3.connect('game_data.db')
-        clear_tables(conn)
-        # Закрытие соединения
-        conn.close()
-
-        # Загрузка дампа дефолтных файлов.
-        restore_from_backup()
         # Передаем выбранное княжество на новый экран игры
         game_screen = GameScreen(selected_kingdom, cities)
         app.root.clear_widgets()
