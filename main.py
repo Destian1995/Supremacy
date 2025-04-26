@@ -241,9 +241,83 @@ class MapWidget(Widget):
         # Отрисовка карты
         with self.canvas:
             self.map_image = Rectangle(source='files/map/map.png', pos=self.map_pos, size=(screen_width, screen_height))
-        # Отрисовка всех крепостей
+        # Отрисовка всех крепостей и дорог
         self.draw_fortresses()
+        self.draw_roads()  # Новый метод для рисования дорог
         Clock.schedule_interval(lambda dt: self.update_cities(), 1)
+
+    def draw_roads(self):
+        """
+        Метод для рисования тонких дорог между ближайшими городами.
+        Дороги рисуются один раз и прикрепляются к карте.
+        """
+        # Очищаем предыдущие дороги (если они были)
+        self.canvas.after.clear()
+
+        # Загружаем данные о городах из базы данных
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                SELECT fortress_name, coordinates 
+                FROM city
+            """)
+            fortresses_data = cursor.fetchall()
+        except sqlite3.Error as e:
+            print(f"Ошибка при загрузке данных о городах: {e}")
+            return
+
+        # Преобразуем данные в список кортежей (имя города, координаты)
+        cities = []
+        for fortress_name, coords_str in fortresses_data:
+            try:
+                coords = ast.literal_eval(coords_str)
+                if len(coords) != 2:
+                    raise ValueError("Неверный формат координат")
+                cities.append((fortress_name, coords))
+            except (ValueError, SyntaxError) as e:
+                print(f"Ошибка при разборе координат города '{fortress_name}': {e}")
+                continue
+
+        # Рисуем дороги между ближайшими городами
+        with self.canvas.after:
+            Color(0.5, 0.5, 0.5, 1)  # Цвет дорог (серый)
+            for i in range(len(cities)):
+                for j in range(i + 1, len(cities)):
+                    source_name, source_coords = cities[i]
+                    destination_name, destination_coords = cities[j]
+                    # Вычисляем расстояние между городами
+                    total_diff = self.calculate_manhattan_distance(source_coords, destination_coords)
+                    if total_diff < 224:  # Рисуем дорогу, если расстояние ≤ 220
+                        # Сдвигаем координаты относительно позиции карты
+                        drawn_x1 = source_coords[0] + self.map_pos[0]
+                        drawn_y1 = source_coords[1] + self.map_pos[1]
+                        drawn_x2 = destination_coords[0] + self.map_pos[0]
+                        drawn_y2 = destination_coords[1] + self.map_pos[1]
+                        # Рисуем прямую линию между точками
+                        Line(points=[drawn_x1, drawn_y1, drawn_x2, drawn_y2], width=1)
+
+    def calculate_manhattan_distance(self, source_coords, destination_coords):
+        """
+        Вычисляет манхэттенское расстояние между двумя точками.
+        :param source_coords: Координаты первого города (x1, y1).
+        :param destination_coords: Координаты второго города (x2, y2).
+        :return: Манхэттенское расстояние.
+        """
+        x_diff = abs(source_coords[0] - destination_coords[0])
+        y_diff = abs(source_coords[1] - destination_coords[1])
+        total_diff = x_diff + y_diff
+        return total_diff
+
+    def update_map_position(self):
+        """
+        Обновляет позицию изображения карты и дорог.
+        """
+        # Обновляем позицию карты
+        self.map_image.pos = self.map_pos
+        # Очищаем canvas и снова рисуем карту, крепости и дороги
+        self.canvas.clear()
+        self.draw_fortresses()
+        self.draw_roads()
 
     def map_positions_start(self):
         if self.current_player_kingdom == 'Хиперион':
@@ -260,7 +334,6 @@ class MapWidget(Widget):
     def draw_fortresses(self):
         self.fortress_rectangles.clear()
         self.canvas.clear()
-
         # Отрисовываем фон карты
         with self.canvas:
             self.map_image = Rectangle(
@@ -268,7 +341,6 @@ class MapWidget(Widget):
                 pos=self.map_pos,
                 size=(screen_width, screen_height)
             )
-
             # Словарь для соответствия фракций и изображений
             faction_images = {
                 'Хиперион': 'files/buildings/giperion.png',
@@ -277,7 +349,6 @@ class MapWidget(Widget):
                 'Этерия': 'files/buildings/eteria.png',
                 'Халидон': 'files/buildings/halidon.png'
             }
-
             # Запрашиваем данные о городах из базы данных
             try:
                 cursor = self.conn.cursor()
@@ -289,12 +360,10 @@ class MapWidget(Widget):
             except sqlite3.Error as e:
                 print(f"Ошибка при загрузке данных о городах: {e}")
                 return
-
             # Проверяем, есть ли данные
             if not fortresses_data:
                 print("Нет данных о городах в базе данных.")
                 return
-
             # Отрисовываем крепости всех фракций
             for fortress_name, kingdom, coords_str in fortresses_data:
                 try:
@@ -305,16 +374,13 @@ class MapWidget(Widget):
                 except (ValueError, SyntaxError) as e:
                     print(f"Ошибка при разборе координат города '{fortress_name}': {e}")
                     continue
-
                 # Сдвигаем изображение только для отрисовки
                 drawn_x = fort_x + self.map_pos[0] + 4
                 drawn_y = fort_y + self.map_pos[1] + 2
-
                 # Получаем путь к изображению для текущей фракции
                 image_path = faction_images.get(kingdom, 'files/buildings/default.png')
                 if not os.path.exists(image_path):
                     image_path = 'files/buildings/default.png'
-
                 # Сохраняем прямоугольник, имя и владельца для проверки касания
                 fort_rect = (drawn_x, drawn_y, 40, 40)
                 self.fortress_rectangles.append((
@@ -322,20 +388,16 @@ class MapWidget(Widget):
                     {"coordinates": (fort_x, fort_y), "name": fortress_name},
                     kingdom
                 ))
-
                 # Рисуем изображение крепости
                 Rectangle(source=image_path, pos=(drawn_x, drawn_y), size=(40, 40))
-
                 # Добавляем название города под значком
                 display_name = (fortress_name[:20] + "...") if len(fortress_name) > 20 else fortress_name
                 label = CoreLabel(text=display_name, font_size=12, color=(0, 0, 0, 1))
                 label.refresh()
                 text_texture = label.texture
                 text_width, text_height = text_texture.size
-
                 text_x = drawn_x + (40 - text_width) / 2
                 text_y = drawn_y - text_height - 5
-
                 Color(1, 1, 1, 1)
                 Rectangle(texture=text_texture, pos=(text_x, text_y), size=(text_width, text_height))
 
@@ -346,7 +408,6 @@ class MapWidget(Widget):
             if x <= touch.x <= x + w and y <= touch.y <= y + h:
                 # Сохраняем последний клик
                 save_last_clicked_city(fortress_data["name"])
-
                 # Открываем окно с информацией
                 popup = FortressInfoPopup(
                     kingdom=owner,
@@ -377,13 +438,6 @@ class MapWidget(Widget):
             self.map_pos[1] += dy
             self.update_map_position()
 
-    def update_map_position(self):
-        # Обновляем позицию изображения карты
-        self.map_image.pos = self.map_pos
-        # Очищаем canvas и снова рисуем карту и крепости
-        self.canvas.clear()
-        self.draw_fortresses()
-
     def update_cities(self):
         self.canvas.clear()
         self.draw_fortresses()
@@ -393,7 +447,6 @@ class MapWidget(Widget):
         if touch.is_mouse_scrolling:
             return  # Игнорируем скроллинг
         self.check_fortress_click(touch)
-
 
 class MenuWidget(FloatLayout):
     def __init__(self, **kwargs):
