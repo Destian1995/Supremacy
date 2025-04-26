@@ -386,6 +386,15 @@ def fight(attacking_city, defending_city, defending_army, attacking_army,
         )
         show_battle_report(report_data)
 
+    return {
+        "winner": winner,
+        "attacking_fraction": attacking_fraction,
+        "defending_fraction": defending_fraction,
+        "attacking_losses": total_attacking_losses,
+        "defending_losses": total_defending_losses,
+        "attacking_units": final_report_attacking,
+        "defending_units": final_report_defending
+    }
 
 def generate_battle_report(attacking_army, defending_army, winner, attacking_fraction, defending_fraction, user_faction):
     """

@@ -1347,6 +1347,9 @@ class AIController:
 
     def relocate_units(self, from_city_name, to_city_name, unit_name, unit_count, unit_image):
         try:
+            print('from_city_name ', from_city_name, ' to_city_name ', to_city_name, ' unit_name ', unit_name,
+                  ' unit_count ', unit_count)
+
             # Проверяем, что города отправления и назначения разные
             if from_city_name == to_city_name:
                 print(f"Передислокация в тот же город невозможна: {from_city_name}")
@@ -1355,23 +1358,18 @@ class AIController:
             print(f"Передислокация: из {from_city_name} в {to_city_name}")
             print(f" Юнит: {unit_name}, Количество: {unit_count}")
 
-            # Проверяем наличие юнитов в исходном городе
-            self.cursor.execute("""
-                SELECT unit_count FROM garrisons
-                WHERE city_id = ? AND unit_name = ?
-            """, (from_city_name, unit_name))
-            current_count = self.cursor.fetchone()
-
-            if not current_count or current_count[0] < unit_count:
-                print(f"Недостаточно юнитов {unit_name} в городе {from_city_name}")
-                return
-
             # Уменьшаем количество юнитов в исходном городе
             self.cursor.execute("""
                 UPDATE garrisons
                 SET unit_count = unit_count - ?
                 WHERE city_id = ? AND unit_name = ?
             """, (unit_count, from_city_name, unit_name))
+
+            # Удаляем запись, если юнитов больше нет
+            self.cursor.execute("""
+                DELETE FROM garrisons
+                WHERE city_id = ? AND unit_name = ? AND unit_count <= 0
+            """, (from_city_name, unit_name))
 
             # Добавляем юниты в целевой город
             self.cursor.execute("""
@@ -1382,6 +1380,7 @@ class AIController:
                 unit_image = excluded.unit_image
             """, (to_city_name, unit_name, unit_count, unit_image))
 
+            # Фиксируем изменения
             self.db_connection.commit()
             print(f"Передислокация {unit_count} юнитов {unit_name} из города {from_city_name} в город {to_city_name}.")
         except sqlite3.Error as e:
@@ -2215,7 +2214,6 @@ class AIController:
         except sqlite3.Error as e:
             print(f"Ошибка при сохранении результатов в таблицу results: {e}")
 
-
     # ---------------------------------------------------------------------
 
     # Основная логика хода ИИ
@@ -2250,4 +2248,3 @@ class AIController:
             print(f'-----------КОНЕЦ {self.turn} ХОДА----------------  ФРАКЦИИ', self.faction)
         except Exception as e:
             print(f"Ошибка при выполнении хода: {e}")
-
