@@ -1,10 +1,12 @@
 import sqlite3
 
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.popup import Popup
-from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
 from kivy.uix.button import Button
+from kivy.uix.popup import Popup
+from kivy.graphics import Color, Rectangle
+
 
 from kivy.uix.scrollview import ScrollView
 
@@ -73,86 +75,6 @@ def update_results_table(db_connection, faction, units_combat, units_destroyed, 
         db_connection.rollback()
         print(f"Ошибка при обновлении таблицы results: {e}")
 
-
-def show_battle_report(report_data):
-    print('================================================================')
-    print('report_data', report_data)
-    print('================================================================')
-
-    content = BoxLayout(orientation='vertical')
-
-    # Создаем ScrollView для отображения таблиц
-    scroll_view = ScrollView()
-
-    # Создаем основной GridLayout для размещения таблиц
-    main_layout = BoxLayout(orientation='vertical', size_hint_y=None)
-    main_layout.bind(minimum_height=main_layout.setter('height'))
-
-    # Функция для создания таблицы с данными
-    def create_battle_table(side_data, title):
-        grid_layout = GridLayout(cols=4, size_hint_y=None)
-        grid_layout.bind(minimum_height=grid_layout.setter('height'))
-
-        # Заголовки таблицы
-        grid_layout.add_widget(Label(text="Тип Юнита", bold=True))
-        grid_layout.add_widget(Label(text="На начало боя", bold=True))
-        grid_layout.add_widget(Label(text="Потери", bold=True))
-        grid_layout.add_widget(Label(text="Осталось юнитов", bold=True))
-
-        # Заполнение данных
-        for unit_data in side_data:
-            grid_layout.add_widget(Label(text=unit_data['unit_name']))
-            grid_layout.add_widget(Label(text=str(unit_data["initial_count"])))
-            grid_layout.add_widget(Label(text=str(unit_data["losses"])))
-            grid_layout.add_widget(Label(text=str(unit_data["final_count"])))
-
-        return grid_layout
-
-    # Разделение данных по сторонам (атакующие и обороняющиеся)
-    attacking_data = [item for item in report_data if item['side'] == 'attacking']
-    defending_data = [item for item in report_data if item['side'] == 'defending']
-
-    # Создаем таблицы для атакующих и обороняющихся
-    attacking_table = create_battle_table(attacking_data, "атакующей стороны")
-    defending_table = create_battle_table(defending_data, "обороняющейся стороны")
-
-    # Добавляем таблицы в основной layout
-    main_layout.add_widget(attacking_table)
-    main_layout.add_widget(defending_table)
-
-    # Добавляем основной layout в ScrollView
-    scroll_view.add_widget(main_layout)
-    content.add_widget(scroll_view)
-
-    # Вычисление общих потерь
-    total_attacking_losses = sum(item['losses'] for item in attacking_data)
-    total_defending_losses = sum(item['losses'] for item in defending_data)
-
-    # Добавляем раздел для итоговых потерь
-    totals_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=100)
-    totals_layout.add_widget(Label(text="Общие потери:", bold=True, size_hint_y=None, height=30))
-
-    # Потери атакующей стороны
-    totals_layout.add_widget(
-        Label(text=f"Для атакующей стороны: {total_attacking_losses}", size_hint_y=None, height=30))
-
-    # Потери обороняющейся стороны
-    totals_layout.add_widget(
-        Label(text=f"Для обороняющейся стороны: {total_defending_losses}", size_hint_y=None, height=30))
-
-    # Добавляем итоговый блок в content
-    content.add_widget(totals_layout)
-
-    # Кнопка для закрытия окна
-    close_button = Button(text="Закрыть", size_hint_y=None, height=50)
-    close_button.bind(on_release=lambda instance: popup.dismiss())
-    content.add_widget(close_button)
-
-    # Открытие всплывающего окна
-    popup = Popup(title="Итоги боя", content=content, size_hint=(0.7, 0.7))
-    popup.open()
-
-
 def calculate_experience(losing_side, db_connection):
     experience_points = {
         '1': 0.5,
@@ -209,6 +131,147 @@ def calculate_experience(losing_side, db_connection):
         except Exception as e:
             db_connection.rollback()
             print(f"Ошибка при обновлении таблицы experience: {e}")
+
+def show_battle_report(report_data):
+    """
+    Отображает красивый отчет о бое с использованием возможностей Kivy.
+    :param report_data: Данные отчета о бое.
+    """
+    # Основной контейнер
+    content = BoxLayout(orientation='vertical', padding=10, spacing=10)
+
+    # Фон с градиентом
+    with content.canvas.before:
+        Color(0.1, 0.1, 0.1, 1)  # Темный фон
+        content.rect = Rectangle(size=content.size, pos=content.pos)
+        content.bind(pos=lambda inst, value: setattr(inst.rect, 'pos', value),
+                     size=lambda inst, value: setattr(inst.rect, 'size', value))
+
+    # Создаем ScrollView для таблиц
+    scroll_view = ScrollView()
+
+    # Основной макет для таблиц
+    main_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=10)
+    main_layout.bind(minimum_height=main_layout.setter('height'))
+
+    # Функция для создания таблицы с данными
+    def create_battle_table(side_data, title, side_color):
+        table_layout = GridLayout(cols=4, size_hint_y=None, spacing=5, padding=5)
+        table_layout.bind(minimum_height=table_layout.setter('height'))
+
+        # Заголовок таблицы (добавляем только если title не пустой)
+        if title:
+            header_label = Label(
+                text=f"[b][color={side_color}]{title}[/color][/b]",
+                markup=True,
+                size_hint_y=None,
+                height=40,
+                font_size=18,
+                color=(1, 1, 1, 1)
+            )
+            main_layout.add_widget(header_label)
+
+        # Заголовки столбцов
+        headers = ["Тип Юнита", "На начало боя", "Потери", "Осталось юнитов"]
+        for header in headers:
+            label = Label(
+                text=f"[b]{header}[/b]",
+                markup=True,
+                size_hint_y=None,
+                height=30,
+                color=(0.8, 0.8, 0.8, 1)
+            )
+            table_layout.add_widget(label)
+
+        # Заполнение данных
+        for unit_data in side_data:
+            table_layout.add_widget(Label(text=unit_data['unit_name'], size_hint_y=None, height=30))
+            table_layout.add_widget(Label(text=str(unit_data["initial_count"]), size_hint_y=None, height=30))
+            table_layout.add_widget(Label(text=str(unit_data["losses"]), size_hint_y=None, height=30))
+            table_layout.add_widget(Label(text=str(unit_data["final_count"]), size_hint_y=None, height=30))
+
+        return table_layout
+
+    # Разделение данных по сторонам
+    attacking_data = [item for item in report_data if item['side'] == 'attacking']
+    defending_data = [item for item in report_data if item['side'] == 'defending']
+
+    # Цвета для сторон
+    attacking_color = "#FF5733"  # Красный
+    defending_color = "#33FF57"  # Зеленый
+
+    # Определяем заголовки таблиц в зависимости от результата игрока
+    attacking_title = None
+    defending_title = None
+
+    if attacking_data and attacking_data[0]['result']:
+        attacking_title = attacking_data[0]['result']  # "Победа" или "Поражение"
+    if defending_data and defending_data[0]['result']:
+        defending_title = defending_data[0]['result']  # "Победа" или "Поражение"
+
+    # Создаем таблицы для атакующих и обороняющихся
+    attacking_table = create_battle_table(attacking_data, attacking_title, attacking_color)
+    defending_table = create_battle_table(defending_data, defending_title, defending_color)
+
+    # Добавляем таблицы в основной макет
+    main_layout.add_widget(attacking_table)
+    main_layout.add_widget(defending_table)
+
+    # Добавляем основной макет в ScrollView
+    scroll_view.add_widget(main_layout)
+    content.add_widget(scroll_view)
+
+    # Вычисление общих потерь
+    total_attacking_losses = sum(item['losses'] for item in attacking_data)
+    total_defending_losses = sum(item['losses'] for item in defending_data)
+
+    # Блок с итоговыми потерями
+    totals_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=120, spacing=5)
+    totals_label = Label(
+        text="[b]Общие потери:[/b]",
+        markup=True,
+        size_hint_y=None,
+        height=30,
+        font_size=16,
+        color=(1, 1, 1, 1)
+    )
+    totals_layout.add_widget(totals_label)
+
+    totals_layout.add_widget(Label(
+        text=f"Атакующая сторона: [color={attacking_color}]{total_attacking_losses}[/color]",
+        markup=True,
+        size_hint_y=None,
+        height=30
+    ))
+    totals_layout.add_widget(Label(
+        text=f"Обороняющаяся сторона: [color={defending_color}]{total_defending_losses}[/color]",
+        markup=True,
+        size_hint_y=None,
+        height=30
+    ))
+
+    content.add_widget(totals_layout)
+
+    # Кнопка закрытия окна
+    close_button = Button(
+        text="Закрыть",
+        size_hint_y=None,
+        height=50,
+        background_color=(0.2, 0.6, 1, 1),  # Синий цвет
+        color=(1, 1, 1, 1)
+    )
+    close_button.bind(on_release=lambda instance: popup.dismiss())
+    content.add_widget(close_button)
+
+    # Создаем всплывающее окно
+    popup = Popup(
+        title="Итоги боя",
+        content=content,
+        size_hint=(0.8, 0.8),
+        background_color=(0.1, 0.1, 0.1, 1)  # Темный фон окна
+    )
+    popup.open()
+
 
 
 def fight(attacking_city, defending_city, defending_army, attacking_army,
@@ -313,20 +376,32 @@ def fight(attacking_city, defending_city, defending_army, attacking_army,
 
     # Показываем единый отчёт при участии игрока
     if is_user_involved:
-        report_data = generate_battle_report(final_report_attacking, final_report_defending)
+        report_data = generate_battle_report(
+            final_report_attacking,
+            final_report_defending,
+            winner=winner,
+            attacking_fraction=attacking_fraction,
+            defending_fraction=defending_fraction,
+            user_faction=user_faction
+        )
         show_battle_report(report_data)
 
 
-def generate_battle_report(attacking_army, defending_army):
+def generate_battle_report(attacking_army, defending_army, winner, attacking_fraction, defending_fraction, user_faction):
     """
     Генерирует отчет о бое.
-    :param attacking_army: Данные об атакующей армии.
-    :param defending_army: Данные об обороняющейся армии.
+    :param attacking_army: Данные об атакующей армии (список словарей).
+    :param defending_army: Данные об обороняющейся армии (список словарей).
+    :param winner: Результат боя ('attacking' или 'defending').
+    :param attacking_fraction: Название атакующей фракции.
+    :param defending_fraction: Название обороняющейся фракции.
+    :param is_player_winner: Флаг, указывающий, выиграл ли игрок (True/False).
     :return: Отчет о бое (список словарей).
     """
+    global attacking_result, defending_result
     report_data = []
 
-    def process_army(army, side):
+    def process_army(army, side, result=None):
         for unit in army:
             initial_count = unit.get('initial_count', 0)
             final_count = unit['unit_count']
@@ -336,12 +411,34 @@ def generate_battle_report(attacking_army, defending_army):
                 'initial_count': initial_count,
                 'final_count': final_count,
                 'losses': losses,
-                'side': side
+                'side': side,
+                'result': result  # Добавляем результат только если он указан
             })
 
+    # Определяем результат только для фракции игрока
+    if user_faction:
+        if winner == 'attacking' and attacking_fraction == user_faction:
+            attacking_result = "Победа"
+            defending_result = None
+        elif winner == 'defending' and defending_fraction == user_faction:
+            attacking_result = None
+            defending_result = "Победа"
+        else:
+            # Игрок проиграл
+            if attacking_fraction == user_faction:
+                attacking_result = "Поражение"
+                defending_result = None
+            elif defending_fraction == user_faction:
+                attacking_result = None
+                defending_result = "Поражение"
+    else:
+        # Если игрок не участвует, результаты не нужны
+        attacking_result = None
+        defending_result = None
+
     # Обработка армий
-    process_army(attacking_army, 'attacking')
-    process_army(defending_army, 'defending')
+    process_army(attacking_army, 'attacking', attacking_result)
+    process_army(defending_army, 'defending', defending_result)
 
     return report_data
 
