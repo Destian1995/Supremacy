@@ -1345,11 +1345,26 @@ class AIController:
             print(f"Ошибка при поиске ближайшего города: {e}")
             return None
 
-    # Проверка relocate_units
     def relocate_units(self, from_city_name, to_city_name, unit_name, unit_count, unit_image):
         try:
+            # Проверяем, что города отправления и назначения разные
+            if from_city_name == to_city_name:
+                print(f"Передислокация в тот же город невозможна: {from_city_name}")
+                return
+
             print(f"Передислокация: из {from_city_name} в {to_city_name}")
-            print(f"  Юнит: {unit_name}, Количество: {unit_count}")
+            print(f" Юнит: {unit_name}, Количество: {unit_count}")
+
+            # Проверяем наличие юнитов в исходном городе
+            self.cursor.execute("""
+                SELECT unit_count FROM garrisons
+                WHERE city_id = ? AND unit_name = ?
+            """, (from_city_name, unit_name))
+            current_count = self.cursor.fetchone()
+
+            if not current_count or current_count[0] < unit_count:
+                print(f"Недостаточно юнитов {unit_name} в городе {from_city_name}")
+                return
 
             # Уменьшаем количество юнитов в исходном городе
             self.cursor.execute("""
@@ -1358,20 +1373,14 @@ class AIController:
                 WHERE city_id = ? AND unit_name = ?
             """, (unit_count, from_city_name, unit_name))
 
-            # Проверяем, сколько юнитов осталось
-            self.cursor.execute("""
-                SELECT unit_count FROM garrisons
-                WHERE city_id = ? AND unit_name = ?
-            """, (from_city_name, unit_name))
-            remaining = self.cursor.fetchone()
-            print(f"  Осталось в {from_city_name}: {remaining[0] if remaining else 0}")
-
-            # Увеличиваем количество юнитов в целевом городе
+            # Добавляем юниты в целевой город
             self.cursor.execute("""
                 INSERT INTO garrisons (city_id, unit_name, unit_count, unit_image)
                 VALUES (?, ?, ?, ?)
-                ON CONFLICT(city_id, unit_name) DO UPDATE SET unit_count = unit_count + ?
-            """, (to_city_name, unit_name, unit_count, unit_image, unit_count))
+                ON CONFLICT(city_id, unit_name) DO UPDATE SET
+                unit_count = unit_count + excluded.unit_count,
+                unit_image = excluded.unit_image
+            """, (to_city_name, unit_name, unit_count, unit_image))
 
             self.db_connection.commit()
             print(f"Передислокация {unit_count} юнитов {unit_name} из города {from_city_name} в город {to_city_name}.")
@@ -1413,70 +1422,36 @@ class AIController:
             return []
 
     def attack_city(self, city_name, faction):
-        """
-        Организует атаку на выбранный город через ближайший союзный город.
-        После успешной атаки:
-        - Размещает 30% сил с высокой защитой в захваченном городе.
-        - Отводит остальные войска обратно в ближайший союзный город.
-        """
         try:
-            # Шаг 1: Находим ближайший союзный город
+            # Находим ближайший союзный город для атаки
             allied_city = self.find_nearest_allied_city(self.faction)
             if not allied_city:
                 print("Не удалось найти ближайший союзный город.")
                 return
 
-            print(f"Ближайший союзный город для передислокации: {allied_city}")
-            # Отладочная информация о гарнизоне
-            self.cursor.execute("""
-                        SELECT g.unit_name, g.unit_count, u.attack, u.defense 
-                        FROM garrisons g
-                        JOIN units u ON g.unit_name = u.unit_name
-                        WHERE g.city_id = ? AND u.faction = ?
-                    """, (allied_city, self.faction))
-            all_units = self.cursor.fetchall()
-            print(f"Гарнизон города {allied_city}:")
-            for unit in all_units:
-                print(f"  {unit[0]}: {unit[1]} шт. (Атака: {unit[2]}, Защита: {unit[3]})")
-            # Шаг 2: Собираем войска для атаки
-            query = """
-                SELECT g.city_id, g.unit_name, g.unit_count, u.attack, u.defense, u.durability, u.unit_class
-                FROM garrisons g
-                JOIN units u ON g.unit_name = u.unit_name
-                WHERE g.city_id = ? AND u.faction = ? AND u.attack > u.defense
-            """
-            self.cursor.execute(query, (allied_city, self.faction))
-            attacking_army = [
-                {
-                    "city_id": row[0],
-                    "unit_name": row[1],
-                    "unit_count": int(row[2]),
-                    "unit_image": self.get_unit_image(row[1]),
-                    "units_stats": {
-                        "Урон": int(row[3]),
-                        "Защита": int(row[4]),
-                        "Живучесть": int(row[5]),
-                        "Класс юнита": row[6],
-                    },
-                }
-                for row in self.cursor.fetchall()
-            ]
+            print(f"Ближайший союзный город для атаки: {allied_city}")
 
-            if not attacking_army:
+            # Собираем все атакующие юниты из всех городов
+            attacking_units = self.collect_attacking_units()
+            if not attacking_units:
                 print("Нет подходящих юнитов для атаки.")
                 return
 
-            # Шаг 3: Передислоцируем войска в ближайший союзный город
-            for unit in attacking_army:
-                self.relocate_units(unit["city_id"], allied_city, unit["unit_name"], unit["unit_count"],
-                                    unit["unit_image"])
-            print(f"Войска успешно передислоцированы в город {allied_city}.")
+            # Передислоцируем юниты в ближайший союзный город
+            for unit in attacking_units:
+                self.relocate_units(
+                    from_city_name=unit["city_id"],
+                    to_city_name=allied_city,
+                    unit_name=unit["unit_name"],
+                    unit_count=unit["unit_count"],
+                    unit_image=unit["unit_image"]
+                )
 
-            # Шаг 4: Проверяем готовность войск к атаке
+            print(f"Все атакующие юниты передислоцированы в город {allied_city}.")
+
+            # Проверяем общую численность войск в городе атаки
             self.cursor.execute("""
-                SELECT SUM(unit_count)
-                FROM garrisons
-                WHERE city_id = ?
+                SELECT SUM(unit_count) FROM garrisons WHERE city_id = ?
             """, (allied_city,))
             total_units = self.cursor.fetchone()[0] or 0
 
@@ -1484,7 +1459,29 @@ class AIController:
                 print("Войска не готовы к атаке. Гарнизон пуст.")
                 return
 
-            # Шаг 5: Атакуем вражеский город
+            # Формируем армию для атаки
+            attacking_army = []
+            for unit in attacking_units:
+                self.cursor.execute("""
+                    SELECT attack, defense, durability, unit_class
+                    FROM units
+                    WHERE unit_name = ?
+                """, (unit["unit_name"],))
+                stats = self.cursor.fetchone()
+                if stats:
+                    attacking_army.append({
+                        "unit_name": unit["unit_name"],
+                        "unit_count": unit["unit_count"],
+                        "unit_image": unit["unit_image"],
+                        "units_stats": {
+                            "Урон": stats[0],
+                            "Защита": stats[1],
+                            "Живучесть": stats[2],
+                            "Класс юнита": stats[3],
+                        }
+                    })
+
+            # Атакуем вражеский город
             result = fight(
                 attacking_city=allied_city,
                 defending_city=city_name,
@@ -1494,13 +1491,13 @@ class AIController:
                 defending_fraction=faction,
                 db_connection=self.db_connection
             )
-
             print(f"Результат битвы: {result}")
+
             # Обработка результата битвы
             if result["winner"] == "attacker":
                 print(f"Атака на город {city_name} успешна!")
 
-                # Шаг 6: Распределяем войска после победы
+                # Распределяем войска после победы
                 defensive_units = []
                 remaining_units = []
 
@@ -1509,12 +1506,12 @@ class AIController:
                     unit_count = unit["unit_count"]
 
                     # Разделяем войска на оборонительные и атакующие
-                    if defense > 50:  # Выбираем юниты с высокой защитой
+                    if defense > 50:  # Юниты с высокой защитой
                         defensive_units.append(unit)
                     else:
                         remaining_units.append(unit)
 
-                # Шаг 7: Размещаем 30% сил с высокой защитой в захваченном городе
+                # Размещаем 30% сил с высокой защитой в захваченном городе
                 for unit in defensive_units:
                     defense_count = int(unit["unit_count"] * 0.3)
                     if defense_count > 0:
@@ -1523,7 +1520,7 @@ class AIController:
                         print(
                             f"Размещено {defense_count} юнитов '{unit['unit_name']}' в городе {city_name} для обороны.")
 
-                # Шаг 8: Отводим остальные войска обратно в союзный город
+                # Отводим остальные войска обратно в союзный город
                 for unit in remaining_units:
                     remaining_count = unit["unit_count"]
                     if remaining_count > 0:
@@ -1531,7 +1528,7 @@ class AIController:
                                             unit["unit_image"])
                         print(f"Отведено {remaining_count} юнитов '{unit['unit_name']}' обратно в город {allied_city}.")
 
-                # Шаг 9: Обновляем принадлежность города
+                # Обновляем принадлежность города
                 self.cursor.execute("""
                     UPDATE cities
                     SET faction = ?
@@ -1539,7 +1536,6 @@ class AIController:
                 """, (self.faction, city_name))
 
                 print(f"Город {city_name} захвачен и укреплен оборонительными войсками.")
-
             else:
                 print(f"Атака на город {city_name} провалилась.")
 
@@ -1991,10 +1987,6 @@ class AIController:
             print(f"Ошибка при атаке города: {e}")
 
     def collect_attacking_units(self):
-        """
-        Собирает атакующие юниты из всех городов текущей фракции.
-        :return: Список атакующих юнитов
-        """
         try:
             query = """
                 SELECT g.city_id, g.unit_name, g.unit_count, u.attack, g.unit_image
@@ -2004,17 +1996,16 @@ class AIController:
             """
             self.cursor.execute(query, (self.faction,))
             rows = self.cursor.fetchall()
-
             attacking_units = []
             for row in rows:
                 city_id, unit_name, unit_count, attack, unit_image = row
+                print(f"Собран атакующий юнит: {unit_name}, Количество: {unit_count}, Атака: {attack}")
                 attacking_units.append({
                     "city_id": city_id,
                     "unit_name": unit_name,
                     "unit_count": unit_count,
-                    "unit_image": unit_image
+                    "unit_image": unit_image,
                 })
-
             return attacking_units
         except sqlite3.Error as e:
             print(f"Ошибка при сборе атакующих юнитов: {e}")
