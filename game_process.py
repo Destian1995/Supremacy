@@ -1,5 +1,6 @@
 import os
-
+from kivy.metrics import dp, sp
+from kivy.utils import platform
 from kivy.app import App
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.button import Button
@@ -9,7 +10,7 @@ from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import Screen
 from kivy.uix.image import Image
 from kivy.uix.behaviors import ButtonBehavior
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Color, Rectangle, RoundedRectangle
 from kivy.clock import Clock
 import economic
 # Файл, который включает режимы игры
@@ -22,7 +23,59 @@ from event_manager import EventManager
 import sqlite3
 import random
 from results_game import ResultsGame
+# Добавим в начало файла
+from kivy.core.text import LabelBase
+from kivy.properties import ListProperty, NumericProperty, StringProperty
+from kivy.lang import Builder
+from kivy.animation import Animation
 
+
+# Новые кастомные виджеты
+class ModernButton(Button):
+    bg_color = ListProperty([0.11, 0.15, 0.21, 1])
+
+
+class ResourceCard(BoxLayout):
+    text = StringProperty('')
+    icon = StringProperty('')
+    bg_color = ListProperty([0.16, 0.20, 0.27, 0.9])
+
+def parse_formatted_number(formatted_str):
+    """Преобразует отформатированную строку с приставкой обратно в число"""
+    # Словарь множителей для приставок
+    multipliers = {
+        'тыс': 1e3,
+        'млн': 1e6,
+        'млрд': 1e9,
+        'трлн': 1e12,
+        'квадр': 1e15,
+        'квинт': 1e18,
+        'секст': 1e21,
+        'септил': 1e24,
+        'октил': 1e27,
+        'нонил': 1e30,
+        'децил': 1e33,
+        'андец': 1e36
+    }
+
+    try:
+        # Удаляем лишние символы и разбиваем на части
+        parts = formatted_str.replace(',', '.').replace('.', '', 1).split()
+        number_part = parts[0]
+        suffix = parts[1].rstrip('.').lower() if len(parts) > 1 else ''
+
+        # Парсим числовую часть
+        base_value = float(number_part)
+
+        # Находим соответствующий множитель
+        for key in multipliers:
+            if suffix.startswith(key.lower()):
+                return base_value * multipliers[key]
+
+        return base_value
+
+    except (ValueError, IndexError, AttributeError):
+        return float('nan')  # Возвращаем NaN при ошибке парсинга
 
 # Список всех фракций
 FACTIONS = ["Аркадия", "Селестия", "Хиперион", "Халидон", "Этерия"]
@@ -92,66 +145,89 @@ class GameStateManager:
             self.conn.close()
 
 
+
 class ResourceBox(BoxLayout):
     def __init__(self, resource_manager, **kwargs):
         super(ResourceBox, self).__init__(**kwargs)
         self.resource_manager = resource_manager
-        self.orientation = 'vertical'  # Вертикальное расположение ресурсов
-        self.size_hint = (0.2, 0.3)  # Занимает 20% ширины и 30% высоты экрана
-        self.pos_hint = {'x': 0, 'top': 1}  # Расположен в левом верхнем углу
-        self.padding = [10, 10, 10, 10]  # Внешние отступы
-        self.spacing = 5  # Расстояние между метками
+        self.orientation = 'vertical'
+        self.spacing = dp(5)
+        self.padding = [dp(15), dp(25), dp(15), dp(25)]
+        self.size_hint = (0.25, 0.35)
+        self.pos_hint = {'x': 0, 'top': 1}  # Изменено позиционирование
+
+        # Адаптивные размеры для мобильных устройств
+        if platform == 'android':
+            self.size_hint = (0.35, 0.4) if App.get_running_app().is_mobile else (0.25, 0.35)
+        else:
+            self.size_hint = (0.25, 0.35)
+
+        self.pos_hint = {'x': 0, 'top': 1}
+
         with self.canvas.before:
-            Color(0.15, 0.15, 0.15, 1)  # Темно-серый фон
-            self.rect = Rectangle(size=self.size, pos=self.pos)
-        self.bind(size=self.update_rect, pos=self.update_rect)
-        # Сохраняем метки для ресурсов, чтобы обновлять их при изменении значений
+            self.bg_color = Color(0.11, 0.15, 0.21, 0.9)
+            self.rect = RoundedRectangle(radius=[25])
+        self.bind(pos=self.update_rect, size=self.update_rect)
+
         self.labels = {}
         self.update_resources()
-        # Связываем изменение размеров виджета с обновлением шрифтов
         self.bind(size=self.update_font_sizes)
 
     def update_rect(self, *args):
-        """Обновление размеров и позиции прямоугольника фона."""
         self.rect.size = self.size
         self.rect.pos = self.pos
 
     def update_resources(self):
-        """Обновление отображаемых ресурсов."""
         resources = self.resource_manager.get_resources()
-        # Очищаем старые виджеты
         self.clear_widgets()
         self.labels.clear()
-        # Добавляем новые метки для ресурсов
-        for resource_name, value in resources.items():
+
+        for resource_name, formatted_value in resources.items():
+            try:
+                # Парсим значение из отформатированной строки
+                numeric_value = parse_formatted_number(formatted_value)
+
+                # Определяем цвет текста
+                if numeric_value < 0:
+                    text_color = (1, 0, 0, 1)  # Красный для отрицательных
+                else:
+                    text_color = (1, 1, 1, 1)  # Белый для остальных
+
+                # Сохраняем оригинальный формат
+                display_value = formatted_value
+
+            except (TypeError, ValueError):
+                # Если значение не числовое
+                text_color = (1, 1, 1, 1)
+                display_value = formatted_value
+
             label = Label(
-                text=f"{resource_name}: {value}",
+                text=f"{resource_name}: {display_value}",
                 size_hint_y=None,
                 height=self.calculate_label_height(),
                 font_size=self.calculate_font_size(),
-                color=(1, 1, 1, 1),  # Белый цвет текста
-                markup=True  # Поддержка форматирования текста
+                color=text_color,
+                font_name='Arial',
+                bold=True,
+                markup=True
             )
             self.labels[resource_name] = label
             self.add_widget(label)
 
     def calculate_font_size(self):
-        """Расчет размера шрифта на основе высоты виджета."""
-        base_font_size = 16  # Базовый размер шрифта
-        scale_factor = self.height / 800  # Масштабирование относительно высоты экрана
-        return max(base_font_size * scale_factor, 12)  # Минимальный размер шрифта
+        # Увеличим базовый размер для лучшей читаемости
+        base_font_size = sp(18) if platform == 'android' else sp(20)
+        scale_factor = min(self.height / 800, self.width / 600)
+        return max(base_font_size * scale_factor, sp(12))
 
     def calculate_label_height(self):
-        """Расчет высоты метки на основе размера шрифта."""
-        return self.calculate_font_size() * 2  # Высота метки в два раза больше размера шрифта
+        return self.calculate_font_size() * 2
 
     def update_font_sizes(self, *args):
-        """Обновление размеров шрифтов всех меток при изменении размеров виджета."""
         new_font_size = self.calculate_font_size()
         for label in self.labels.values():
             label.font_size = new_font_size
             label.height = self.calculate_label_height()
-
 
 # Класс для кнопки с изображением
 class ImageButton(ButtonBehavior, Image):
