@@ -1347,16 +1347,10 @@ class AIController:
 
     def relocate_units(self, from_city_name, to_city_name, unit_name, unit_count, unit_image):
         try:
-            print('from_city_name ', from_city_name, ' to_city_name ', to_city_name, ' unit_name ', unit_name,
-                  ' unit_count ', unit_count)
-
-            # Проверяем, что города отправления и назначения разные
+            # Проверяем, что города разные
             if from_city_name == to_city_name:
                 print(f"Передислокация в тот же город невозможна: {from_city_name}")
                 return
-
-            print(f"Передислокация: из {from_city_name} в {to_city_name}")
-            print(f" Юнит: {unit_name}, Количество: {unit_count}")
 
             # Уменьшаем количество юнитов в исходном городе
             self.cursor.execute("""
@@ -1380,11 +1374,55 @@ class AIController:
                 unit_image = excluded.unit_image
             """, (to_city_name, unit_name, unit_count, unit_image))
 
-            # Фиксируем изменения
             self.db_connection.commit()
-            print(f"Передислокация {unit_count} юнитов {unit_name} из города {from_city_name} в город {to_city_name}.")
+            print(f"Передислокация {unit_count} юнитов {unit_name} из {from_city_name} в {to_city_name} выполнена.")
         except sqlite3.Error as e:
-            print(f"Ошибка при передислокации юнитов: {e}")
+            print(f"Ошибка при передислокации: {e}")
+
+    def launch_attack_on_city(self, city_name, faction):
+        try:
+            attacking_units = self.collect_attacking_units()
+            if not attacking_units:
+                print("Нет атакующих юнитов.")
+                return
+
+            total_units = sum(unit["unit_count"] for unit in attacking_units)
+            units_to_attack = int(total_units * 0.6)
+            remaining_units = units_to_attack
+
+            attack_army = []
+            for unit in attacking_units:
+                if remaining_units <= 0:
+                    break
+                # Берем все доступные юниты из города, если нужно
+                take_units = min(unit["unit_count"], remaining_units)
+                attack_army.append({
+                    "city_id": unit["city_id"],
+                    "unit_name": unit["unit_name"],
+                    "unit_count": take_units,
+                    "unit_image": unit["unit_image"]
+                })
+                remaining_units -= take_units
+
+            # Передислоцируем все собранные юниты в союзный город
+            allied_city = self.find_nearest_allied_city(self.faction)
+            if not allied_city:
+                print("Союзный город не найден.")
+                return
+
+            for unit in attack_army:
+                self.relocate_units(
+                    from_city_name=unit["city_id"],
+                    to_city_name=allied_city,
+                    unit_name=unit["unit_name"],
+                    unit_count=unit["unit_count"],
+                    unit_image=unit["unit_image"]
+                )
+
+            # Атакуем город
+            self.attack_city(city_name, faction)
+        except Exception as e:
+            print(f"Ошибка при атаке: {e}")
 
     def get_defending_army(self, city_name):
         """
@@ -1945,45 +1983,6 @@ class AIController:
             print(f"Ошибка при обработке данных: {ve}")
             return []
 
-    def launch_attack_on_city(self, city_name, faction):
-        """
-        Атакует указанный город 60% атакующих юнитов.
-        :param city_name: Название города
-        :param faction: Название целевой фракции
-        """
-        print('---------launch_attack_on_city')
-        try:
-            # Собираем атакующие юниты из всех городов текущей фракции
-            attacking_units = self.collect_attacking_units()
-
-            if not attacking_units:
-                print("Нет доступных атакующих юнитов для атаки.")
-                return
-
-            # Вычисляем 60% от общего количества атакующих юнитов
-            total_units = sum(unit["unit_count"] for unit in attacking_units)
-            units_to_attack = int(total_units * 0.6)
-
-            # Распределяем юниты между городами
-            attack_army = []
-            remaining_units = units_to_attack
-            for unit in attacking_units:
-                if remaining_units <= 0:
-                    break
-                units_from_this = min(unit["unit_count"], remaining_units)
-                attack_army.append({
-                    "unit_name": unit["unit_name"],
-                    "unit_count": units_from_this,
-                    "unit_image": unit["unit_image"]
-                })
-                remaining_units -= units_from_this
-
-            # Атакуем указанный город
-            self.attack_city(city_name, faction)
-
-            print(f"Атакован город {city_name} с использованием {units_to_attack} атакующих юнитов.")
-        except Exception as e:
-            print(f"Ошибка при атаке города: {e}")
 
     def collect_attacking_units(self):
         try:
