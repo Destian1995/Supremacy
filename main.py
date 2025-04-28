@@ -738,27 +738,22 @@ class KingdomSelectionWidget(FloatLayout):
 
     def start_game(self, instance):
         # Очистка старых данных из БД
-        # Подключение к базе данных
         conn = sqlite3.connect('game_data.db')
         clear_tables(conn)
-        # Закрытие соединения
         conn.close()
-        # Загрузка дампа дефолтных файлов.
+
+        # Восстановление из backup
         restore_from_backup()
-        # housekeeping()
+
         app = App.get_running_app()
         selected_kingdom = app.selected_kingdom
-        if selected_kingdom is None:
-            print("Фракция не выбрана. Пожалуйста, выберите фракцию перед началом игры.")
-            return
 
-        if selected_kingdom is None:
+        if not selected_kingdom:
             print("Фракция не выбрана. Пожалуйста, выберите фракцию перед началом игры.")
             return
 
         # Загружаем данные из базы данных
         cities = load_cities_from_db(selected_kingdom)
-
         if not cities:
             print("Для выбранного княжества не найдено городов.")
             return
@@ -766,8 +761,10 @@ class KingdomSelectionWidget(FloatLayout):
         # Передаем выбранное княжество на новый экран игры
         game_screen = GameScreen(selected_kingdom, cities)
         app.root.clear_widgets()
-        app.root.add_widget(MapWidget(selected_kingdom=selected_kingdom,
-                                      player_kingdom=selected_kingdom))  # Передаем выбранное княжество
+
+        # Создаем MapWidget с правильными параметрами
+        map_widget = MapWidget(selected_kingdom=selected_kingdom, player_kingdom=selected_kingdom)
+        app.root.add_widget(map_widget)
         app.root.add_widget(game_screen)
 
 
@@ -780,6 +777,41 @@ class EmpireApp(App):
     def build(self):
         return MenuWidget()  # Возвращаем виджет главного меню
 
+    def restart_app(self):
+        # Явное закрытие всех соединений с базой данных
+        conn = sqlite3.connect('game_data.db')
+        clear_tables(conn)
+        conn.close()
+
+        # Восстановление из бэкапа
+        restore_from_backup()
+
+        # Сброс состояния приложения
+        self.selected_kingdom = None
+
+        # Полная очистка корневого виджета
+        self.root.clear_widgets()
+
+        # Пересоздание главного меню
+        Clock.schedule_once(self.recreate_main_menu, 0.2)
+
+    def recreate_main_menu(self, dt):
+        self.root.add_widget(MenuWidget())
+        print("Главное меню полностью пересоздано")
+
+    def show_main_menu(self):
+        """Отображение главного меню"""
+        menu_widget = MenuWidget()
+        self.root.add_widget(menu_widget)
+        print("Главное меню показано.")
+
+    def on_stop(self):
+        # Закрываем все соединения при завершении
+        for child in self.root.children:
+            if hasattr(child, 'game_process'):
+                child.game_process.close_connection()
+            if hasattr(child, 'results_game'):
+                child.results_game.close_connection()
 
 if __name__ == '__main__':
     EmpireApp().run()  # Запуск приложения

@@ -1,5 +1,6 @@
 import sqlite3
 
+from kivy.clock import Clock
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
@@ -26,8 +27,11 @@ class ResultsGame:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM results')
         results = cursor.fetchall()
-        conn.close()
         return results
+
+    def close_connection(self):
+        if hasattr(self, 'conn') and self.conn:
+            self.conn.close()
 
     def calculate_results(self):
         """
@@ -71,8 +75,6 @@ class ResultsGame:
                     "units_killed": units_killed,
                     "army_efficiency_ratio": army_efficiency_ratio,
                     "average_deal_ratio": average_deal_ratio,
-                    "average_net_profit_coins": average_net_profit_coins,
-                    "average_net_profit_raw": average_net_profit_raw,
                     "economic_efficiency": economic_efficiency,
                     "faction": faction,
                 }
@@ -116,36 +118,32 @@ class ResultsGame:
         """
         layout = FloatLayout(size=Window.size)
 
-        # Фоновое оформление
         with layout.canvas.before:
-            Color(0.15, 0.15, 0.15, 1)  # Темно-серый фон
+            Color(0.15, 0.15, 0.15, 1)
             self.rect = Rectangle(pos=layout.pos, size=layout.size)
 
-        # Заголовок
         title_label = Label(
             text=title,
-            font_size=Window.width * 0.05,  # Размер шрифта зависит от ширины экрана
-            color=(1, 1, 1, 1),  # Белый текст
+            font_size=Window.width * 0.05,
+            color=(1, 1, 1, 1),
             pos_hint={"center_x": 0.5, "top": 0.95},
             size_hint=(None, None),
         )
 
-        # ScrollView для таблицы
         scroll_view = ScrollView(
-            size_hint=(0.9, 0.7),  # Занимает 90% ширины и 70% высоты экрана
+            size_hint=(0.9, 0.7),
             pos_hint={"center_x": 0.5, "center_y": 0.5},
         )
 
-        # GridLayout для таблицы
+        # Исправлено: 7 столбцов вместо 9
         table_layout = GridLayout(
-            cols=9,  # Девять столбцов: все параметры
-            size_hint_y=None,  # Высота будет зависеть от содержимого
-            spacing=Window.width * 0.01,  # Интервал между ячейками (1% ширины экрана)
-            padding=Window.width * 0.02,  # Отступы вокруг таблицы (2% ширины экрана)
+            cols=7,
+            size_hint_y=None,
+            spacing=Window.width * 0.01,
+            padding=Window.width * 0.02,
         )
-        table_layout.bind(minimum_height=table_layout.setter("height"))  # Автоматическая высота
+        table_layout.bind(minimum_height=table_layout.setter("height"))
 
-        # Заголовки таблицы
         headers = [
             "Фракция",
             "Боевые ед.",
@@ -153,11 +151,10 @@ class ResultsGame:
             "Убито",
             "Рейтинг Армии",
             "Торговый рейтинг",
-            "Доход монет",
-            "Доход сырья",
             "Рейтинг Экономики"
         ]
-        font_size_headers = Window.width * 0.02  # Размер шрифта заголовков
+
+        font_size_headers = Window.width * 0.02
         for header in headers:
             table_layout.add_widget(Label(
                 text=header,
@@ -165,35 +162,25 @@ class ResultsGame:
                 bold=True,
                 font_size=font_size_headers,
                 size_hint_y=None,
-                height=Window.height * 0.05  # Высота строки заголовков (5% высоты экрана)
+                height=Window.height * 0.05
             ))
 
-        # Добавляем данные в таблицу
-        font_size_data = Window.width * 0.02  # Размер шрифта данных
-        row_height = Window.height * 0.04  # Высота строки данных (4% высоты экрана)
-        for res in results:
-            faction = res["faction"]
-            units_combat = res["units_combat"]
-            units_destroyed = res["units_destroyed"]
-            units_killed = res["units_killed"]
-            army_efficiency_ratio = res["army_efficiency_ratio"]
-            average_deal_ratio = res["average_deal_ratio"]
-            average_net_profit_coins = res["average_net_profit_coins"]
-            average_net_profit_raw = res["average_net_profit_raw"]
-            economic_efficiency = res["economic_efficiency"]
+        font_size_data = Window.width * 0.02
+        row_height = Window.height * 0.04
 
-            # Добавляем значения в таблицу
-            for value in [
-                faction,
-                str(units_combat),
-                str(units_destroyed),
-                str(units_killed),
-                str(army_efficiency_ratio),
-                str(average_deal_ratio),
-                str(average_net_profit_coins),
-                str(average_net_profit_raw),
-                str(economic_efficiency)
-            ]:
+        for res in results:
+            # Отбираем только нужные поля
+            row_data = [
+                res["faction"],
+                str(res["units_combat"]),
+                str(res["units_destroyed"]),
+                str(res["units_killed"]),
+                str(res["army_efficiency_ratio"]),
+                str(res["average_deal_ratio"]),
+                str(res["economic_efficiency"])
+            ]
+
+            for value in row_data:
                 table_layout.add_widget(Label(
                     text=value,
                     color=(1, 1, 1, 1),
@@ -202,36 +189,22 @@ class ResultsGame:
                     height=row_height
                 ))
 
-        # Добавляем таблицу в ScrollView
         scroll_view.add_widget(table_layout)
 
-        # Кнопка "Выход в главное меню"
         main_menu_button = Button(
             text="Выход в главное меню",
-            font_size=Window.width * 0.03,  # Размер шрифта кнопки (3% ширины экрана)
-            background_color=(0.2, 0.6, 1, 1),  # Синий цвет
+            font_size=Window.width * 0.03,
+            background_color=(0.2, 0.6, 1, 1),
             pos_hint={"center_x": 0.3, "y": 0.05},
             size_hint=(0.3, 0.1),
         )
         main_menu_button.bind(on_press=self.exit_to_main_menu)
 
-        # Кнопка "Выход из игры"
-        exit_game_button = Button(
-            text="Выход из игры",
-            font_size=Window.width * 0.03,  # Размер шрифта кнопки (3% ширины экрана)
-            background_color=(1, 0.2, 0.2, 1),  # Красный цвет
-            pos_hint={"center_x": 0.7, "y": 0.05},
-            size_hint=(0.3, 0.1),
-        )
-        exit_game_button.bind(on_press=self.exit_game)
-
-        # Добавляем виджеты в layout
         layout.add_widget(title_label)
         layout.add_widget(scroll_view)
         layout.add_widget(main_menu_button)
-        layout.add_widget(exit_game_button)
 
-        # Создаем полноэкранное окно
+
         popup = Popup(
             title="",
             content=layout,
@@ -239,34 +212,24 @@ class ResultsGame:
             auto_dismiss=False,
         )
 
-        # Добавляем возможность закрыть окно по нажатию на кнопки
         main_menu_button.bind(on_press=popup.dismiss)
-        exit_game_button.bind(on_press=popup.dismiss)
-
+        self.popup = popup  # Сохраняем ссылку на попап
         popup.open()
 
-
     def exit_to_main_menu(self, instance):
-        """
-        Выход в главное меню.
-        """
-        print("Переход в главное меню...")
+        self.close_connection()
         app = App.get_running_app()
 
-        # Очищаем текущие виджеты
+        # Закрываем все попапы
+        if hasattr(self, 'popup') and self.popup:
+            self.popup.dismiss()
+
+        # Полная перезагрузка приложения
+        app.restart_app()
+
+        # Принудительная очистка виджетов
         app.root.clear_widgets()
-
-        # Создаем и добавляем виджет главного меню
-        from main import MenuWidget  # Импортируем экран главного меню
-        app.root.add_widget(MenuWidget())
-
-
-    def exit_game(self, instance):
-        """
-        Выход из игры.
-        """
-        print("Выход из игры...")
-        App.get_running_app().stop()  # Завершаем приложение
+        Clock.schedule_once(lambda dt: app.show_main_menu(), 0.1)
 
 
     def analyze_results(self, faction_name, status, reason):

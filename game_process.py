@@ -1,9 +1,11 @@
 import os
 
+from kivy.app import App
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import Screen
 from kivy.uix.image import Image
 from kivy.uix.behaviors import ButtonBehavior
@@ -20,6 +22,7 @@ from event_manager import EventManager
 import sqlite3
 import random
 from results_game import ResultsGame
+
 
 # Список всех фракций
 FACTIONS = ["Аркадия", "Селестия", "Хиперион", "Халидон", "Этерия"]
@@ -183,13 +186,24 @@ class GameScreen(Screen):
         Clock.schedule_interval(self.update_cash, 1)
 
     def init_ui(self):
-        # Панель с выбранной фракцией
+
+        exit_button = Button(
+            text="Выход",
+            size_hint=(None, None),
+            size=(100, 43),
+            pos_hint={'right': 0.57, 'top': 1},
+            background_color=(0.9, 0.2, 0.2, 1)
+        )
+        exit_button.bind(on_press=lambda x: self.confirm_exit())
+        self.add_widget(exit_button)
+
+        # Название фракции - размещаем ПОД кнопкой выхода
         self.faction_label = Label(
             text=f"{self.selected_faction}",
             font_size='30sp',
             size_hint=(1, 0.1),
-            pos_hint={'right': 1, 'top': 0.95},
-            color=(0, 0, 0, 1)  # Черный цвет текста
+            pos_hint={'right': 1, 'top': 0.9},
+            color=(0, 0, 0, 1)
         )
         self.add_widget(self.faction_label)
 
@@ -293,10 +307,10 @@ class GameScreen(Screen):
                 status = "win"  # Условия победы
             else:
                 status = "lose"  # Условия поражения
-
             # Запускаем модуль results_game для обработки результатов
             results_game_instance = ResultsGame(status, reason)  # Создаем экземпляр класса ResultsGame
             results_game_instance.show_results(self.selected_faction, status, reason)
+            App.get_running_app().restart_app()  # Добавляем прямой вызов перезагрузки
             return  # Прерываем выполнение дальнейших действий
 
         # Выполнение хода для всех ИИ
@@ -314,6 +328,29 @@ class GameScreen(Screen):
         if self.turn_counter % self.event_now == 0:
             print("Генерация события...")
             self.event_manager.generate_event(self.turn_counter)
+
+    def confirm_exit(self):
+        # Создаем контент попапа
+        content = BoxLayout(orientation='vertical', spacing=10)
+        message = Label(text="Вы точно хотите выйти?")
+        btn_yes = Button(text="Да", size_hint=(1, 0.4))
+        btn_no = Button(text="Нет", size_hint=(1, 0.4))
+
+        # Создаем попап
+        popup = Popup(
+            title="Подтверждение выхода",
+            content=content,
+            size_hint=(0.5, 0.4)
+        )
+
+        # Назначаем действия кнопкам
+        btn_yes.bind(on_press=lambda x: (popup.dismiss(), App.get_running_app().restart_app()))
+        btn_no.bind(on_press=popup.dismiss)
+
+        content.add_widget(message)
+        content.add_widget(btn_yes)
+        content.add_widget(btn_no)
+        popup.open()
 
     def initialize_political_data(self):
         """
