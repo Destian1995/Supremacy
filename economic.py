@@ -809,12 +809,12 @@ class Faction:
             # Применяем бонусы к ресурсам
             system = self.load_political_system()
             if system == "Капитализм":
-                # +55% Крон от общего прироста
-                crowns_bonus = int(self.money_up * 0.55)
+                # +255% Крон от общего прироста
+                crowns_bonus = int(self.money_up * 2.55)
                 self.money += crowns_bonus
             elif system == "Коммунизм":
-                # +65% Сырья от общего прироста
-                raw_material_bonus = int(self.food_info * 0.65)
+                # +365% Сырья от общего прироста
+                raw_material_bonus = int(self.food_info * 3.65)
                 self.raw_material += raw_material_bonus
 
             # Изменяем отношения с другими фракциями каждые 4 хода
