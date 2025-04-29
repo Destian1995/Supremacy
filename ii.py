@@ -1291,7 +1291,6 @@ class AIController:
 
             # Находим ближайший союзный город с учетом ограничения по дистанции
             nearest_city = None
-            min_distance = float('inf')
             for our_city_name, our_coords in our_cities:
                 our_coords = our_coords.strip("[]")  # Убираем [ и ]
                 our_x, our_y = map(int, our_coords.split(','))
@@ -1299,8 +1298,7 @@ class AIController:
                     allied_coords = allied_coords.strip("[]")  # Убираем [ и ]
                     allied_x, allied_y = map(int, allied_coords.split(','))
                     distance = ((our_x - allied_x) ** 2 + (our_y - allied_y) ** 2) ** 0.5
-                    if distance <= 225 and distance < min_distance:
-                        min_distance = distance
+                    if distance <= 225:
                         nearest_city = allied_city_name
             return nearest_city
         except sqlite3.Error as e:
@@ -1326,8 +1324,6 @@ class AIController:
 
             # Находим ближайший город с учетом ограничения по дистанции
             nearest_city = None
-            min_distance = float('inf')
-
             for our_city_name, our_coords in our_cities:
                 our_coords = our_coords.strip("[]")  # Убираем [ и ]
                 our_x, our_y = map(int, our_coords.split(','))
@@ -1335,8 +1331,7 @@ class AIController:
                     enemy_coords = enemy_coords.strip("[]")  # Убираем [ и ]
                     enemy_x, enemy_y = map(int, enemy_coords.split(','))
                     distance = ((our_x - enemy_x) ** 2 + (our_y - enemy_y) ** 2) ** 0.5
-                    if distance <= 225 and distance < min_distance:
-                        min_distance = distance
+                    if distance <= 225:
                         nearest_city = enemy_city_name
 
             return nearest_city

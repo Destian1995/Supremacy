@@ -1109,13 +1109,13 @@ class AdvisorView(FloatLayout):
     def calculate_bonus(self, points):
         bonus = 0
         if points >= 1:
-            bonus += min(points, 4) * 10
-        if points >= 5:
-            bonus += (min(points, 6) - 4) * 25
+            bonus += min(points, 3) * 17
+        if points >= 4:
+            bonus += (min(points, 5) - 4) * 38
         if points >= 7:
-            bonus += (min(points, 9) - 6) * 50
+            bonus += (min(points, 9) - 6) * 190
         if points == 10:
-            bonus += 100
+            bonus += 600
         return bonus
 
     def calculate_battle_score_from_db(self):

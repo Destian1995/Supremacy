@@ -158,7 +158,6 @@ def clear_tables(conn):
         "garrisons",
         "resources",
         "trade_agreements",
-        "weapons",
         "turn",
         "armies",
         "political_systems",
@@ -184,49 +183,6 @@ def clear_tables(conn):
         print(f"Ошибка при очистке таблиц: {e}")
         conn.rollback()  # Откат изменений в случае ошибки
 
-
-class HallOfFameWidget(FloatLayout):
-    def __init__(self, **kwargs):
-        super(HallOfFameWidget, self).__init__(**kwargs)
-        self.add_widget(Image(source='files/slava.jpg', allow_stretch=True, keep_ratio=False))  # Фон зала славы
-
-        # Заголовок
-        title = Label(text="[b][color=000000]Зал славы[/color][/b]", font_size='40sp', markup=True,
-                      size_hint=(1, 0.2), pos_hint={'center_x': 0.5, 'center_y': 0.9})
-        self.add_widget(title)
-
-        # Поле для вывода лучших результатов
-        self.results_label = Label(text=self.get_top_scores(), font_size='30sp', markup=True, halign="center",
-                                   size_hint=(0.8, 0.6), pos_hint={'center_x': 0.5, 'center_y': 0.5},
-                                   color=(0, 0, 0, 5))
-        self.add_widget(self.results_label)
-
-        # Кнопка "Назад"
-        btn_back = Button(text="Назад", size_hint=(0.3, 0.1), pos_hint={'center_x': 0.5, 'center_y': 0.1},
-                          background_normal='', background_color=(0, 0, 0, 1))
-        btn_back.bind(on_press=self.go_back)
-        self.add_widget(btn_back)
-
-    def get_top_scores(self):
-        # Заглушка для топ-10 лучших результатов, можно заменить на реальную логику
-        top_scores = [
-            "1. Игрок1 - 9999 очков",
-            "2. Игрок2 - 9500 очков",
-            "3. Игрок3 - 9200 очков",
-            "4. Игрок4 - 9000 очков",
-            "5. Игрок5 - 8900 очков",
-            "6. Игрок6 - 8700 очков",
-            "7. Игрок7 - 8500 очков",
-            "8. Игрок8 - 8300 очков",
-            "9. Игрок9 - 8000 очков",
-            "10. Игрок10 - 7800 очков",
-        ]
-        return "\n".join(top_scores)
-
-    def go_back(self, instance):
-        app = App.get_running_app()
-        app.root.clear_widgets()
-        app.root.add_widget(MenuWidget())
 
 
 class MapWidget(Widget):
@@ -471,7 +427,7 @@ class MenuWidget(FloatLayout):
 
         # Заголовок
         self.title = Label(
-            text="[b][color=FFFFFF]Превосходство[/color][/b]",
+            text="[b][color=FFFFFF]Лэрдон[/color][/b]",
             font_size='40sp',
             markup=True,
             size_hint=(1, 0.2),
@@ -561,12 +517,12 @@ class MenuWidget(FloatLayout):
 
     def change_title_color(self, faction):
         """
-        Изменяет цвет заголовка "Превосходство" в зависимости от фракции.
+        Изменяет цвет заголовка "Лэрдон" в зависимости от фракции.
         :param faction: Название фракции
         """
         color = self.faction_colors.get(faction, (1, 1, 1, 1))  # По умолчанию белый
         self.title.color = color
-        self.title.text = f"[b][color={self.rgb_to_hex(color)}]Превосходство[/color][/b]"
+        self.title.text = f"[b][color={self.rgb_to_hex(color)}]Лэрдон[/color][/b]"
 
     def rgb_to_hex(self, rgba):
         """
