@@ -2010,11 +2010,11 @@ class AIController:
         """
         system = self.load_political_system()
         if system == "Капитализм":
-            crowns_bonus = int(self.money_up * 0.15)
+            crowns_bonus = int(self.money_up * 1.65)
             self.resources['Кроны'] = int(self.resources.get('Кроны', 0)) + crowns_bonus
             print(f"Бонус от капитализма: +{crowns_bonus} Крон")
         elif system == "Коммунизм":
-            raw_material_bonus = int(self.food_info * 0.15)
+            raw_material_bonus = int(self.food_info * 2.25)
             self.resources['Сырье'] = int(self.resources.get('Сырье', 0)) + raw_material_bonus
             print(f"Бонус от коммунизма: +{raw_material_bonus} Сырья")
 
