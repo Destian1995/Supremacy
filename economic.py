@@ -1173,28 +1173,32 @@ class Faction:
 
     def check_all_relations_high(self):
         """
-        Проверяет, превышают ли все отношения текущей фракции с другими фракциями 95%.
-        :return: True, если все отношения > 95%, иначе False.
+        Проверяет, превышают ли все отношения текущей фракции с НЕУНИЧТОЖЕННЫМИ фракциями 95%.
+        :return: True, если все активные отношения > 95%, иначе False.
         """
         try:
-            # Загружаем текущие отношения из таблицы relations
+            # Добавляем JOIN с таблицей diplomacies для фильтрации уничтоженных фракций
             self.cursor.execute('''
-                SELECT faction2, relationship
-                FROM relations
-                WHERE faction1 = ?
+                SELECT r.faction2, r.relationship
+                FROM relations r
+                JOIN diplomacies d ON r.faction2 = d.faction2
+                WHERE r.faction1 = ?
+                  AND d.relationship != 'уничтожена'  -- исключаем уничтоженные фракции
+                  AND r.faction2 != r.faction1        -- исключаем саму себя
             ''', (self.faction,))
             rows = self.cursor.fetchall()
 
             if not rows:
-                print("Нет данных об отношениях для фракции.")
+                print("Нет активных фракций для проверки отношений.")
                 return False
 
             # Проверяем каждое отношение
             for faction2, relationship in rows:
                 if int(relationship) <= 95:
+                    print(f"Отношение с {faction2} <= 95% ({relationship}%)")
                     return False  # Если хотя бы одно отношение <= 95, игра не завершается
 
-            print("Все отношения > 95%. Условие завершения игры выполнено.")
+            print("Все активные отношения > 95%. Условие завершения игры выполнено.")
             return True
 
         except sqlite3.Error as e:
@@ -1203,28 +1207,31 @@ class Faction:
 
     def check_remaining_factions(self):
         """
-        Проверяет, остались ли в таблице relations записи с другими фракциями.
-        :return: True, если остались другие фракции, False, если осталась только текущая фракция.
+        Проверяет, остались ли активные фракции (не уничтоженные) в таблице relations.
+        :return: True, если есть активные фракции, False, если все уничтожены/отсутствуют.
         """
         try:
-            # Выполняем запрос к таблице relations для всех записей с текущей фракцией
+            # Используем JOIN для проверки статуса фракции [[6]]
             self.cursor.execute('''
-                SELECT DISTINCT faction2
-                FROM relations
-                WHERE faction1 = ?
+                SELECT DISTINCT r.faction2 
+                FROM relations r
+                JOIN diplomacies f ON r.faction2 = f.faction2 
+                WHERE r.faction1 = ?
+                  AND f.relationship != 'уничтожена'  -- фильтруем уничтоженные [[2]]
+                  AND r.faction2 != r.faction1   -- исключаем текущую фракцию
             ''', (self.faction,))
-            rows = self.cursor.fetchall()
 
-            # Если найдены только записи с текущей фракцией, игра завершается
-            remaining_factions = {faction2 for (faction2,) in rows if faction2 != self.faction}
+            rows = self.cursor.fetchall()
+            remaining_factions = {faction2 for (faction2,) in rows}
+
             if not remaining_factions:
-                print("Остались только записи с текущей фракцией. Условие завершения игры выполнено.")
+                print("Все фракции уничтожены или отсутствуют.")
                 return False
 
             return True
 
         except sqlite3.Error as e:
-            print(f"Ошибка при проверке оставшихся фракций: {e}")
+            print(f"Ошибка проверки фракций: {e}")
             return False
 
     def end_game(self):
