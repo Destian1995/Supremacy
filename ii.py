@@ -12,6 +12,8 @@ class AIController:
         self.cursor = self.db_connection.cursor()
         self.garrison = self.load_garrison()
         self.relations = self.load_relations()
+        self.previous_crowns = 0
+        self.previous_raw = 0
         self.buildings = {}
         self.hospitals = 0
         self.factories = 0
@@ -30,6 +32,14 @@ class AIController:
         self.cities = self.load_cities()
         self.army_limit = self.calculate_army_limit()
         self.attacking_army = []
+        self.units_combat = 0
+        self.units_destroyed = 0
+        self.units_killed = 0
+        self.eco_efficiency = 0
+        self.avg_coins = 0
+        self.avg_raw = 0
+        self.avg_deal_ratio = 0
+
         # Инициализация ресурсов по умолчанию
         self.money = 2000
         self.free_peoples = 0
@@ -407,31 +417,8 @@ class AIController:
             print(f"Нет доступных городов для строительства у фракции '{self.faction}'.")
             return False
 
-        # Определяем город для строительства
-        preferred_cities = {
-            "Аркадия": ["Аргенвилль"],
-            "Селестия": ["Миреллия"],
-            "Хиперион": ["Ауренбург", "Элдирия"],
-            "Халидон": ["Эркан"],
-            "Этерия": ["Фэйху"]
-        }
-
-        if self.turn == 0:  # Первый ход
-            cities_for_faction = preferred_cities.get(self.faction, [])
-            if cities_for_faction:
-                # Для Хипериона чередуем города между Ауренбургом и Элдирией
-                if self.faction == "Хиперион":
-                    city_index = (self.hospitals + self.factories) % len(cities_for_faction)
-                    target_city = cities_for_faction[city_index]
-                else:
-                    target_city = cities_for_faction[0]  # Для остальных фракций берем первый город
-            else:
-                print(f"Нет предпочтительных городов для строительства у фракции '{self.faction}'.")
-                return False
-        else:
-            # На последующих ходах выбираем случайный город из актуального списка
-            import random
-            target_city = random.choice(list(self.cities.values()))
+        import random
+        target_city = random.choice(list(self.cities.values()))
 
         # Загружаем актуальные данные о зданиях в выбранном городе
         self.load_buildings()
@@ -473,30 +460,25 @@ class AIController:
         self.resources['Кроны'] -= total_cost
         print(f"Построено {count_to_build} {building_type} в городе {target_city}")
 
-        # Увеличиваем счетчик ходов после первого цикла строительства
-        if self.turn == 0 and self.hospitals + self.factories >= 4:
-            self.turn += 1
 
         return True
 
     def sell_resources(self):
-        """
-        Продажа сырья на рынке.
-        Продается 95% сырья, если его больше 10000.
-        """
         if self.resources['Сырье'] > 10000:
-            amount_to_sell = int(((self.resources['Сырье']) / 10000) * 0.95)  # Продаем 95% сырья
+            amount_to_sell = int(self.resources['Сырье'] * 0.95)
             earned_crowns = int(amount_to_sell * self.raw_material_price)
-
-            # Обновляем ресурсы
             self.resources['Сырье'] -= amount_to_sell
             self.resources['Кроны'] += earned_crowns
 
+            # Рассчитываем эффективность сделки (цена за единицу сырья)
+            price_per_lot = self.raw_material_price / 10000
+            self.update_economic_efficiency(price_per_lot)  # Обновляем эффективность
+
             print(f"Продано {amount_to_sell} сырья за {earned_crowns} крон.")
-            return True  # Продажа успешна
+            return True
         else:
             print("Недостаточно сырья для продажи.")
-            return False  # Продажа не удалась
+            return False
 
     def hire_army(self):
         """
@@ -532,13 +514,37 @@ class AIController:
         mid_game = 17 <= self.turn <= 30  # средняя игра
         late_game = self.turn > 30  # поздняя игра
 
-        # Распределение ресурсов в зависимости от стадии игры
-        resource_allocation = {
-            "attack": 0.8 if early_game else (0.4 if mid_game else 0.2),
-            "defense": 0.2 if early_game else (0.6 if mid_game else 0.6),
-            "middle": 0.1 if late_game else 0,  # универсальные юниты
-            "hard_attack": 0.1 if late_game else 0  # супер ударные юниты
-        }
+        # Рассчитываем текущее потребление защитных и атакующих юнитов
+        defense_consumption = 0
+        attack_consumption = 0
+        for city, units in self.garrison.items():
+            for unit in units:
+                unit_data = self.army.get(unit["unit_name"], {})
+                if unit_data.get("stats", {}).get("Защита", 0) > unit_data.get("stats", {}).get("Атака", 0):
+                    defense_consumption += unit_data.get("consumption", 0) * unit["unit_count"]
+                else:
+                    attack_consumption += unit_data.get("consumption", 0) * unit["unit_count"]
+
+        total_current_consumption = defense_consumption + attack_consumption
+        defense_ratio = defense_consumption / self.army_limit if self.army_limit > 0 else 0
+
+        # Определяем целевое распределение
+        if defense_ratio >= 0.5:
+            # Если защита занимает >=50% лимита - строим только атаку
+            resource_allocation = {
+                "attack": 1.0,
+                "defense": 0.0,
+                "middle": 0.0,
+                "hard_attack": 0.0
+            }
+        else:
+            # Стандартное соотношение 60% защита / 40% атака
+            resource_allocation = {
+                "attack": 0.8 if early_game else (0.4 if mid_game else 0.2),
+                "defense": 0.2 if early_game else (0.6 if mid_game else 0.6),
+                "middle": 0.1 if late_game else 0,  # универсальные юниты
+                "hard_attack": 0.1 if late_game else 0  # супер ударные юниты
+            }
 
         # Списки для найма юнитов по категориям
         hired_units = {
@@ -957,6 +963,11 @@ class AIController:
             # Потребление армии
             self.calculate_and_deduct_consumption()
 
+            # Считаем статистику показателей
+            economic_data = self.calculate_economic_efficiency()
+            self.eco_efficiency = economic_data["Economic_Efficiency"]
+            self.avg_coins = economic_data["Average_Net_Profit_Coins"]
+            self.avg_raw = economic_data["Average_Net_Profit_Raw"]
             # Сохраняем обновленные ресурсы в базу данных
             self.save_resources_to_db()
 
@@ -1527,7 +1538,9 @@ class AIController:
 
             # Обработка результата битвы
             if result["winner"] == "attacker":
-                print(f"Атака на город {city_name} успешна!")
+                self.units_combat += result["attacker_losses"]
+                self.units_destroyed += result["defender_losses"]
+                self.army_efficiency_ratio = result["efficiency_ratio"]
 
                 # Распределяем войска после победы
                 defensive_units = []
@@ -2020,9 +2033,9 @@ class AIController:
 
     def update_relations_based_on_political_system(self):
         """
-        Изменяет отношения на основе политической системы каждые 4 хода.
+        Изменяет отношения на основе политической системы каждые 3 хода.
         """
-        if self.turn % 4 != 0:
+        if self.turn % 3 != 0:
             return
 
         current_system = self.load_political_system()
@@ -2082,7 +2095,7 @@ class AIController:
             avg_net_profit_raw = self.calculate_average_net_profit_raw()
 
             # Рассчитываем общую экономическую эффективность
-            economic_efficiency = (avg_net_profit_coins + avg_net_profit_raw) / 2
+            economic_efficiency = (avg_net_profit_coins + avg_net_profit_raw) / 10000000
 
             return {
                 "Average_Net_Profit_Coins": avg_net_profit_coins,
@@ -2091,122 +2104,88 @@ class AIController:
             }
         except Exception as e:
             print(f"Ошибка при расчете экономической эффективности: {e}")
-            return {
-                "Average_Net_Profit_Coins": 0,
-                "Average_Net_Profit_Raw": 0,
-                "Economic_Efficiency": 0
-            }
 
     def calculate_average_net_profit_coins(self):
-        """
-        Рассчитывает среднюю прибыль в кронах.
-        """
-        # Простая реализация: разница между текущими и предыдущими кронами
         current_crowns = self.resources.get("Кроны", 0)
-        previous_crowns = getattr(self, "previous_crowns", current_crowns)
-        self.previous_crowns = current_crowns
-        return current_crowns - previous_crowns
+        profit = current_crowns - self.previous_crowns
+        self.previous_crowns = current_crowns  # Сохраняем текущее значение для следующего хода
+        return profit
 
     def calculate_average_net_profit_raw(self):
-        """
-        Рассчитывает среднюю прибыль в сырье.
-        """
-        # Простая реализация: разница между текущим и предыдущим сырьем
         current_raw = self.resources.get("Сырье", 0)
-        previous_raw = getattr(self, "previous_raw", current_raw)
-        self.previous_raw = current_raw
-        return current_raw - previous_raw
+        profit = current_raw - self.previous_raw
+        self.previous_raw = current_raw  # Сохраняем текущее значение для следующего хода
+        return profit
+
+    def update_economic_efficiency(self, efficiency_value):
+        try:
+            # Проверяем существование записи для фракции
+            self.cursor.execute('''
+                SELECT Average_Deal_Ratio
+                FROM results 
+                WHERE faction = ?
+            ''', (self.faction,))
+            row = self.cursor.fetchone()
+
+            if row:
+                # Если запись существует - обновляем среднее значение
+                current_efficiency = row[0] if row[0] is not None else 0
+                new_efficiency = (current_efficiency + efficiency_value) / 2
+                self.average_deal_ratio = new_efficiency  # Обновляем атрибут
+            else:
+                # Если записи нет - сохраняем новое значение
+                new_efficiency = efficiency_value
+                self.average_deal_ratio = new_efficiency
+
+            # Сохраняем в БД через метод save_results_to_db
+            self.save_results_to_db()
+        except sqlite3.Error as e:
+            print(f"Ошибка при обновлении экономической эффективности: {e}")
 
     def save_results_to_db(self):
-        """
-        Сохраняет результаты хода в таблицу results.
-        """
         try:
-            # Получаем боевые данные (предполагается, что они уже где-то рассчитываются)
-            units_combat = getattr(self, "units_combat", 0)
-            units_destroyed = getattr(self, "units_destroyed", 0)
-            units_killed = getattr(self, "units_killed", 0)
-            army_efficiency_ratio = getattr(self, "army_efficiency_ratio", 0)
-            average_deal_ratio = getattr(self, "average_deal_ratio", 0)
-
-            # Рассчитываем экономические показатели
+            # Рассчитываем данные
             economic_data = self.calculate_economic_efficiency()
+            new_eco_eff = economic_data["Economic_Efficiency"]
+            new_coins = economic_data["Average_Net_Profit_Coins"]
+            new_raw = economic_data["Average_Net_Profit_Raw"]
+            new_deal_ratio = self.average_deal_ratio
 
-            # Формируем полный набор данных
-            data = {
-                "Units_Combat": units_combat,
-                "Units_Destroyed": units_destroyed,
-                "Units_killed": units_killed,
-                "Army_Efficiency_Ratio": army_efficiency_ratio,
-                "Average_Deal_Ratio": average_deal_ratio,
-                "Average_Net_Profit_Coins": economic_data["Average_Net_Profit_Coins"],
-                "Average_Net_Profit_Raw": economic_data["Average_Net_Profit_Raw"],
-                "Economic_Efficiency": economic_data["Economic_Efficiency"],
-                "faction": self.faction
-            }
+            # Проверяем существование записи
+            self.cursor.execute('''SELECT * FROM results WHERE faction = ?''', (self.faction,))
+            existing = self.cursor.fetchone()
 
-            # Проверяем, есть ли уже запись для этой фракции
-            self.cursor.execute("""
-                SELECT id FROM results WHERE faction = ?
-            """, (self.faction,))
-            existing_record = self.cursor.fetchone()
+            if existing:
+                # Обновляем с учетом новых данных
+                updated_eco = (existing[1] * 0.3 + new_eco_eff * 0.7)
+                updated_coins = (existing[2] * 0.3 + new_coins * 0.7)
+                updated_raw = (existing[3] * 0.3 + new_raw * 0.7)
+                updated_ratio = (existing[4] * 0.3 + new_deal_ratio * 0.7)
 
-            if existing_record:
-                # Обновляем существующую запись
-                query = """
-                    UPDATE results SET
-                        Units_Combat = ?,
-                        Units_Destroyed = ?,
-                        Units_killed = ?,
-                        Army_Efficiency_Ratio = ?,
-                        Average_Deal_Ratio = ?,
-                        Average_Net_Profit_Coins = ?,
-                        Average_Net_Profit_Raw = ?,
-                        Economic_Efficiency = ?
-                    WHERE faction = ?
-                """
-                self.cursor.execute(query, (
-                    data["Units_Combat"],
-                    data["Units_Destroyed"],
-                    data["Units_killed"],
-                    data["Army_Efficiency_Ratio"],
-                    data["Average_Deal_Ratio"],
-                    data["Average_Net_Profit_Coins"],
-                    data["Average_Net_Profit_Raw"],
-                    data["Economic_Efficiency"],
-                    data["faction"]
-                ))
+                self.cursor.execute('''UPDATE results SET
+                    Economic_Efficiency = ?,
+                    Average_Net_Profit_Coins = ?,
+                    Average_Net_Profit_Raw = ?,
+                    Average_Deal_Ratio = ?
+                    WHERE faction = ?''',
+                                    (updated_eco, updated_coins, updated_raw, updated_ratio, self.faction))
             else:
-                # Создаем новую запись
-                query = """
-                    INSERT INTO results (
-                        Units_Combat,
-                        Units_Destroyed,
-                        Units_killed,
-                        Army_Efficiency_Ratio,
-                        Average_Deal_Ratio,
-                        Average_Net_Profit_Coins,
-                        Average_Net_Profit_Raw,
-                        Economic_Efficiency,
-                        faction
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """
-                self.cursor.execute(query, (
-                    data["Units_Combat"],
-                    data["Units_Destroyed"],
-                    data["Units_killed"],
-                    data["Army_Efficiency_Ratio"],
-                    data["Average_Deal_Ratio"],
-                    data["Average_Net_Profit_Coins"],
-                    data["Average_Net_Profit_Raw"],
-                    data["Economic_Efficiency"],
-                    data["faction"]
-                ))
+                # Вставляем новую запись
+                self.cursor.execute('''INSERT INTO results (
+                    Economic_Efficiency,
+                    Average_Net_Profit_Coins,
+                    Average_Net_Profit_Raw,
+                    Average_Deal_Ratio,
+                    faction
+                ) VALUES (?, ?, ?, ?, ?)''',
+                                    (new_eco_eff, new_coins, new_raw, new_deal_ratio, self.faction))
 
             self.db_connection.commit()
-            print(f"Результаты для фракции {self.faction} успешно сохранены в таблицу results.")
+            print("Экономические данные сохранены в results")
         except sqlite3.Error as e:
-            print(f"Ошибка при сохранении результатов в таблицу results: {e}")
+            print(f"Ошибка сохранения результатов: {e}")
+            self.db_connection.rollback()
+
 
     # ---------------------------------------------------------------------
 

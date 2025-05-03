@@ -1176,9 +1176,6 @@ class FortressInfoPopup(Popup):
 
             # Проверяем, что исходный город принадлежит текущему игроку
             current_player_kingdom = self.player_fraction
-            if source_owner != current_player_kingdom:
-                show_popup_message("Ошибка", "Вы не можете перемещать войска из чужого города.")
-                return
 
             # Получаем координаты городов
             source_coords = self.get_city_coordinates(source_fortress_name)

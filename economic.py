@@ -1251,7 +1251,7 @@ class Faction:
             city_count_valid = isinstance(self.get_city_count(), int) and self.get_city_count() >= 0
 
             if not population_valid or not city_count_valid:
-                message = "Некорректные данные о населении или городах."
+                message = "Города опустели, население опустилось до 0."
                 print(message)
                 return False, message
 
@@ -1300,7 +1300,7 @@ class Faction:
 
     def update_economic_efficiency(self, efficiency_value):
         """
-        Обновляет или создает запись в таблице results для колонки Average_Deal_Ratio.
+        Обновляет или создает запись в таблице results для колонки Average_Deal_Ratio эффективность торговых сделок.
         :param efficiency_value: Новое значение эффективности для обработки.
         """
         try:

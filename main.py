@@ -755,12 +755,6 @@ class EmpireApp(App):
         self.root.add_widget(MenuWidget())
         print("Главное меню полностью пересоздано")
 
-    def show_main_menu(self):
-        """Отображение главного меню"""
-        menu_widget = MenuWidget()
-        self.root.add_widget(menu_widget)
-        print("Главное меню показано.")
-
     def on_stop(self):
         # Закрываем все соединения при завершении
         for child in self.root.children:

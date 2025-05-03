@@ -1,17 +1,17 @@
 import sqlite3
 
 from kivy.clock import Clock
+from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.popup import Popup
-from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.floatlayout import FloatLayout
-from kivy.graphics import Color, Rectangle
-from kivy.core.window import Window
+from kivy.graphics import Color, RoundedRectangle
 from kivy.app import App
 from kivy.uix.scrollview import ScrollView
-
+from kivy.metrics import dp
+from kivy.core.window import Window
 
 class ResultsGame:
     def __init__(self, game_status, reason):
@@ -61,11 +61,6 @@ class ResultsGame:
             else:
                 army_efficiency_ratio = 0  # Защита от деления на ноль
 
-            # Вычисляем Economic_Efficiency
-            economic_efficiency = round(
-                average_deal_ratio + (average_net_profit_coins + average_net_profit_raw) / 100000, 2
-            )
-
             # Добавляем все значения в список, включая вычисленные
             calculated_results.append(
                 {
@@ -75,7 +70,6 @@ class ResultsGame:
                     "units_killed": units_killed,
                     "army_efficiency_ratio": army_efficiency_ratio,
                     "average_deal_ratio": average_deal_ratio,
-                    "economic_efficiency": economic_efficiency,
                     "faction": faction,
                 }
             )
@@ -98,10 +92,10 @@ class ResultsGame:
         # Формируем заголовок
         if self.game_status == "win":
             title = "Победа!"
-            message = f"Фракция '{faction_name}' одержала победу!\nПричина: {reason}\n\n"
+            message = f"{faction_name} одержала победу!\nПричина: {reason}\n\n"
         elif self.game_status == "lose":
             title = "Поражение!"
-            message = f"Фракция '{faction_name}' потерпела поражение.\nПричина: {reason}\n\n"
+            message = f"{faction_name} потерпела поражение.\nПричина: {reason}\n\n"
         else:
             title = "Результаты игры"
             message = "Неизвестный статус завершения игры.\n\n"
@@ -110,110 +104,187 @@ class ResultsGame:
         self.show_results_popup(title, message, calculated_results)
 
     def show_results_popup(self, title, message, results):
-        """
-        Создает полноэкранное окно с результатами игры.
-        :param title: Заголовок окна.
-        :param message: Сообщение с результатами.
-        :param results: Список словарей с результатами для всех фракций.
-        """
-        layout = FloatLayout(size=Window.size)
+        # Создаем основной контейнер
+        layout = FloatLayout()
 
+        # Стилизация фона
+        bg_color = (0.12, 0.12, 0.12, 1)
+        radius = [dp(15)]
+
+        # Инициализация фона
         with layout.canvas.before:
-            Color(0.15, 0.15, 0.15, 1)
-            self.rect = Rectangle(pos=layout.pos, size=layout.size)
+            Color(*bg_color)
+            self.background_rect = RoundedRectangle(
+                pos=layout.pos,
+                size=layout.size,
+                radius=radius
+            )
 
-        title_label = Label(
-            text=title,
-            font_size=Window.width * 0.05,
-            color=(1, 1, 1, 1),
-            pos_hint={"center_x": 0.5, "top": 0.95},
-            size_hint=(None, None),
+        # Привязка обновления фона
+        def update_bg(instance, value):
+            self.background_rect.pos = layout.pos
+            self.background_rect.size = layout.size
+
+        layout.bind(pos=update_bg, size=update_bg)
+
+        # Создаем контейнер для сообщения и таблицы
+        main_box = BoxLayout(
+            orientation='vertical',
+            size_hint=(0.95, 0.85),
+            pos_hint={"center_x": 0.5, "top": 0.9},
+            spacing=dp(10)
         )
 
-        scroll_view = ScrollView(
-            size_hint=(0.9, 0.7),
-            pos_hint={"center_x": 0.5, "center_y": 0.5},
-        )
-
-        # Исправлено: 7 столбцов вместо 9
-        table_layout = GridLayout(
-            cols=7,
+        # Добавляем сообщение
+        message_label = Label(
+            text=message,
+            color=(0.9, 0.9, 0.9, 1),
+            font_size=dp(16) if Window.width < 600 else dp(18),
             size_hint_y=None,
-            spacing=Window.width * 0.01,
-            padding=Window.width * 0.02,
+            height=dp(100) if Window.height < 800 else dp(120),
+            halign='left',
+            valign='top',
+            text_size=(Window.width * 0.9, None)
         )
-        table_layout.bind(minimum_height=table_layout.setter("height"))
+        message_label.bind(size=message_label.setter('text_size'))
+        main_box.add_widget(message_label)
 
-        headers = [
-            "Фракция",
-            "Ветераны",
-            "Потери",
-            "Уничтожено",
-            "Рейтинг Армии",
-            "Торговый рейтинг",
-            "Рейтинг Экономики"
-        ]
+        # Создание ScrollView
+        scroll_view = ScrollView(
+            size_hint=(0.95, 0.72),
+            pos_hint={"center_x": 0.5, "top": 0.82},
+            bar_width=dp(10),
+            bar_color=(0.5, 0.5, 0.5, 0.7),
+            bar_inactive_color=(0.3, 0.3, 0.3, 0),
+            effect_cls='ScrollEffect'
+        )
 
-        font_size_headers = Window.width * 0.02
+        # Создание таблицы
+        table_layout = GridLayout(
+            cols=6,
+            spacing=dp(1.5),
+            size_hint_y=None,
+            padding=dp(10))
+        table_layout.bind(minimum_height=table_layout.setter('height'))
+
+        # Адаптивные размеры
+
+        def get_sizes():
+            return (
+                dp(16) if Window.width < 600 else dp(18),
+                dp(14) if Window.width < 600 else dp(16),
+                dp(45) if Window.height < 800 else dp(50)
+            )
+
+        # Заголовки таблицы
+        headers = ["Фракция", "Ветераны", "Потери", "Уничтожено", "Военный рейтинг", "Торговый рейтинг"]
+        font_header, _, row_h = get_sizes()
+
         for header in headers:
-            table_layout.add_widget(Label(
+            lbl = Label(
                 text=header,
                 color=(1, 1, 1, 1),
                 bold=True,
-                font_size=font_size_headers,
+                font_size=font_header,
                 size_hint_y=None,
-                height=Window.height * 0.05
-            ))
+                height=row_h,
+                halign='center',
+                valign='middle'
+            )
+            lbl.bind(size=lbl.setter('text_size'))
 
-        font_size_data = Window.width * 0.02
-        row_height = Window.height * 0.04
+            # Фон заголовка с явной привязкой
+            with lbl.canvas.before:
+                Color(0.15, 0.4, 0.7, 1)
+                bg = RoundedRectangle(pos=lbl.pos, size=lbl.size, radius=radius)
 
-        for res in results:
-            # Отбираем только нужные поля
+            # Сохраняем ссылку на фон
+            lbl.bg_rect = bg
+            lbl.bind(
+                pos=lambda instance, _: setattr(instance.bg_rect, 'pos', instance.pos),
+                size=lambda instance, _: setattr(instance.bg_rect, 'size', instance.size)
+            )
+            table_layout.add_widget(lbl)
+
+        # Данные таблицы
+        even_color = (0.14, 0.14, 0.14, 1)
+        odd_color = (0.16, 0.16, 0.16, 1)
+        _, font_data, row_h = get_sizes()
+
+        for i, res in enumerate(results):
+            row_color = even_color if i % 2 == 0 else odd_color
             row_data = [
                 res["faction"],
-                str(res["units_combat"]),
-                str(res["units_destroyed"]),
-                str(res["units_killed"]),
-                str(res["army_efficiency_ratio"]),
-                str(res["average_deal_ratio"]),
-                str(res["economic_efficiency"])
+                f"{res['units_combat']:,}".replace(',', ' '),
+                f"{res['units_destroyed']:,}".replace(',', ' '),
+                f"{res['units_killed']:,}".replace(',', ' '),
+                f"{res['army_efficiency_ratio']:.2f}",
+                f"{res['average_deal_ratio']:.2f}"
             ]
 
             for value in row_data:
-                table_layout.add_widget(Label(
+                lbl = Label(
                     text=value,
-                    color=(1, 1, 1, 1),
-                    font_size=font_size_data,
+                    color=(0.92, 0.92, 0.92, 1),
+                    font_size=font_data,
                     size_hint_y=None,
-                    height=row_height
-                ))
+                    height=row_h,
+                    halign='center',
+                    valign='middle'
+                )
+                lbl.bind(size=lbl.setter('text_size'))
+
+                # Фон строки с явной привязкой
+                with lbl.canvas.before:
+                    Color(*row_color)
+                    bg = RoundedRectangle(pos=lbl.pos, size=lbl.size, radius=radius)
+
+                # Сохраняем ссылку на фон
+                lbl.bg_rect = bg
+                lbl.bind(
+                    pos=lambda instance, _: setattr(instance.bg_rect, 'pos', instance.pos),
+                    size=lambda instance, _: setattr(instance.bg_rect, 'size', instance.size)
+                )
+                table_layout.add_widget(lbl)
 
         scroll_view.add_widget(table_layout)
 
-        main_menu_button = Button(
-            text="Выход в главное меню",
-            font_size=Window.width * 0.03,
-            background_color=(0.2, 0.6, 1, 1),
-            pos_hint={"center_x": 0.3, "y": 0.05},
-            size_hint=(0.3, 0.1),
+        # Кнопка выхода
+        exit_btn = Button(
+            text="ВЕРНУТЬСЯ В МЕНЮ",
+            font_size=dp(18) if Window.width < 600 else dp(20),
+            background_color=(0.2, 0.5, 0.8, 1),
+            background_normal='',
+            pos_hint={"center_x": 0.5, "y": 0.02},
+            size_hint=(0.7, None),
+            height=dp(50) if Window.height < 800 else dp(60),
+            border=(dp(12), dp(12), dp(12), dp(12))
         )
-        main_menu_button.bind(on_press=self.exit_to_main_menu)
+        exit_btn.bind(on_press=self.exit_to_main_menu)
 
-        layout.add_widget(title_label)
+        layout.add_widget(main_box)
         layout.add_widget(scroll_view)
-        layout.add_widget(main_menu_button)
+        layout.add_widget(exit_btn)
 
-
+        # Создание попапа
         popup = Popup(
             title="",
             content=layout,
-            size_hint=(1, 1),
+            size_hint=(0.95, 0.95) if Window.width < 600 else (0.85, 0.9),
             auto_dismiss=False,
+            separator_height=0,
+            background='',
+            background_color=bg_color
         )
 
-        main_menu_button.bind(on_press=popup.dismiss)
-        self.popup = popup  # Сохраняем ссылку на попап
+        # Фикс артефактов
+        def force_redraw(*args):
+            for child in table_layout.children:
+                child.canvas.ask_update()
+            layout.canvas.ask_update()
+
+        popup.bind(on_open=lambda *args: Clock.schedule_once(force_redraw, 0.1))
+        self.popup = popup  # Сохраняем ссылку в классе
         popup.open()
 
     def exit_to_main_menu(self, instance):
@@ -227,20 +298,3 @@ class ResultsGame:
         # Полная перезагрузка приложения
         app.restart_app()
 
-        # Принудительная очистка виджетов
-        app.root.clear_widgets()
-        Clock.schedule_once(lambda dt: app.show_main_menu(), 0.1)
-
-
-    def analyze_results(self, faction_name, status, reason):
-        """
-        Анализирует результаты игры и выполняет дополнительные действия.
-        Например, может использоваться для генерации статистики или наград.
-        :param faction_name: Название фракции.
-        :param status: Статус завершения ("win" или "lose").
-        :param reason: Причина завершения игры.
-        """
-        if status == "win":
-            print(f"Анализ победы фракции '{faction_name}': {reason}")
-        elif status == "lose":
-            print(f"Анализ поражения фракции '{faction_name}': {reason}")
