@@ -486,11 +486,11 @@ def start_army_mode(faction, game_area, class_faction):
 
         # Основные характеристики с масштабируемым текстом
         main_stats = [
-            ('⚔ Урон', unit_info['stats']['Урон'], '#E74C3C'),
-            ('🛡 Защита', unit_info['stats']['Защита'], '#2980B9'),
-            ('❤ Живучесть', unit_info['stats']['Живучесть'], '#C0392B'),
-            ('🎖 Класс', unit_info['stats']['Класс юнита'], '#27AE60'),
-            ('📦 Потребление', unit_info['stats']['Потребление сырья'], '#F1C40F')
+            ('Урон', unit_info['stats']['Урон'], '#E74C3C'),
+            ('Защита', unit_info['stats']['Защита'], '#2980B9'),
+            ('Живучесть', unit_info['stats']['Живучесть'], '#C0392B'),
+            ('Класс', unit_info['stats']['Класс юнита'], '#27AE60'),
+            ('Потребление', unit_info['stats']['Потребление сырья'], '#F1C40F')
         ]
 
         for name, value, color in main_stats:
@@ -529,7 +529,7 @@ def start_army_mode(faction, game_area, class_faction):
             height='30sp'
         )
         money_name = Label(
-            text="[color=#8E44AD]💰 Кроны[/color]",
+            text="[color=#8E44AD]Кроны[/color]",
             markup=True,
             font_size='16sp',
             halign='left',
@@ -554,7 +554,7 @@ def start_army_mode(faction, game_area, class_faction):
             height='30sp'
         )
         time_name = Label(
-            text="[color=#3498DB]⏱ Рабочие[/color]",
+            text="[color=#3498DB]Рабочие[/color]",
             markup=True,
             font_size='16sp',
             halign='left',
