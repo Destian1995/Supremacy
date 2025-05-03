@@ -101,7 +101,7 @@ class ResultsGame:
 
     def show_results_popup(self, title, message, results, text_color):
         # Создаем основной контейнер
-        layout = FloatLayout()
+        layout = FloatLayout(size_hint=(1, 1))
 
         # Расчет параметров адаптации
         def adapt_value(base, factor=0.5):
@@ -262,8 +262,10 @@ class ResultsGame:
                 min(0.95, Window.height / 1000 + 0.6)
             ),
             auto_dismiss=False,
-            background=''
-        )
+            background='',  # Убираем стандартный фон
+            background_color=[0, 0, 0, 0],  # Полная прозрачность
+            separator_color=[0, 0, 0, 0],  # Убираем разделитель заголовка
+            overlay_color=(0, 0, 0, 0.7))  # Затемнение фона приложения
 
         # Функция адаптации
         def adapt_layout(*args):
