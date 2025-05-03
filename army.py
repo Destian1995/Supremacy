@@ -2,6 +2,7 @@
 from kivy.animation import Animation
 from kivy.graphics import Rectangle
 from kivy.clock import Clock
+from kivy.uix.carousel import Carousel
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
@@ -12,13 +13,55 @@ from kivy.uix.image import Image
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.graphics import Color, RoundedRectangle
-
+from kivy.metrics import dp
+from kivy.core.window import Window
+from kivy.utils import get_color_from_hex
 
 from economic import format_number
 import threading
 import time
 import sqlite3
 
+PRIMARY_COLOR = get_color_from_hex('#2E7D32')
+SECONDARY_COLOR = get_color_from_hex('#388E3C')
+BACKGROUND_COLOR = get_color_from_hex('#212121')
+TEXT_COLOR = get_color_from_hex('#FFFFFF')
+INPUT_BACKGROUND = get_color_from_hex('#424242')
+
+class ArmyButton(Button):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.background_normal = ''
+        self.background_color = (0,0,0,0)
+        self.color = TEXT_COLOR
+        self.font_size = dp(18)
+        self.bold = True
+        self.size_hint = (1, None)
+        self.height = dp(60)
+        self.padding = (dp(20), dp(10))
+
+        with self.canvas.before:
+            Color(*PRIMARY_COLOR)
+            self.rect = RoundedRectangle(
+                radius=[dp(15)],
+                pos=self.pos,
+                size=self.size
+            )
+
+        self.bind(pos=self.update_rect, size=self.update_rect)
+
+    def update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            Animation(background_color=(*SECONDARY_COLOR, 1), d=0.1).start(self)
+        return super().on_touch_down(touch)
+
+    def on_touch_up(self, touch):
+        Animation(background_color=(*PRIMARY_COLOR, 1), d=0.2).start(self)
+        return super().on_touch_up(touch)
 
 class ArmyCash:
     def __init__(self, faction, class_faction):
@@ -314,164 +357,305 @@ def load_unit_data(faction):
     return unit_data
 
 
-def show_unit_selection(faction, army_hire, class_faction):
-    """Показать окно выбора юнитов для найма."""
-    unit_data = load_unit_data(faction)
-
-    unit_popup = Popup(title="Выбор юнитов", size_hint=(0.9, 0.9), background_color=(0.1, 0.1, 0.1, 1))
-
-    scroll_view = ScrollView(size_hint=(0.6, 1))
-
-    unit_layout = GridLayout(cols=2, padding=15, spacing=15, size_hint_y=None)
-    unit_layout.bind(minimum_height=unit_layout.setter('height'))
-
-    stats_box = TextInput(readonly=True, size_hint=(0.3, 1), padding=(20, 10, 20, 10),
-                          background_color=(0.2, 0.2, 0.2, 1), foreground_color=(1, 1, 1, 1), font_size=16)
-
-    for unit_name, unit_info in unit_data.items():
-        unit_box = BoxLayout(orientation='vertical', size_hint=(None, None), size=(200, 200))
-
-        # Изображение юнита
-        unit_image = Image(source=unit_info["image"], size_hint=(1, 0.6), allow_stretch=True, keep_ratio=True)
-        unit_box.add_widget(unit_image)
-
-        # Стоимость юнита
-        cost_label = Label(text=f"Кроны: {unit_info['cost'][0]} \nРабочие: {unit_info['cost'][1]}",
-                           size_hint=(1, 0.2), color=(1, 1, 1, 1), font_size=14)
-        unit_box.add_widget(cost_label)
-
-        # Кнопки управления
-        button_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.2), spacing=10)
-
-        # Поле для ввода количества юнитов
-        quantity_input = TextInput(hint_text="Количество", size_hint_x=0.5, font_size=16,
-                                   multiline=False, background_color=(0.3, 0.3, 0.3, 1), foreground_color=(1, 1, 1, 1))
-
-        # Кнопка для найма юнита
-        hire_btn = Button(text="Нанять", size_hint_x=0.5, background_color=(0.4, 0.8, 0.4, 1),
-                          font_size=16, color=(1, 1, 1, 1))
-        hire_btn.bind(on_release=lambda instance, name=unit_name, cost=unit_info['cost'],
-                                        input_box=quantity_input, stats=unit_info['stats'], image=unit_info["image"]:
-        broadcast_units(name, cost, input_box, army_hire, image, stats))
-
-        button_layout.add_widget(hire_btn)
-        button_layout.add_widget(quantity_input)
-
-        # Кнопка для отображения информации о юните
-        info_btn = Button(text="Инфо", size_hint_x=0.5, background_color=(0.4, 0.6, 0.8, 1),
-                          font_size=16, color=(1, 1, 1, 1))
-        info_btn.bind(on_release=lambda x, name=unit_name, info=unit_info['stats']:
-        display_unit_stats_info(name, info, stats_box))
-        button_layout.add_widget(info_btn)
-
-        unit_box.add_widget(button_layout)
-        unit_layout.add_widget(unit_box)
-
-    scroll_view.add_widget(unit_layout)
-
-    # Организуем содержимое попапа
-    popup_content = BoxLayout(orientation='horizontal', padding=(10, 10, 10, 10), spacing=15)
-    popup_content.add_widget(scroll_view)
-    popup_content.add_widget(stats_box)
-
-    unit_popup.content = popup_content
-    unit_popup.open()
-
-
-def broadcast_units(unit_name, unit_cost, quantity_input, army_hire, image, unit_stats):
-    """Обрабатывает найм юнитов и проверяет количество."""
-    quantity_text = quantity_input.text  # Получаем текст из поля ввода
-    print(f"Полученный unit_stats: {unit_stats}")
-    try:
-        # Проверяем, не пустое ли поле
-        if not quantity_text:
-            print("Введите количество юнитов.")
-            return
-
-        quantity = int(quantity_text)
-
-        if quantity <= 0:
-            print("Количество должно быть больше нуля.")
-            return
-
-        # Корректный порядок аргументов: unit_stats перед image
-        if army_hire.hire_unit(unit_name, unit_cost, quantity, unit_stats, image):
-            print(f"{quantity} юнитов {unit_name} наняты! Ссылка на изображение: {image}")
-        else:
-            print(f"Не удалось нанять {quantity} юнитов {unit_name} из-за недостатка ресурсов.")
-
-    except ValueError:
-        print("Введите корректное количество.")
-
-
-def display_unit_stats_info(unit_name, stats, stats_box):
-    """Отображает характеристики юнита в текстовом боксе при нажатии кнопки 'Инфо'"""
-    stats_text = f"{unit_name}:\n\n"
-    for key, value in stats.items():
-        stats_text += f"{key}: {value}\n"
-    stats_box.text = stats_text  # Устанавливаем текст характеристик юнита
-
-
-
-#------Базовая функция------------
-
 def start_army_mode(faction, game_area, class_faction):
-    """
-    Инициализация армейского режима для выбранной фракции.
-
-    :param class_faction:
-    :param faction: Объект фракции (экземпляр класса Faction).
-    :param game_area: Центральная область игры, куда будут добавлены виджеты.
-    """
-    # Создаем объект ArmyCash для найма юнитов
     army_hire = ArmyCash(faction, class_faction)
 
-    # Создаем layout для кнопок
-    army_layout = BoxLayout(
+    # Главный контейнер с разделением на левую и правую части
+    main_box = BoxLayout(
         orientation='horizontal',
-        size_hint=(1, 0.1),
-        pos_hint={'x': 0, 'y': 0},
-        spacing=10,  # Расстояние между кнопками
-        padding=10  # Отступы внутри layout
+        size_hint=(1, 1),
+        padding=dp(10),
+        spacing=dp(5)
     )
 
-    # Функция для создания стильных кнопок
-    def create_styled_button(text, on_press_callback):
-        button = Button(
-            text=text,
-            size_hint_x=0.33,
-            size_hint_y=None,
-            height=50,
-            background_color=(0, 0, 0, 0),  # Прозрачный фон
-            color=(1, 1, 1, 1),  # Цвет текста (белый)
-            font_size=16,  # Размер шрифта
-            bold=True  # Жирный текст
+    # Пустой левый контейнер (30% ширины) НЕ ТРОГАТЬ
+    left_space = BoxLayout(size_hint=(0.3, 1))
+
+    # Правый контейнер для карусели (70% ширины)
+    right_container = BoxLayout(
+        orientation='vertical',
+        size_hint=(0.7, 1),
+        padding=[dp(15), dp(25), dp(15), dp(25)]
+    )
+
+    # Настройка карусели с направлением вправо
+    carousel = Carousel(
+        direction='right',
+        size_hint=(1, 0.9),
+        loop=True,
+        scroll_distance=100
+    )
+
+    unit_data = load_unit_data(faction)
+
+    # Сортируем юнитов по классу (от 1 до N)
+    sorted_units = sorted(
+        unit_data.items(),
+        key=lambda x: int(x[1]['stats']['Класс юнита'].split()[0])
+    )
+
+    # Добавляем юнитов в отсортированном порядке (от слабых к сильным)
+    for unit_name, unit_info in sorted_units:
+        # Слайд карусели
+        slide = BoxLayout(
+            orientation='vertical',
+            size_hint=(0.85, 0.9),
+            spacing=dp(10)
         )
 
-        # Добавляем кастомный фон с помощью Canvas
-        with button.canvas.before:
-            Color(1, 0.2, 0.2, 1)  # Цвет фона кнопки (красный)
-            button.rect = Rectangle(pos=button.pos, size=button.size)
+        # Карточка юнита с темным фоном
+        card = BoxLayout(
+            orientation='vertical',
+            size_hint=(1, 1),
+            spacing=dp(8),
+            padding=dp(20)
+        )
 
-        # Обновляем позицию и размер прямоугольника при изменении размера кнопки
-        def update_rect(instance, value):
-            instance.rect.pos = instance.pos
-            instance.rect.size = instance.size
+        # Графические элементы для фона
+        with card.canvas.before:
+            # Тень
+            Color(rgba=(0.05, 0.05, 0.05, 0.7))
+            shadow_rect = RoundedRectangle(
+                size=card.size,
+                radius=[dp(25)]
+            )
 
-        button.bind(pos=update_rect, size=update_rect)
+            # Основной фон
+            Color(rgba=(0.15, 0.15, 0.15, 1))
+            rect = RoundedRectangle(
+                size=card.size,
+                radius=[dp(20)]
+            )
 
-        # Привязываем функцию к событию нажатия
-        button.bind(on_release=on_press_callback)
-        return button
+        def update_bg(instance, rect=rect, shadow_rect=shadow_rect):
+            rect.pos = instance.pos
+            rect.size = instance.size
+            shadow_rect.pos = (instance.x - dp(2), instance.y - dp(2))
+            shadow_rect.size = instance.size
 
-    # Создаем кнопки с новым стилем
-    train_btn = create_styled_button("Тренировка войск", lambda x: show_unit_selection(faction, army_hire, class_faction))
+        card.bind(pos=update_bg, size=update_bg)
 
-    # Добавляем кнопки в layout
-    army_layout.add_widget(train_btn)
+        # Заголовок карточки с масштабируемым текстом
+        header = BoxLayout(
+            size_hint=(1, 0.12),
+            orientation='horizontal',
+            padding=dp(5)
+        )
 
-    # Добавляем layout с кнопками в нижнюю часть экрана
-    game_area.add_widget(army_layout)
+        title = Label(
+            text=unit_name,
+            font_size='20sp',  # Используем масштабируемые единицы
+            bold=True,
+            color=TEXT_COLOR,
+            halign='left',
+            text_size=(None, None),
+            size_hint_y=None,
+            height='40sp'  # Фиксированная высота с масштабированием
+        )
+        header.add_widget(title)
+
+        # Тело карточки
+        body = BoxLayout(
+            orientation='horizontal',
+            size_hint=(1, 0.7),
+            spacing=dp(15)
+        )
+
+        # Левая часть - изображение (50% ширины)
+        img_container = BoxLayout(
+            orientation='vertical',
+            size_hint=(0.5, 1),
+            padding=[0, dp(10), 0, 0]
+        )
+
+        img = Image(
+            source=unit_info['image'],
+            size_hint=(1, 1),
+            keep_ratio=True,
+            allow_stretch=True,
+            mipmap=True
+        )
+        img_container.add_widget(img)
+
+        # Правая часть - характеристики (50% ширины)
+        stats_container = BoxLayout(
+            orientation='vertical',
+            size_hint=(0.5, 1),
+            spacing=dp(5)
+        )
+
+        # Основные характеристики с масштабируемым текстом
+        main_stats = [
+            ('⚔ Урон', unit_info['stats']['Урон'], '#E74C3C'),
+            ('🛡 Защита', unit_info['stats']['Защита'], '#2980B9'),
+            ('❤ Живучесть', unit_info['stats']['Живучесть'], '#C0392B'),
+            ('🎖 Класс', unit_info['stats']['Класс юнита'], '#27AE60'),
+            ('📦 Потребление', unit_info['stats']['Потребление сырья'], '#F1C40F')
+        ]
+
+        for name, value, color in main_stats:
+            stat_line = BoxLayout(
+                orientation='horizontal',
+                size_hint=(1, None),
+                height='30sp'  # Масштабируемая высота
+            )
+            lbl_name = Label(
+                text=f"[color={color}]{name}[/color]",
+                markup=True,
+                font_size='16sp',  # Масштабируемый размер шрифта
+                halign='left',
+                size_hint=(0.6, 1),
+                text_size=(None, None)
+            )
+            lbl_value = Label(
+                text=str(value),
+                font_size='18sp',  # Масштабируемый размер шрифта
+                bold=True,
+                color=TEXT_COLOR,
+                size_hint=(0.4, 1),
+                halign='right'
+            )
+            stat_line.add_widget(lbl_name)
+            stat_line.add_widget(lbl_value)
+            stats_container.add_widget(stat_line)
+
+        # Стоимость из двух составляющих
+        cost_money, cost_time = unit_info['cost']
+
+        # Строка стоимости денег с масштабируемым текстом
+        money_stat = BoxLayout(
+            orientation='horizontal',
+            size_hint=(1, None),
+            height='30sp'
+        )
+        money_name = Label(
+            text="[color=#8E44AD]💰 Кроны[/color]",
+            markup=True,
+            font_size='16sp',
+            halign='left',
+            size_hint=(0.6, 1)
+        )
+        money_value = Label(
+            text=f"{cost_money}",
+            font_size='18sp',
+            bold=True,
+            color=TEXT_COLOR,
+            size_hint=(0.4, 1),
+            halign='right'
+        )
+        money_stat.add_widget(money_name)
+        money_stat.add_widget(money_value)
+        stats_container.add_widget(money_stat)
+
+        # Строка времени найма с масштабируемым текстом
+        time_stat = BoxLayout(
+            orientation='horizontal',
+            size_hint=(1, None),
+            height='30sp'
+        )
+        time_name = Label(
+            text="[color=#3498DB]⏱ Рабочие[/color]",
+            markup=True,
+            font_size='16sp',
+            halign='left',
+            size_hint=(0.6, 1)
+        )
+        time_value = Label(
+            text=f"{cost_time}",
+            font_size='18sp',
+            bold=True,
+            color=TEXT_COLOR,
+            size_hint=(0.4, 1),
+            halign='right'
+        )
+        time_stat.add_widget(time_name)
+        time_stat.add_widget(time_value)
+        stats_container.add_widget(time_stat)
+
+        body.add_widget(img_container)
+        body.add_widget(stats_container)
+
+        # Панель управления с масштабируемым текстом
+        control_panel = BoxLayout(
+            size_hint=(1, 0.18),
+            orientation='horizontal',
+            spacing=dp(10),
+            padding=[dp(5), dp(10), dp(5), dp(5)]
+        )
+
+        input_qty = TextInput(
+            hint_text='Количество',
+            input_filter='int',
+            font_size='20sp',  # Масштабируемый размер шрифта
+            size_hint=(0.6, 1),
+            background_color=INPUT_BACKGROUND,
+            halign='center',
+            multiline=False
+        )
+
+        btn_hire = Button(
+            text='НАБРАТЬ',
+            font_size='18sp',  # Масштабируемый размер шрифта
+            bold=True,
+            background_color=PRIMARY_COLOR,
+            color=TEXT_COLOR,
+            size_hint=(0.4, 1)
+        )
+
+        # Исправленная привязка кнопки через lambda с явной передачей параметров
+        btn_hire.bind(on_release=lambda instance, name=unit_name, cost=unit_info['cost'],
+                                        input_box=input_qty, stats=unit_info['stats'], image=unit_info["image"]:
+        broadcast_units(name, cost, input_box, army_hire, image, stats))
+
+        control_panel.add_widget(input_qty)
+        control_panel.add_widget(btn_hire)
+
+        # Сборка карточки
+        card.add_widget(header)
+        card.add_widget(body)
+        card.add_widget(control_panel)
+        slide.add_widget(card)
+        carousel.add_widget(slide)
+
+    # Финальная сборка интерфейса
+    right_container.add_widget(carousel)
+    main_box.add_widget(left_space)
+    main_box.add_widget(right_container)
+    game_area.add_widget(main_box)
+
+def broadcast_units(unit_name, unit_cost, quantity_input, army_hire, image, unit_stats):
+    try:
+        quantity = int(quantity_input.text) if quantity_input.text else 0
+        if quantity <= 0:
+            raise ValueError("Количество должно быть положительным числом")
+
+        # Вызываем метод найма с передачей всех необходимых параметров
+        army_hire.hire_unit(
+            unit_name=unit_name,
+            unit_cost=unit_cost,
+            quantity=quantity,
+            unit_stats=unit_stats,
+            unit_image=image
+        )
+
+    except ValueError as e:
+        show_army_message(
+            title="Ошибка",
+            message=f"[color=#FF0000]{str(e) or 'Введите корректное число!'}[/color]"
+        )
+
+def show_army_message(title, message):
+    popup = Popup(
+        title=title,
+        content=Label(
+            text=message,
+            markup=True,
+            font_size=dp(18),
+            color=TEXT_COLOR),
+        size_hint=(None, None),
+        size=(dp(300), dp(200)),
+        background_color=BACKGROUND_COLOR)
+    popup.open()
 
 
 #---------------------------------------------------------------
