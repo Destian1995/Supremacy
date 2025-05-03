@@ -1257,24 +1257,24 @@ class Faction:
 
             # Условия завершения игры
             if self.population == 0:
-                message = "Игра завершена: население отсутствует."
+                message = "Города опустели, население опустилось до 0."
                 print(message)
                 return False, message
 
             if self.get_city_count() == 0:
-                message = "Игра завершена: города отсутствуют."
+                message = "Противник завоевал все города"
                 print(message)
                 return False, message
 
             # Проверка нового условия: все отношения > 95%
             if self.check_all_relations_high():
-                message = "Игра завершена: все отношения > 95%."
+                message = "Мир во всем мире"
                 print(message)
                 return False, message
 
             # Проверка нового условия: остались ли другие фракции
             if not self.check_remaining_factions():
-                message = "Игра завершена: остались только записи с текущей фракцией."
+                message = "Все фракции были уничтожены"
                 print(message)
                 return False, message
 

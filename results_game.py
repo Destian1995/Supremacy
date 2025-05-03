@@ -77,39 +77,41 @@ class ResultsGame:
         return calculated_results
 
     def show_results(self, faction_name, status, reason):
-        """
-        Основной метод для отображения результатов игры.
-        :param faction_name: Название фракции.
-        :param status: Статус завершения ("win" или "lose").
-        :param reason: Причина завершения игры.
-        """
         self.game_status = status
         self.reason = reason
 
-        # Вычисляем дополнительные показатели для всех фракций
         calculated_results = self.calculate_results()
 
         # Формируем заголовок
         if self.game_status == "win":
             title = "Победа!"
-            message = f"{faction_name} одержала победу!\nПричина: {reason}\n\n"
+            color = (0, 1, 0, 1)  # Зеленый
+            message = f"[b]{faction_name} одержала победу![/b]\n {reason}\n\n"
         elif self.game_status == "lose":
             title = "Поражение!"
-            message = f"{faction_name} потерпела поражение.\nПричина: {reason}\n\n"
+            color = (1, 0, 0, 1)  # Красный
+            message = f"[b]{faction_name} потерпела поражение.[/b]\n {reason}\n\n"
         else:
             title = "Результаты игры"
+            color = (1, 1, 1, 1)
             message = "Неизвестный статус завершения игры.\n\n"
 
         # Отображаем результаты в графическом интерфейсе
-        self.show_results_popup(title, message, calculated_results)
+        self.show_results_popup(title, message, calculated_results, color)
 
-    def show_results_popup(self, title, message, results):
+    def show_results_popup(self, title, message, results, text_color):
         # Создаем основной контейнер
         layout = FloatLayout()
 
+        # Расчет параметров адаптации
+        def adapt_value(base, factor=0.5):
+            """Динамический расчет размеров на основе плотности пикселей"""
+            dpi = max(Window.width / (Window.width / dp(100)), 1)
+            return max(dp(base * factor * (dpi / 160)), dp(base))
+
         # Стилизация фона
         bg_color = (0.12, 0.12, 0.12, 1)
-        radius = [dp(15)]
+        radius = [adapt_value(15)] * 4
 
         # Инициализация фона
         with layout.canvas.before:
@@ -124,95 +126,83 @@ class ResultsGame:
         def update_bg(instance, value):
             self.background_rect.pos = layout.pos
             self.background_rect.size = layout.size
+            self.background_rect.radius = radius
 
         layout.bind(pos=update_bg, size=update_bg)
 
-        # Создаем контейнер для сообщения и таблицы
-        main_box = BoxLayout(
-            orientation='vertical',
-            size_hint=(0.95, 0.85),
-            pos_hint={"center_x": 0.5, "top": 0.9},
-            spacing=dp(10)
-        )
-
-        # Добавляем сообщение
+        # Сообщение
         message_label = Label(
             text=message,
-            color=(0.9, 0.9, 0.9, 1),
-            font_size=dp(16) if Window.width < 600 else dp(18),
-            size_hint_y=None,
-            height=dp(100) if Window.height < 800 else dp(120),
-            halign='left',
-            valign='top',
-            text_size=(Window.width * 0.9, None)
+            color=text_color,
+            markup=True,
+            font_size=adapt_value(18, 0.6),
+            size_hint=(0.9, None),
+            height=adapt_value(100),
+            halign='center',
+            valign='middle',
+            pos_hint={'center_x': 0.5, 'top': 0.97},
+            text_size=(Window.width * 0.85, None),
+            line_height=1.2
         )
         message_label.bind(size=message_label.setter('text_size'))
-        main_box.add_widget(message_label)
 
-        # Создание ScrollView
-        scroll_view = ScrollView(
-            size_hint=(0.95, 0.72),
-            pos_hint={"center_x": 0.5, "top": 0.82},
-            bar_width=dp(10),
-            bar_color=(0.5, 0.5, 0.5, 0.7),
-            bar_inactive_color=(0.3, 0.3, 0.3, 0),
-            effect_cls='ScrollEffect'
+        # Контейнер для таблицы
+        table_container = BoxLayout(
+            orientation='vertical',
+            size_hint=(0.95, 0.7),
+            pos_hint={"center_x": 0.5, "top": 0.75},
+            spacing=adapt_value(10)
         )
 
-        # Создание таблицы
+        # ScrollView
+        scroll_view = ScrollView(
+            size_hint=(1, 1),
+            bar_width=adapt_value(10),
+            bar_color=(0.5, 0.5, 0.5, 0.7),
+            bar_inactive_color=(0.3, 0.3, 0.3, 0)
+        )
+
+        # Таблица
         table_layout = GridLayout(
             cols=6,
-            spacing=dp(1.5),
-            size_hint_y=None,
-            padding=dp(10))
+            spacing=adapt_value(2),
+            size_hint=(1, None),
+            padding=adapt_value(5),
+            row_default_height=adapt_value(40)
+        )
         table_layout.bind(minimum_height=table_layout.setter('height'))
 
         # Адаптивные размеры
-
-        def get_sizes():
-            return (
-                dp(16) if Window.width < 600 else dp(18),
-                dp(14) if Window.width < 600 else dp(16),
-                dp(45) if Window.height < 800 else dp(50)
-            )
+        base_font = adapt_value(14)
+        row_height = adapt_value(35)
 
         # Заголовки таблицы
-        headers = ["Фракция", "Ветераны", "Потери", "Уничтожено", "Военный рейтинг", "Торговый рейтинг"]
-        font_header, _, row_h = get_sizes()
-
+        headers = ["Фракция", "Ветераны", "Потери", "Уничтожено", "Военный \n рейтинг", "Торговый \n рейтинг"]
         for header in headers:
             lbl = Label(
                 text=header,
                 color=(1, 1, 1, 1),
                 bold=True,
-                font_size=font_header,
+                font_size=base_font,
                 size_hint_y=None,
-                height=row_h,
+                height=row_height,
                 halign='center',
                 valign='middle'
             )
-            lbl.bind(size=lbl.setter('text_size'))
+            lbl.bind(
+                size=lambda instance, _: setattr(instance.bg_rect, 'size', instance.size),
+                pos=lambda instance, _: setattr(instance.bg_rect, 'pos', instance.pos)
+            )
 
-            # Фон заголовка с явной привязкой
             with lbl.canvas.before:
                 Color(0.15, 0.4, 0.7, 1)
-                bg = RoundedRectangle(pos=lbl.pos, size=lbl.size, radius=radius)
+                lbl.bg_rect = RoundedRectangle(pos=lbl.pos, size=lbl.size, radius=radius)
 
-            # Сохраняем ссылку на фон
-            lbl.bg_rect = bg
-            lbl.bind(
-                pos=lambda instance, _: setattr(instance.bg_rect, 'pos', instance.pos),
-                size=lambda instance, _: setattr(instance.bg_rect, 'size', instance.size)
-            )
             table_layout.add_widget(lbl)
 
         # Данные таблицы
-        even_color = (0.14, 0.14, 0.14, 1)
-        odd_color = (0.16, 0.16, 0.16, 1)
-        _, font_data, row_h = get_sizes()
-
         for i, res in enumerate(results):
-            row_color = even_color if i % 2 == 0 else odd_color
+            row_color = (0.14, 0.14, 0.14, 1) if i % 2 == 0 else (0.16, 0.16, 0.16, 1)
             row_data = [
                 res["faction"],
                 f"{res['units_combat']:,}".replace(',', ' '),
@@ -226,66 +216,69 @@ class ResultsGame:
                 lbl = Label(
                     text=value,
                     color=(0.92, 0.92, 0.92, 1),
-                    font_size=font_data,
+                    font_size=base_font * 0.9,
                     size_hint_y=None,
-                    height=row_h,
+                    height=row_height,
                     halign='center',
                     valign='middle'
                 )
-                lbl.bind(size=lbl.setter('text_size'))
+                lbl.bind(
+                    size=lambda instance, _: setattr(instance.bg_rect, 'size', instance.size),
+                    pos=lambda instance, _: setattr(instance.bg_rect, 'pos', instance.pos)
+                )
 
-                # Фон строки с явной привязкой
                 with lbl.canvas.before:
                     Color(*row_color)
-                    bg = RoundedRectangle(pos=lbl.pos, size=lbl.size, radius=radius)
+                    lbl.bg_rect = RoundedRectangle(pos=lbl.pos, size=lbl.size, radius=radius)
 
-                # Сохраняем ссылку на фон
-                lbl.bg_rect = bg
-                lbl.bind(
-                    pos=lambda instance, _: setattr(instance.bg_rect, 'pos', instance.pos),
-                    size=lambda instance, _: setattr(instance.bg_rect, 'size', instance.size)
-                )
                 table_layout.add_widget(lbl)
 
         scroll_view.add_widget(table_layout)
+        table_container.add_widget(scroll_view)
 
         # Кнопка выхода
         exit_btn = Button(
             text="ВЕРНУТЬСЯ В МЕНЮ",
-            font_size=dp(18) if Window.width < 600 else dp(20),
-            background_color=(0.2, 0.5, 0.8, 1),
-            background_normal='',
-            pos_hint={"center_x": 0.5, "y": 0.02},
+            font_size=dp(16) if Window.width < 600 else dp(18),
             size_hint=(0.7, None),
-            height=dp(50) if Window.height < 800 else dp(60),
-            border=(dp(12), dp(12), dp(12), dp(12))
+            height=dp(45),
+            pos_hint={"center_x": 0.5, "y": 0.02},
+            background_color=(0.2, 0.5, 0.8, 1),
+            background_normal=''
         )
         exit_btn.bind(on_press=self.exit_to_main_menu)
 
-        layout.add_widget(main_box)
-        layout.add_widget(scroll_view)
+        # Добавляем элементы
+        layout.add_widget(message_label)
+        layout.add_widget(table_container)
         layout.add_widget(exit_btn)
 
-        # Создание попапа
+        # Создаем попап
         popup = Popup(
             title="",
             content=layout,
-            size_hint=(0.95, 0.95) if Window.width < 600 else (0.85, 0.9),
+            size_hint=(
+                min(0.95, Window.width / 1000 + 0.6),
+                min(0.95, Window.height / 1000 + 0.6)
+            ),
             auto_dismiss=False,
-            separator_height=0,
-            background='',
-            background_color=bg_color
+            background=''
         )
 
-        # Фикс артефактов
-        def force_redraw(*args):
-            for child in table_layout.children:
-                child.canvas.ask_update()
-            layout.canvas.ask_update()
+        # Функция адаптации
+        def adapt_layout(*args):
+            table_layout.width = scroll_view.width
+            message_label.text_size = (message_label.width * 0.95, None)
+            table_layout.row_default_height = adapt_value(40)
+            table_layout.spacing = adapt_value(2)
+            scroll_view.bar_width = adapt_value(10)
 
-        popup.bind(on_open=lambda *args: Clock.schedule_once(force_redraw, 0.1))
-        self.popup = popup  # Сохраняем ссылку в классе
+        # Привязка к изменению размеров
+        Window.bind(width=lambda *x: adapt_layout(), height=lambda *x: adapt_layout())
+        Clock.schedule_once(adapt_layout)
+
         popup.open()
+        self.popup = popup
 
     def exit_to_main_menu(self, instance):
         self.close_connection()
