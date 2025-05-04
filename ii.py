@@ -1297,11 +1297,9 @@ class AIController:
             return None
 
     def find_nearest_city(self, faction):
-        """
-        Находит ближайший город противника для атаки.
+        """Находит ближайший город противника для атаки.
         :param faction: Название фракции
-        :return: Имя ближайшего города или None, если подходящий город не найден
-        """
+        :return: Имя ближайшего города или None, если подходящий город не найден"""
         try:
             # Получаем координаты всех городов текущей фракции
             query = "SELECT name, coordinates FROM cities WHERE faction = ?"
@@ -1313,23 +1311,29 @@ class AIController:
             self.cursor.execute(query, (faction,))
             enemy_cities = self.cursor.fetchall()
 
-            # Находим ближайший город с учетом ограничения по дистанции
             nearest_city = None
+
             for our_city_name, our_coords in our_cities:
                 our_coords = our_coords.strip("[]")  # Убираем [ и ]
                 our_x, our_y = map(int, our_coords.split(','))
+
                 for enemy_city_name, enemy_coords in enemy_cities:
                     enemy_coords = enemy_coords.strip("[]")  # Убираем [ и ]
                     enemy_x, enemy_y = map(int, enemy_coords.split(','))
-                    distance = ((our_x - enemy_x) ** 2 + (our_y - enemy_y) ** 2) ** 0.5
-                    if distance <= 225:
+
+                    # Новый расчет расстояния
+                    distance = abs(our_x - enemy_x) + abs(our_y - enemy_y)
+
+                    if distance < 225:
                         nearest_city = enemy_city_name
+                        return nearest_city
 
-            return nearest_city
-
+            return None
         except sqlite3.Error as e:
             print(f"Ошибка при поиске ближайшего города: {e}")
             return None
+
+
 
     def relocate_units(self, from_city_name, to_city_name, unit_name, unit_count, unit_image):
         try:
@@ -1518,8 +1522,6 @@ class AIController:
 
             # Обработка результата битвы
             if result["winner"] == "attacker":
-                self.units_combat += result["attacker_losses"]
-                self.units_destroyed += result["defender_losses"]
                 self.army_efficiency_ratio = result["efficiency_ratio"]
 
                 # Распределяем войска после победы
@@ -1720,7 +1722,7 @@ class AIController:
                     print(f"Фракция {self.faction} уже находится в состоянии войны с фракцией {faction}.")
                     target_city = self.find_nearest_city(faction)
                     if target_city:
-                        print(f"Ближайший город для атаки: {target_city}")
+                        print(f"Ближайший вражеский город для атаки: {target_city}")
                         self.attack_city(target_city, faction)
                     else:
                         print(f"Не удалось найти подходящий город для атаки у фракции {faction}.")
@@ -1729,8 +1731,8 @@ class AIController:
                 # Если нет войны, проверяем условия для объявления войны
                 if int(relationship) < 12:  # Если отношения ниже 12%
                     enemy_strength = army_strength.get(faction, 0)
-                    # Проверяем, что наша сила армии больше в 1.5 раза
-                    if our_strength > 1.5 * enemy_strength:
+                    # Проверяем, что наша сила армии больше в 1.4 раза
+                    if our_strength > 1.4 * enemy_strength:
                         print(f"Отношения с фракцией {faction} упали ниже 12%. "
                               f"Сила нашей армии: {our_strength}, сила противника: {enemy_strength}. Объявление войны.")
                         # Обновляем статус дипломатии на "война"
@@ -1740,7 +1742,7 @@ class AIController:
                         # Определяем ближайший город для атаки
                         target_city = self.find_nearest_city(faction)
                         if target_city:
-                            print(f"Ближайший город для атаки: {target_city}")
+                            print(f"Ближайший вражеский город для атаки: {target_city}")
                             # Наносим удар по ближайшему городу
                             self.attack_city(target_city, faction)
                         else:
