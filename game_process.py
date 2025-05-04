@@ -40,6 +40,7 @@ class ResourceCard(BoxLayout):
     icon = StringProperty('')
     bg_color = ListProperty([0.16, 0.20, 0.27, 0.9])
 
+
 def parse_formatted_number(formatted_str):
     """Преобразует отформатированную строку с приставкой обратно в число"""
     # Словарь множителей для приставок
@@ -76,6 +77,7 @@ def parse_formatted_number(formatted_str):
 
     except (ValueError, IndexError, AttributeError):
         return float('nan')  # Возвращаем NaN при ошибке парсинга
+
 
 # Список всех фракций
 FACTIONS = ["Аркадия", "Селестия", "Хиперион", "Халидон", "Этерия"]
@@ -143,7 +145,6 @@ class GameStateManager:
         """Закрывает соединение с базой данных."""
         if self.conn:
             self.conn.close()
-
 
 
 class ResourceBox(BoxLayout):
@@ -228,6 +229,7 @@ class ResourceBox(BoxLayout):
         for label in self.labels.values():
             label.font_size = new_font_size
             label.height = self.calculate_label_height()
+
 
 # Класс для кнопки с изображением
 class ImageButton(ButtonBehavior, Image):
@@ -395,7 +397,7 @@ class GameScreen(Screen):
 
         # Обновляем статус уничтоженных фракций
         self.update_destroyed_factions()
-
+        self.reset_check_attack_flags()
         # Логирование или обновление интерфейса после хода
         print(f"Ход {self.turn_counter} завершён")
 
@@ -545,6 +547,20 @@ class GameScreen(Screen):
 
         except sqlite3.Error as e:
             print(f"Ошибка при обновлении статуса уничтоженных фракций: {e}")
+
+    def reset_check_attack_flags(self):
+        """
+        Обновляет значения check_attack на False для всех записей в таблице turn_check_attack_faction.
+        """
+        try:
+            self.cursor.execute("""
+                UPDATE turn_check_attack_faction
+                SET check_attack = ?
+            """, (False,))
+            self.conn.commit()
+            print("Флаги check_attack успешно сброшены на False.")
+        except sqlite3.Error as e:
+            print(f"Ошибка при сбросе флагов check_attack: {e}")
 
     def init_ai_controllers(self):
         """Создание контроллеров ИИ для каждой фракции кроме выбранной"""

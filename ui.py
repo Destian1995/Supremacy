@@ -1,7 +1,6 @@
 
 from kivy.core.window import Window
 from kivy.graphics import Rectangle, Color
-from kivy.properties import partial
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
@@ -33,7 +32,7 @@ def dict_factory(cursor, row):
 
 
 class FortressInfoPopup(Popup):
-    def __init__(self, kingdom, city_coords, player_fraction, **kwargs):
+    def __init__(self, ai_fraction, city_coords, player_fraction, **kwargs):
         super(FortressInfoPopup, self).__init__(**kwargs)
 
         # Создаем подключение к БД
@@ -41,8 +40,7 @@ class FortressInfoPopup(Popup):
         self.conn.execute("PRAGMA journal_mode=WAL;")
         self.conn.execute("PRAGMA synchronous=NORMAL;")
         self.cursor = self.conn.cursor()
-
-        self.fraction = kingdom
+        self.ai_fraction = ai_fraction
         self.city_name = ''
         self.city_coords = list(city_coords)
         self.size_hint = (0.8, 0.8)
@@ -314,7 +312,7 @@ class FortressInfoPopup(Popup):
                 SELECT building_type, count 
                 FROM buildings 
                 WHERE city_name = ? AND faction = ?
-            """, (self.city_name, self.fraction))
+            """, (self.city_name, self.ai_fraction))
 
             buildings_data = self.cursor.fetchall()
 
@@ -1155,6 +1153,33 @@ class FortressInfoPopup(Popup):
             print(f"Ошибка при получении владельца города: {e}")
             return None
 
+    def initialize_turn_check_attack_faction(self):
+        """
+        Инициализирует запись в таблице turn_check_attack_faction, если её нет.
+        Устанавливает значение check_attack в True по умолчанию.
+        """
+        try:
+            cursor = self.cursor
+            # Проверяем, существует ли уже запись для текущей фракции
+            cursor.execute("""
+                SELECT faction FROM turn_check_attack_faction 
+                WHERE faction = ?
+            """, (self.ai_fraction,))
+            result = cursor.fetchone()
+
+            if not result:
+                # Если записи нет, создаем новую с check_attack = True
+                cursor.execute("""
+                    INSERT INTO turn_check_attack_faction (faction, check_attack)
+                    VALUES (?, ?)
+                """, (self.ai_fraction, True))
+                self.conn.commit()
+                print(f"Инициализирована запись для фракции {self.ai_fraction} с check_attack=True")
+            else:
+                print(f"Запись для фракции {self.ai_fraction} уже существует.")
+        except sqlite3.Error as e:
+            print(f"Ошибка при инициализации turn_check_attack_faction: {e}")
+
     def transfer_troops_between_cities(self, source_fortress_name, destination_fortress_name, unit_name, taken_count):
         """
         Переносит войска из одного города в другой с проверкой расстояния по координатам.
@@ -1200,6 +1225,28 @@ class FortressInfoPopup(Popup):
             elif self.is_enemy(current_player_kingdom, destination_owner):
                 # Город назначения — вражеский
                 if total_diff < 225:
+                    # Проверяем флаг check_attack для фракции-цели
+                    cursor.execute("""
+                        SELECT check_attack FROM turn_check_attack_faction
+                        WHERE faction = ?
+                    """, (destination_owner,))
+                    result = cursor.fetchone()
+
+                    if result and result[0]:  # Если check_attack уже True
+                        show_popup_message(
+                            "Ошибка",
+                            f"Фракция '{destination_owner}' уже была атакована на этом ходу."
+                        )
+                        return
+
+                    # Устанавливаем check_attack в True для фракции-цели
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO turn_check_attack_faction (faction, check_attack)
+                        VALUES (?, ?)
+                    """, (destination_owner, True))
+                    self.conn.commit()
+
+                    # Запускаем бой
                     self.start_battle_group(
                         source_fortress_name=source_fortress_name,
                         destination_fortress_name=destination_fortress_name,

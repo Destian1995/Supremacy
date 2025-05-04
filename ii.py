@@ -1371,10 +1371,34 @@ class AIController:
 
     def launch_attack_on_city(self, city_name, faction):
         try:
+            # Проверяем, является ли атака результатом запроса союзника
+            is_ally_request = self.is_faction_ally(faction)
+
             attacking_units = self.collect_attacking_units()
             if not attacking_units:
                 print("Нет атакующих юнитов.")
                 return
+
+            # Добавляем новую логику после сбора юнитов
+            if is_ally_request:
+                # Получаем фракцию-владельца города
+                self.cursor.execute("""
+                    SELECT faction FROM cities WHERE name = ?
+                """, (city_name,))
+                target_faction = self.cursor.fetchone()[0]
+
+                # Обновляем статус дипломатии на "война"
+                self.update_diplomacy_status(target_faction, "война")
+
+                # Обнуляем отношения в таблице relations
+                self.cursor.execute("""
+                    UPDATE relations
+                    SET relationship = 0
+                    WHERE faction1 = ? AND faction2 = ?
+                """, (self.faction, target_faction))
+                self.db_connection.commit()
+
+                print(f"Фракция {self.faction} объявила войну фракции {target_faction} по запросу союзника.")
 
             total_units = sum(unit["unit_count"] for unit in attacking_units)
             units_to_attack = int(total_units * 0.6)
@@ -1768,7 +1792,6 @@ class AIController:
             """
             self.cursor.execute(query)
             rows = self.cursor.fetchall()
-
             is_ally_turn = False  # Флаг для отслеживания, был ли ход союзника
 
             for row in rows:
@@ -1776,6 +1799,7 @@ class AIController:
 
                 # Проверяем, является ли фракция союзником
                 is_ally = self.is_faction_ally(faction)
+
                 if not is_ally:
                     print(f"Фракция {faction} не является союзником. Пропускаем запрос.")
                     continue
@@ -1792,6 +1816,26 @@ class AIController:
 
                 # Если заполнен столбец attack_city
                 if attack_city:
+                    # Получаем владельца целевого города
+                    self.cursor.execute("""
+                        SELECT faction FROM cities WHERE name = ?
+                    """, (attack_city,))
+                    target_faction = self.cursor.fetchone()[0]
+
+                    # Обновляем статус дипломатии на "война"
+                    self.update_diplomacy_status(target_faction, "война")
+
+                    # Обнуляем отношения в таблице relations
+                    self.cursor.execute("""
+                        UPDATE relations
+                        SET relationship = 0
+                        WHERE faction1 = ? AND faction2 = ?
+                    """, (self.faction, target_faction))
+                    self.db_connection.commit()
+
+                    print(f"Фракция {self.faction} объявила войну фракции {target_faction} по запросу союзника.")
+
+                    # Выполняем атаку на город
                     self.launch_attack_on_city(attack_city, faction)
 
             # Очищаем таблицу queries, только если был ход союзника

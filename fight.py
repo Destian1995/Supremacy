@@ -201,13 +201,19 @@ def show_battle_report(report_data):
     defending_color = "#33FF57"  # Зеленый
 
     # Определяем заголовки таблиц в зависимости от результата игрока
+    # Определяем заголовки таблиц в зависимости от результата игрока
     attacking_title = None
     defending_title = None
 
     if attacking_data and attacking_data[0]['result']:
-        attacking_title = attacking_data[0]['result']  # "Победа" или "Поражение"
+        # Определяем цвет заголовка на основе результата
+        result_color = "#33FF57" if attacking_data[0]['result'] == "Победа" else "#FF5733"
+        attacking_title = f"[color={result_color}]{attacking_data[0]['result']}[/color]"
+
     if defending_data and defending_data[0]['result']:
-        defending_title = defending_data[0]['result']  # "Победа" или "Поражение"
+        # Определяем цвет заголовка на основе результата
+        result_color = "#33FF57" if defending_data[0]['result'] == "Победа" else "#FF5733"
+        defending_title = f"[color={result_color}]{defending_data[0]['result']}[/color]"
 
     # Создаем таблицы для атакующих и обороняющихся
     attacking_table = create_battle_table(attacking_data, attacking_title, attacking_color)
@@ -288,12 +294,16 @@ def fight(attacking_city, defending_city, defending_army, attacking_army,
     except Exception as e:
         print(f"Ошибка загрузки faction: {e}")
         user_faction = None
-
     is_user_involved = user_faction in (attacking_fraction, defending_fraction)
 
     # Объединяем одинаковые юниты
     merged_attacking = merge_units(attacking_army)
-    merged_defending = merge_units(defending_army)
+
+    # Загружаем гарнизон защитного города
+    garrison = load_garrison(defending_city, db_connection)
+    # Объединяем гарнизон с обороняющейся армией
+    full_defending_army = defending_army + garrison
+    merged_defending = merge_units(full_defending_army)
 
     # Инициализируем счётчики для merged списков
     for u in merged_attacking + merged_defending:
@@ -493,6 +503,42 @@ def calculate_unit_power(unit, is_attacking):
         defense = unit['units_stats']['Защита']
         return durability + defense
 
+def load_garrison(city_name, db_connection):
+    """
+    Загружает гарнизон города из базы данных.
+    :param city_name: Название города.
+    :param db_connection: Соединение с базой данных.
+    :return: Список юнитов гарнизона.
+    """
+    try:
+        cursor = db_connection.cursor()
+        cursor.execute("""
+            SELECT unit_name, unit_count, unit_image 
+            FROM garrisons 
+            WHERE city_id = ?
+        """, (city_name,))
+        rows = cursor.fetchall()
+        garrison = []
+        for row in rows:
+            unit_name, unit_count, unit_image = row
+            # Загрузка статистики юнита
+            cursor.execute("""
+                SELECT * 
+                FROM units_stats 
+                WHERE unit_name = ?
+            """, (unit_name,))
+            stats = cursor.fetchone()
+            if stats:
+                garrison.append({
+                    "unit_name": unit_name,
+                    "unit_count": unit_count,
+                    "unit_image": unit_image,
+                    "units_stats": dict(stats)
+                })
+        return garrison
+    except Exception as e:
+        print(f"Ошибка при загрузке гарнизона: {e}")
+        return []
 
 def battle_units(attacking_unit, defending_unit, city, user_faction):
     """

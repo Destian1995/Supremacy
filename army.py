@@ -650,7 +650,7 @@ def start_army_mode(faction, game_area, class_faction):
         # Сборка карточки
         card.add_widget(header)
         card.add_widget(body)
-        card.add_widget(cost_container)  # Добавляем контейнер стоимости
+        card.add_widget(cost_container)
         card.add_widget(control_panel)
         slide.add_widget(card)
         carousel.add_widget(slide)
@@ -658,7 +658,26 @@ def start_army_mode(faction, game_area, class_faction):
     right_container.add_widget(carousel)
     main_box.add_widget(left_space)
     main_box.add_widget(right_container)
-    game_area.add_widget(main_box)
+
+    # Добавляем FloatLayout для кнопки закрытия
+    float_layout = FloatLayout(size_hint=(1, 1))
+    float_layout.add_widget(main_box)
+
+    # Кнопка закрытия
+    close_button = Button(
+        text="X",
+        size_hint=(None, None),
+        size=(dp(40), dp(40)),
+        pos_hint={'top': 0.85, 'right': 0.86},
+        background_color=(1, 0, 0, 1),  # Красный цвет
+        color=(1, 1, 1, 1),  # Белый текст
+        font_size=set_font_size(0.03),
+        bold=True
+    )
+    close_button.bind(on_release=lambda instance: game_area.clear_widgets())  # Закрытие вкладки
+    float_layout.add_widget(close_button)
+
+    game_area.add_widget(float_layout)
 
 def set_font_size(relative_size):
     """Вычисляет размер шрифта относительно размера окна"""

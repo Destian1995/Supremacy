@@ -1082,17 +1082,23 @@ class AdvisorView(FloatLayout):
             conn = sqlite3.connect(self.db)
             cursor = conn.cursor()
 
-            # Получаем всех юнитов текущей фракции
+            # Получаем всех юнитов текущей фракции вместе с их классом
             cursor.execute("""
-                SELECT id, attack, defense
+                SELECT id, attack, defense, unit_class
                 FROM units
                 WHERE faction = ?
             """, (self.faction,))
             units = cursor.fetchall()
+            print(f"Юниты фракции '{units}''.")
+            for unit_id, current_attack, current_defense, unit_class in units:
+                # Определяем множитель для юнитов первого класса
+                multiplier = 0.01 if int(unit_class) == 1 else 1
 
-            for unit_id, current_attack, current_defense in units:
-                new_attack = current_attack + attack_bonus
-                new_defense = current_defense + defense_bonus
+                # Применяем множитель к бонусам
+                new_attack = current_attack + int(attack_bonus * multiplier)
+                new_defense = current_defense + int(defense_bonus * multiplier)
+
+                # Обновляем характеристики юнита в базе данных
                 cursor.execute("""
                     UPDATE units
                     SET attack = ?, defense = ?
@@ -1101,21 +1107,22 @@ class AdvisorView(FloatLayout):
 
             conn.commit()
             conn.close()
-            print(f"Юниты фракции '{self.faction}' обновлены: +{attack_bonus} атаки, +{defense_bonus} защиты.")
 
+            print(f"Юниты фракции '{self.faction}' обновлены: "
+                  f"+{attack_bonus} атаки, +{defense_bonus} защиты (с учетом множителей для 1 класса).")
         except sqlite3.Error as e:
             print(f"Ошибка при обновлении характеристик юнитов: {e}")
 
     def calculate_bonus(self, points):
         bonus = 0
         if points >= 1:
-            bonus += min(points, 3) * 17
+            bonus += min(points, 3) * 24
         if points >= 4:
-            bonus += (min(points, 5) - 4) * 38
+            bonus += (min(points, 5) - 4) * 58
         if points >= 7:
-            bonus += (min(points, 9) - 6) * 190
+            bonus += (min(points, 9) - 6) * 150
         if points == 10:
-            bonus += 600
+            bonus += 900
         return bonus
 
     def calculate_battle_score_from_db(self):
@@ -1139,8 +1146,8 @@ class AdvisorView(FloatLayout):
         thresholds = [
             (4, 10000),  # 4 балла по 10 тыс.
             (3, 25000),  # 3 балла по 25 тыс.
-            (2, 35000),  # 2 балла по 35 тыс.
-            (1, 45000)  # 1 балл по 45 тыс.
+            (2, 42000),  # 2 балла по 35 тыс.
+            (1, 55000)  # 1 балл по 45 тыс.
         ]
 
         battle_points = 0

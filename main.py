@@ -366,7 +366,7 @@ class MapWidget(Widget):
                 save_last_clicked_city(fortress_data["name"])
                 # Открываем окно с информацией
                 popup = FortressInfoPopup(
-                    kingdom=owner,
+                    ai_fraction=owner,
                     city_coords=fortress_data["coordinates"],
                     player_fraction=self.current_player_kingdom
                 )
