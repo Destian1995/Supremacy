@@ -15,9 +15,16 @@ import sqlite3
 from kivy.clock import Clock
 # Размеры окна
 screen_width, screen_height = 1200, 800
+from kivy.utils import platform
+
+if platform == 'android':
+    from android.storage import app_storage_path
+    db_path = os.path.join(app_storage_path(), 'game_data.db')
+else:
+    db_path = 'game_data.db'
 
 def save_last_clicked_city(city_name: str):
-    conn = sqlite3.connect('game_data.db')
+    conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     # если строки ещё нет, вставим, иначе перепишем
     cur.execute(
@@ -35,7 +42,7 @@ def load_cities_from_db(selected_kingdom):
     :return: Список словарей с данными о городах.
     """
     # Подключение к базе данных
-    conn = sqlite3.connect('game_data.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     try:
@@ -82,7 +89,7 @@ def restore_from_backup():
     # Подключение к базе данных
     conn = None
     try:
-        conn = sqlite3.connect('game_data.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
         # Список таблиц для восстановления
@@ -190,7 +197,7 @@ class MapWidget(Widget):
     def __init__(self, selected_kingdom=None, player_kingdom=None, **kwargs):
         super(MapWidget, self).__init__(**kwargs)
         self.touch_start = None  # Стартовая позиция касания
-        self.conn = sqlite3.connect('game_data.db', check_same_thread=False)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.fortress_rectangles = []  # Список для хранения крепостей
         self.current_player_kingdom = player_kingdom  # Текущее королевство игрока
         self.map_pos = self.map_positions_start()  # Позиция карты
@@ -541,7 +548,7 @@ class KingdomSelectionWidget(FloatLayout):
         super(KingdomSelectionWidget, self).__init__(**kwargs)
 
         # Подключение к базе данных и загрузка данных о княжествах
-        self.conn = sqlite3.connect('game_data.db', check_same_thread=False)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.kingdom_data = self.load_kingdoms_from_db()
 
         # Фон выбора княжества с размытием
@@ -695,7 +702,7 @@ class KingdomSelectionWidget(FloatLayout):
 
     def start_game(self, instance):
         # Очистка старых данных из БД
-        conn = sqlite3.connect('game_data.db')
+        conn = sqlite3.connect(db_path)
         clear_tables(conn)
         conn.close()
 
@@ -736,7 +743,7 @@ class EmpireApp(App):
 
     def restart_app(self):
         # Явное закрытие всех соединений с базой данных
-        conn = sqlite3.connect('game_data.db')
+        conn = sqlite3.connect(db_path)
         clear_tables(conn)
         conn.close()
 

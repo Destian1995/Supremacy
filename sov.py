@@ -14,6 +14,12 @@ import os
 import sqlite3
 import random
 
+from kivy.utils import platform
+if platform == 'android':
+    from android.storage import app_storage_path
+    db_path = os.path.join(app_storage_path(), 'game_data.db')
+else:
+    db_path = 'game_data.db'
 
 # Словарь для перевода названий
 translation_dict = {
@@ -50,7 +56,7 @@ class AdvisorView(FloatLayout):
     def __init__(self, faction, **kwargs):
         super(AdvisorView, self).__init__(**(kwargs))
         self.faction = faction
-        self.db = 'game_data.db'
+        self.db = db_path
         self.db_connection = sqlite3.connect(self.db)  # Подключение к базе данных
         self.cursor = self.db_connection.cursor()
         self._exp_points = 0

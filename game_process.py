@@ -13,7 +13,7 @@ from kivy.uix.behaviors import ButtonBehavior
 from kivy.graphics import Color, Rectangle, RoundedRectangle
 from kivy.clock import Clock
 import economic
-# Файл, который включает режимы игры
+
 from economic import Faction
 import army
 import politic
@@ -23,12 +23,15 @@ from event_manager import EventManager
 import sqlite3
 import random
 from results_game import ResultsGame
-# Добавим в начало файла
-from kivy.core.text import LabelBase
-from kivy.properties import ListProperty, NumericProperty, StringProperty
-from kivy.lang import Builder
-from kivy.animation import Animation
 
+from kivy.properties import ListProperty, StringProperty
+
+from kivy.utils import platform
+if platform == 'android':
+    from android.storage import app_storage_path
+    db_path = os.path.join(app_storage_path(), 'game_data.db')
+else:
+    db_path = 'game_data.db'
 
 # Новые кастомные виджеты
 class ModernButton(Button):
@@ -109,7 +112,7 @@ class GameStateManager:
         self.cursor = None  # Курсор для работы с БД
         self.turn_counter = 1  # Счетчик ходов
 
-    def initialize(self, selected_faction, db_path="game_data.db"):
+    def initialize(self, selected_faction, db_path=db_path):
         """Инициализация объектов игры."""
         self.faction = Faction(selected_faction)  # Создаем объект фракции
         self.conn = sqlite3.connect(db_path)  # Подключаемся к базе данных

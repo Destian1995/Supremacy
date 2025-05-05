@@ -8,13 +8,19 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.popup import Popup
 from kivy.graphics import Color, Rectangle
 import sqlite3
-
+from kivy.utils import platform
+if platform == 'android':
+    from android.storage import app_storage_path
+    import os
+    db_path = os.path.join(app_storage_path(), 'game_data.db')
+else:
+    db_path = 'game_data.db'
 
 class EventManager:
     def __init__(self, player_faction, game_screen, class_faction_economic):
         self.player_faction = player_faction
         self.game_screen = game_screen  # Ссылка на экран игры для отображения событий
-        self.db = 'game_data.db'
+        self.db = db_path
         self.db_connection = sqlite3.connect(self.db)  # Подключение к базе данных
         self.economics = class_faction_economic  # Экономический модуль
 

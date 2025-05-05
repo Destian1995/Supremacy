@@ -2,10 +2,16 @@ import sqlite3
 import random
 
 from fight import fight
-
+from kivy.utils import platform
+if platform == 'android':
+    from android.storage import app_storage_path
+    import os
+    db_path = os.path.join(app_storage_path(), 'game_data.db')
+else:
+    db_path = 'game_data.db'
 
 class AIController:
-    def __init__(self, faction, db_path='game_data.db'):
+    def __init__(self, faction, db_path=db_path):
         self.faction = faction
         self.turn = 0
         self.db_connection = sqlite3.connect(db_path)

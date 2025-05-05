@@ -9,7 +9,13 @@ from kivy.graphics import Color, Rectangle
 
 
 from kivy.uix.scrollview import ScrollView
-
+from kivy.utils import platform
+if platform == 'android':
+    from android.storage import app_storage_path
+    import os
+    db_path = os.path.join(app_storage_path(), 'game_data.db')
+else:
+    db_path = 'game_data.db'
 
 def merge_units(army):
     """
@@ -642,7 +648,7 @@ def damage_to_infrastructure(all_damage, city_name, user_faction):
 
     # Подключение к базе данных
     try:
-        conn = sqlite3.connect('game_data.db')  # Замените 'game_data.db' на путь к вашей БД
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
         # Загрузка данных о зданиях для указанного города

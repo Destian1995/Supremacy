@@ -1,7 +1,6 @@
 # army.py
 from kivy.animation import Animation
-from kivy.graphics import Rectangle
-from kivy.clock import Clock
+
 from kivy.uix.carousel import Carousel
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.popup import Popup
@@ -10,17 +9,22 @@ from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 from kivy.uix.image import Image
-from kivy.uix.scrollview import ScrollView
-from kivy.uix.gridlayout import GridLayout
 from kivy.graphics import Color, RoundedRectangle
 from kivy.metrics import dp
-from kivy.core.window import Window
+
 from kivy.utils import get_color_from_hex
 
 from economic import format_number
-import threading
-import time
+
 import sqlite3
+
+from kivy.utils import platform
+if platform == 'android':
+    from android.storage import app_storage_path
+    import os
+    db_path = os.path.join(app_storage_path(), 'game_data.db')
+else:
+    db_path = 'game_data.db'
 
 PRIMARY_COLOR = get_color_from_hex('#2E7D32')
 SECONDARY_COLOR = get_color_from_hex('#388E3C')
@@ -72,7 +76,7 @@ class ArmyCash:
         """
         self.faction = faction
         self.class_faction = class_faction  # Экономический модуль
-        self.db_path = "game_data.db"
+        self.db_path = db_path
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
         self.resources = self.load_resources()  # Загрузка начальных ресурсов
@@ -331,7 +335,7 @@ class ArmyCash:
 
 def load_unit_data(faction):
     """Загружает данные о юнитах для выбранной фракции из базы данных."""
-    conn = sqlite3.connect("game_data.db")
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("""
         SELECT unit_name, consumption, cost_money, cost_time, image_path, attack, defense, durability, unit_class

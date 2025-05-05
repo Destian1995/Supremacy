@@ -15,6 +15,13 @@ from kivy.uix.floatlayout import FloatLayout
 
 import random
 import sqlite3
+from kivy.utils import platform
+if platform == 'android':
+    from android.storage import app_storage_path
+    import os
+    db_path = os.path.join(app_storage_path(), 'game_data.db')
+else:
+    db_path = 'game_data.db'
 
 def format_number(number):
     """Форматирует число с добавлением приставок (тыс., млн., млрд., трлн., квадр., квинт., секст., септил., октил., нонил., децил., андец.)"""
@@ -59,7 +66,7 @@ def save_building_change(faction_name, city, building_type, delta):
     Обновляет количество зданий для указанного города в базе данных.
     delta — изменение (например, +1 или -1).
     """
-    conn = sqlite3.connect('game_data.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     try:
@@ -98,7 +105,7 @@ def save_building_change(faction_name, city, building_type, delta):
 class Faction:
     def __init__(self, name):
         self.faction = name
-        self.db_path = 'game_data.db'  # Путь к базе данных
+        self.db_path = db_path # Путь к базе данных
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
         self.resources = self.load_resources_from_db()  # Загрузка ресурсов
@@ -178,7 +185,7 @@ class Faction:
         return resources
 
     def save_building_change(faction_name, city, building_type, delta):
-        conn = sqlite3.connect('game_data.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         try:
             # Ищем существующую запись
@@ -212,7 +219,7 @@ class Faction:
             conn.close()
 
     def load_auto_build_settings(self):
-        conn = sqlite3.connect('game_data.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute('''
             SELECT enabled, hospitals_ratio, factories_ratio 
@@ -229,7 +236,7 @@ class Faction:
             self.auto_build_ratio = (1, 1)  # Значение по умолчанию
 
     def save_auto_build_settings(self):
-        conn = sqlite3.connect('game_data.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute('''
             INSERT OR REPLACE INTO auto_build_settings 

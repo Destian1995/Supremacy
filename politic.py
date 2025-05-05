@@ -1,26 +1,28 @@
-import os
+
 import sqlite3
 
 from kivy.animation import Animation
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.popup import Popup
-from kivy.uix.screenmanager import Screen, ScreenManager
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
-from kivy.uix.tabbedpanel import TabbedPanelItem, TabbedPanel
 from kivy.uix.textinput import TextInput
-from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.modalview import ModalView
-from kivy.uix.widget import Widget
 from kivy.core.window import Window
-from kivy.uix.behaviors import ButtonBehavior
 from kivy.graphics import Color, RoundedRectangle, Rectangle
 from economic import format_number
 
 import threading
+
+from kivy.utils import platform
+if platform == 'android':
+    from android.storage import app_storage_path
+    import os
+    db_path = os.path.join(app_storage_path(), 'game_data.db')
+else:
+    db_path = 'game_data.db'
 
 # Глобальная блокировка для работы с БД
 db_lock = threading.Lock()
@@ -333,7 +335,7 @@ def show_trade_agreement_form(faction, game_area):
     input_height = font_size * 2.5  # Увеличиваем высоту полей ввода (в 2.5 раза от размера шрифта)
     padding = font_size // 2  # Отступы
     spacing = font_size // 4  # Промежутки между элементами
-    conn = sqlite3.connect('game_data.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     # Список всех фракций
     available_factions = all_factions(cursor)  # Получаем активные фракции
@@ -513,7 +515,7 @@ def show_trade_agreement_form(faction, game_area):
             return
 
         try:
-            conn = sqlite3.connect('game_data.db')
+            conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
 
             cursor.execute("""
@@ -567,7 +569,7 @@ def show_trade_agreement_form(faction, game_area):
 
 
 def check_existing_agreement(initiator, target):
-    conn = sqlite3.connect('game_data.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -589,7 +591,6 @@ def on_window_resize(instance, width, height):
 
 def connect_to_db():
     """Подключение к базе данных."""
-    db_path = "game_data.db"  # Путь к базе данных
     return sqlite3.connect(db_path)
 
 
@@ -601,7 +602,7 @@ def show_cultural_exchange_form(faction, game_area, class_faction):
     padding = font_size // 2
     spacing = font_size // 4
 
-    conn = sqlite3.connect('game_data.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     # Список всех фракций
     available_factions = all_factions(cursor)  # Получаем активные фракции
@@ -863,7 +864,7 @@ def show_peace_form(player_faction):
             (player_faction,)
         )
         relations = {faction: status for faction, status in cursor.fetchall()}
-        conn = sqlite3.connect('game_data.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         active_factions = all_factions(cursor)  # Получаем активные фракции
         available_factions = [f for f in active_factions if relations.get(f) == "война"]  # Оставляем только воюющие фракции
@@ -1091,7 +1092,7 @@ def show_alliance_form(faction, game_area, class_faction):
     spacing = font_size // 4  # Промежутки между элементами
 
     # Подключение к базе данных
-    conn = sqlite3.connect('game_data.db')  # Замените на путь к вашей базе данных
+    conn = sqlite3.connect(db_path)  # Замените на путь к вашей базе данных
     cursor = conn.cursor()
 
     # Проверка существования фракции в таблицах
@@ -1115,7 +1116,7 @@ def show_alliance_form(faction, game_area, class_faction):
     """, (faction, faction))
     relations_data = {row[1] if row[0] == faction else row[0]: row[2] for row in cursor.fetchall()}
 
-    conn = sqlite3.connect('game_data.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     # Список всех фракций
     available_factions = all_factions(cursor)  # Получаем активные фракции
@@ -1322,7 +1323,7 @@ def show_declare_war_form(faction):
 
     # Подключение к базе данных через контекстный менеджер
     try:
-        with sqlite3.connect('game_data.db') as conn:  # Замените на путь к вашей базе данных
+        with sqlite3.connect(db_path) as conn:  # Замените на путь к вашей базе данных
             cursor = conn.cursor()
 
             # Проверка текущего хода
@@ -1434,7 +1435,7 @@ def show_declare_war_form(faction):
 
         try:
             # Подключение к базе данных
-            with sqlite3.connect('game_data.db') as conn:
+            with sqlite3.connect(db_path) as conn:
                 cursor = conn.cursor()
 
                 # Обновление статуса отношений в таблице diplomacies
@@ -1544,7 +1545,7 @@ def calculate_army_strength():
     army_strength = {}
 
     try:
-        with sqlite3.connect('game_data.db') as conn:
+        with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
 
             # Получаем все юниты из таблицы garrisons и их характеристики из таблицы units

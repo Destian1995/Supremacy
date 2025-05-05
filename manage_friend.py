@@ -19,6 +19,14 @@ import sqlite3
 import time
 
 from kivy.uix.widget import Widget
+from kivy.utils import platform
+if platform == 'android':
+    from android.storage import app_storage_path
+    import os
+    db_path = os.path.join(app_storage_path(), 'game_data.db')
+else:
+    db_path = 'game_data.db'
+
 
 STYLE_BUTTON = {
     'background_normal': '',
@@ -80,7 +88,7 @@ class StyledDropDown(DropDown):
         self.bg.pos = self.pos
 
 def has_pending_action():
-    conn = sqlite3.connect("game_data.db")
+    conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM last_click")
     count = cur.fetchone()[0]
@@ -89,7 +97,7 @@ def has_pending_action():
 
 
 def get_city_faction(city_name):
-    conn = sqlite3.connect("game_data.db")
+    conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute("SELECT faction FROM cities WHERE name=?", (city_name,))
     result = cur.fetchone()
@@ -98,7 +106,7 @@ def get_city_faction(city_name):
 
 
 def get_allies_for_faction(faction_name):
-    conn = sqlite3.connect("game_data.db")
+    conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute(
         "SELECT faction1, faction2 FROM diplomacies "
@@ -423,7 +431,7 @@ class ManageFriend(Popup):
         self._send_request(ally, resource)
 
     def _get_allies_from_db(self):
-        conn = sqlite3.connect("game_data.db")
+        conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         cur.execute(
             "SELECT faction1, faction2 FROM diplomacies "
@@ -488,7 +496,7 @@ class ManageFriend(Popup):
         """
         Проверяет, был ли выбран город
         """
-        conn = sqlite3.connect("game_data.db")
+        conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         cur.execute("SELECT city_name FROM last_click")
         row = cur.fetchone()
@@ -527,7 +535,7 @@ class ManageFriend(Popup):
             self.progress_bar.value = 100
 
     def _has_existing_action(self):
-        conn = sqlite3.connect("game_data.db")
+        conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM queries")
         count = cur.fetchone()[0]
@@ -536,7 +544,7 @@ class ManageFriend(Popup):
 
 
     def save_query_attack_to_db(self, attack_city):
-        conn = sqlite3.connect("game_data.db")
+        conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO queries (resource, defense_city, attack_city, faction) VALUES (?, ?, ?, ?)",
@@ -546,7 +554,7 @@ class ManageFriend(Popup):
         conn.close()
 
     def save_query_defense_to_db(self, defense_city):
-        conn = sqlite3.connect("game_data.db")
+        conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO queries (resource, defense_city, attack_city, faction) VALUES (?, ?, ?, ?)",
@@ -556,7 +564,7 @@ class ManageFriend(Popup):
         conn.close()
 
     def save_query_resources_to_db(self, resource):
-        conn = sqlite3.connect("game_data.db")
+        conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO queries (resource, defense_city, attack_city, faction) VALUES (?, ?, ?, ?)",

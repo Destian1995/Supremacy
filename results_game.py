@@ -13,6 +13,15 @@ from kivy.uix.scrollview import ScrollView
 from kivy.metrics import dp
 from kivy.core.window import Window
 
+
+from kivy.utils import platform
+if platform == 'android':
+    from android.storage import app_storage_path
+    import os
+    db_path = os.path.join(app_storage_path(), 'game_data.db')
+else:
+    db_path = 'game_data.db'
+
 class ResultsGame:
     def __init__(self, game_status, reason):
         self.game_status = game_status  # Статус игры: "win" или "lose"
@@ -23,7 +32,7 @@ class ResultsGame:
         Загрузка результатов игры из базы данных.
         :return: Список результатов.
         """
-        conn = sqlite3.connect('game_data.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM results')
         results = cursor.fetchall()

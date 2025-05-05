@@ -16,7 +16,13 @@ from kivy.uix.textinput import TextInput
 from fight import fight
 from economic import format_number
 import sqlite3
-
+from kivy.utils import platform
+if platform == 'android':
+    from android.storage import app_storage_path
+    import os
+    db_path = os.path.join(app_storage_path(), 'game_data.db')
+else:
+    db_path = 'game_data.db'
 # Установка мягких цветов для фона
 Window.clearcolor = (0.95, 0.95, 0.95, 1)  # Светло-серый фон
 
@@ -36,7 +42,7 @@ class FortressInfoPopup(Popup):
         super(FortressInfoPopup, self).__init__(**kwargs)
 
         # Создаем подключение к БД
-        self.conn = sqlite3.connect('game_data.db', check_same_thread=False)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.execute("PRAGMA journal_mode=WAL;")
         self.conn.execute("PRAGMA synchronous=NORMAL;")
         self.cursor = self.conn.cursor()
