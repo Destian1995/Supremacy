@@ -1,13 +1,14 @@
 from kivy.clock import Clock
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.scrollview import ScrollView
-from kivy.uix.slider import Slider
 from kivy.uix.popup import Popup
-from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
-from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
-from kivy.graphics import Color, RoundedRectangle, Rectangle
+from kivy.uix.slider import Slider
+from kivy.uix.boxlayout import BoxLayout
+from kivy.graphics import Color, RoundedRectangle
+from kivy.uix.textinput import TextInput
+from kivy.graphics import  Rectangle
 from kivy.core.window import Window
 from kivy.animation import Animation
 from kivy.uix.floatlayout import FloatLayout
@@ -1428,6 +1429,9 @@ class Faction:
             history.append((f"Ход {i + 1}", price))
         return history
 
+    def get_available_raw_material_lots(self) -> int:
+        """Возвращает количество доступных для торговли лотов сырья"""
+        return self.raw_material // 10000
 
 def show_message(title, message):
     layout = BoxLayout(orientation='vertical', padding=10)
@@ -1616,168 +1620,120 @@ def open_build_popup(faction):
 
 
 def open_trade_popup(game_instance):
-    """Открытие окна торговли с историей цен"""
-    # Обновляем данные из базы данных
     game_instance.load_resources_from_db()
-
-    # Генерируем новую цену, если это необходимо
     game_instance.generate_raw_material_price()
 
-    trade_layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
+    trade_layout = BoxLayout(orientation='vertical', padding=30, spacing=20)
 
-    # Блок бегущей строки (история цен)
+    # === БЕГУЩАЯ СТРОКА ===
     price_history_text = ""
     previous_price = None
-
     for i, price in enumerate(game_instance.raw_material_price_history):
-        # Определяем цвет цены
         if previous_price is not None:
-            color_tag = "[color=00FF00]" if price > previous_price else "[color=FF0000]"
+            if price > previous_price:
+                color_tag = "[color=00FF00]"
+            elif price < previous_price:
+                color_tag = "[color=FF0000]"
+            else:
+                color_tag = "[color=AAAAAA]"
         else:
             color_tag = "[color=FFFFFF]"
-
-        # Формируем текст с отступами
         price_history_text += f"{color_tag}Ход {i + 1}: {price}[/color]    "
         previous_price = price
 
-    # Создаем Label для бегущей строки
     history_label = Label(
         text=price_history_text,
         markup=True,
-        font_size=16,
+        font_size=18,
         color=(1, 1, 1, 1),
         size_hint=(None, None),
-        size=(len(price_history_text) * 10, 40)
+        size=(len(price_history_text) * 9, 40)
     )
 
-    # Добавляем Label в ScrollView
-    scroll_view = ScrollView(size_hint=(1, None), height=40, do_scroll_x=True, do_scroll_y=False)
+    scroll_view = ScrollView(size_hint=(1, None), height=50, do_scroll_x=True, do_scroll_y=False)
     scroll_view.add_widget(history_label)
 
-    # Анимация бегущей строки
-    def animate_history():
-        animation = Animation(x=-history_label.width, duration=15) + Animation(x=0, duration=0)
-        animation.repeat = True
-        animation.start(history_label)
+    def animate_history(dt):
+        def loop_animation(*args):
+            history_label.x = scroll_view.width
+            animation = Animation(x=-history_label.width, duration=20, t='linear')
+            animation.bind(on_complete=loop_animation)
+            animation.start(history_label)
 
-    Clock.schedule_once(lambda dt: animate_history(), 0)
+        loop_animation()
 
-    # Размещаем бегущую строку сверху окна
+    Clock.schedule_once(animate_history, 0)
     trade_layout.add_widget(scroll_view)
 
-    # Блок текущей цены (по центру)
-    current_price_layout = BoxLayout(orientation='vertical', size_hint=(1, 0.3), padding=10)
+    # === ТЕКУЩАЯ ЦЕНА ===
+    current_price = game_instance.current_raw_material_price
+    prev_price = game_instance.raw_material_price_history[-2] if len(game_instance.raw_material_price_history) > 1 else current_price
+    arrow_color = (0, 1, 0, 1) if current_price > prev_price else (1, 0, 0, 1) if current_price < prev_price else (0.8, 0.8, 0.8, 1)
 
-    # Логика для определения цвета цены
-    if len(game_instance.raw_material_price_history) > 1:
-        previous_price = game_instance.raw_material_price_history[-2]
-        current_price = game_instance.current_raw_material_price
-        arrow_color = (0, 1, 0, 1) if current_price > previous_price else (1, 0, 0, 1)
-    else:
-        arrow_color = (0.5, 0.5, 0.5, 1)
-
-    # Отображение текущей цены
     current_price_label = Label(
-        text=f"Текущая цена: {game_instance.current_raw_material_price}",
-        font_size=40,
-        bold=True,
+        text=f"[b]Текущая цена:[/b] {current_price}",
+        markup=True,
+        font_size=36,
         color=arrow_color,
         halign="center",
         valign="middle"
     )
-    current_price_label.bind(size=current_price_label.setter('text_size'))  # Для выравнивания текста
-    current_price_layout.add_widget(current_price_label)
+    current_price_label.bind(size=current_price_label.setter('text_size'))
+    trade_layout.add_widget(current_price_label)
 
-    trade_layout.add_widget(current_price_layout)
-
-    # Блок кнопок "Купить" и "Продать"
-    button_container = BoxLayout(orientation='vertical', size_hint=(1, 0.4), spacing=10)
-
-    # Надпись "Цена за 1 лот = 100,000 единиц сырья"
-    lot_info_label = Label(
-        text="Цена за 1 лот = 10,000 единиц сырья",
-        font_size=18,
-        color=(1, 1, 1, 1),
-        size_hint=(1, 0.3),
-        halign="center",
-        valign="middle"
+    # === ЛОТЫ И ДОСТУПНОЕ СЫРЬЁ ===
+    info_box = BoxLayout(orientation='vertical', spacing=5, size_hint=(1, None), height=70)
+    lot_info = Label(text="1 лот = 10,000 единиц сырья", font_size=18, color=(1, 1, 1, 1), halign="center", valign="middle")
+    lot_info.bind(size=lot_info.setter('text_size'))
+    available_label = Label(
+        text=f"Доступно для продажи: {game_instance.get_available_raw_material_lots()} лотов",
+        font_size=18, color=(1, 1, 1, 1), halign="center", valign="middle"
     )
-    lot_info_label.bind(size=lot_info_label.setter('text_size'))
-    button_container.add_widget(lot_info_label)
+    available_label.bind(size=available_label.setter('text_size'))
+    info_box.add_widget(lot_info)
+    info_box.add_widget(available_label)
+    trade_layout.add_widget(info_box)
 
-    # Кнопки "Купить" и "Продать"
-    button_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.7), spacing=20)
+    # === ПОЛЕ ВВОДА ===
+    input_box = BoxLayout(orientation='vertical', spacing=10, size_hint=(1, None), height=80)
+    input_box.add_widget(Label(text="Введите количество лотов:", font_size=18, color=(1, 1, 1, 1), halign="center"))
+    quantity_input = TextInput(hint_text="Например: 3", font_size=18, multiline=False, input_filter='int', size_hint=(1, None), height=40)
+    input_box.add_widget(quantity_input)
+    trade_layout.add_widget(input_box)
 
-    buy_btn = Button(
-        text="Купить",
-        background_color=(0, 1, 0, 1),
-        size_hint=(0.5, 1),
-        background_normal='',
-        background_down=''
-    )
-    sell_btn = Button(
-        text="Продать",
-        background_color=(1, 0, 0, 1),
-        size_hint=(0.5, 1),
-        background_normal='',
-        background_down=''
-    )
+    # === КНОПКИ СТИЛЬНЫЕ ===
+    button_layout = BoxLayout(size_hint=(1, None), height=70, spacing=30, padding=(0, 10))
 
-    # Стилизация кнопок
-    with buy_btn.canvas.before:
-        Color(0, 1, 0, 1)
-        buy_btn.rect = RoundedRectangle(size=buy_btn.size, pos=buy_btn.pos, radius=[10])
-    with sell_btn.canvas.before:
-        Color(1, 0, 0, 1)
-        sell_btn.rect = RoundedRectangle(size=sell_btn.size, pos=sell_btn.pos, radius=[10])
+    def create_styled_button(text, bg_color):
+        btn = Button(
+            text=text,
+            font_size=22,
+            bold=True,
+            color=(1, 1, 1, 1),
+            background_color=(0, 0, 0, 0),
+            background_normal='',
+            size_hint=(0.5, 1)
+        )
+        with btn.canvas.before:
+            Color(*bg_color)
+            btn.rect = RoundedRectangle(size=btn.size, pos=btn.pos, radius=[20])
+        btn.bind(pos=lambda inst, val: setattr(inst.rect, 'pos', inst.pos))
+        btn.bind(size=lambda inst, val: setattr(inst.rect, 'size', inst.size))
+        return btn
 
-    def update_rect(instance, value):
-        instance.rect.pos = instance.pos
-        instance.rect.size = instance.size
-
-    buy_btn.bind(pos=update_rect, size=update_rect)
-    sell_btn.bind(pos=update_rect, size=update_rect)
+    buy_btn = create_styled_button("Купить", (0, 0.6, 0.2, 1))
+    sell_btn = create_styled_button("Продать", (0.7, 0.1, 0.1, 1))
 
     button_layout.add_widget(buy_btn)
     button_layout.add_widget(sell_btn)
-    button_container.add_widget(button_layout)
+    trade_layout.add_widget(button_layout)
 
-    trade_layout.add_widget(button_container)
+    # === ПОПАП ===
+    popup = Popup(title="Рынок сырья", content=trade_layout, size_hint=(0.9, 0.9))
+    buy_btn.bind(on_press=lambda x: handle_trade(game_instance, 'buy', quantity_input.text, popup))
+    sell_btn.bind(on_press=lambda x: handle_trade(game_instance, 'sell', quantity_input.text, popup))
 
-    # Поле ввода количества лотов
-    quantity_layout = BoxLayout(orientation='vertical', size_hint=(1, 0.2), spacing=10)
-
-    quantity_label = Label(
-        text="Введите количество лотов для торговли сырьем:",
-        font_size=16,
-        color=(1, 1, 1, 1),
-        size_hint=(1, 0.4),
-        halign="center",
-        valign="middle"
-    )
-    quantity_label.bind(size=quantity_label.setter('text_size'))
-
-    quantity_input = TextInput(
-        hint_text="1 лот = 10,000 единиц",
-        multiline=False,
-        font_size=16,
-        input_filter='int',
-        size_hint=(1, 0.6)
-    )
-
-    quantity_layout.add_widget(quantity_label)
-    quantity_layout.add_widget(quantity_input)
-    trade_layout.add_widget(quantity_layout)
-
-    # Создаем попап
-    trade_popup = Popup(title="Торговля сырьем", content=trade_layout, size_hint=(0.8, 0.8))
-
-    # Обработка покупки сырья
-    buy_btn.bind(on_press=lambda x: handle_trade(game_instance, 'buy', quantity_input.text, trade_popup))
-    # Обработка продажи сырья
-    sell_btn.bind(on_press=lambda x: handle_trade(game_instance, 'sell', quantity_input.text, trade_popup))
-
-    trade_popup.open()
+    popup.open()
 
 
 def handle_trade(game_instance, action, quantity, trade_popup):
@@ -1915,58 +1871,76 @@ def open_tax_popup(faction):
     tax_popup.open()
 
 
+
+
 def open_auto_build_popup(faction):
     auto_popup = Popup(
         title="Министерство развития",
         size_hint=(0.8, 0.8),
-        background_color=(0.15, 0.15, 0.2, 1)
+        background_color=(0.1, 0.1, 0.1, 0.95),
+        title_color=(1, 1, 0.7, 1),
+        title_size='24sp',
     )
 
-    main_layout = BoxLayout(orientation='vertical', spacing=10, padding=20)
+    main_layout = BoxLayout(orientation='vertical', spacing=20, padding=25)
 
-    # Шапка с приоритетами
-    header = BoxLayout(size_hint=(1, 0.15))
-    left_label = Label(text="Больницы", color=(0.8, 0.2, 0.2, 1), bold=True)
-    right_label = Label(text="Фабрики", color=(0.2, 0.8, 0.2, 1), bold=True)
+    # Шапка
+    header = BoxLayout(size_hint=(1, 0.15), spacing=20)
+    left_label = Label(text="[b]Больницы[/b]", markup=True, color=(1, 0.4, 0.4, 1), font_size='20sp')
+    right_label = Label(text="[b]Фабрики[/b]", markup=True, color=(0.4, 1, 0.4, 1), font_size='20sp')
     header.add_widget(left_label)
     header.add_widget(right_label)
 
     # Панель управления
-    controls = BoxLayout(orientation='horizontal', size_hint=(1, 0.2), spacing=10)
-    left_btn = Button(text="<<", background_color=(0.4, 0.1, 0.1, 1))
-    slider = Slider(min=0, max=8, value=4, step=1, cursor_size=(20, 20))
-    right_btn = Button(text=">>", background_color=(0.1, 0.4, 0.1, 1))
+    controls = BoxLayout(orientation='horizontal', size_hint=(1, 0.2), spacing=15)
+    left_btn = Button(text="<<", font_size='18sp', background_normal='', background_color=(0.5, 0.1, 0.1, 1))
+    slider = Slider(min=0, max=8, value=4, step=1, cursor_size=(24, 24))
+    right_btn = Button(text=">>", font_size='18sp', background_normal='', background_color=(0.1, 0.5, 0.1, 1))
     controls.add_widget(left_btn)
     controls.add_widget(slider)
     controls.add_widget(right_btn)
 
-    # Индикатор соотношения
+    # Индикатор
     ratio_layout = BoxLayout(size_hint=(1, 0.2))
-    ratio_display = Label(text="1:1", font_size=24, color=(1, 1, 0.5, 1))
+    ratio_display = Label(text="1:1", font_size='28sp', color=(1, 1, 0.5, 1))
     ratio_layout.add_widget(ratio_display)
 
     # Описание
     description = Label(
         text="Соотношение больниц и фабрик для строительства",
-        color=(0.7, 0.7, 0.7, 1),
-        size_hint=(1, 0.2)
+        color=(0.8, 0.8, 0.8, 1),
+        font_size='16sp',
+        size_hint=(1, 0.2),
+        halign='center',
+        valign='middle'
     )
+    description.bind(size=description.setter('text_size'))
 
-    # Кнопки управления
-    buttons_layout = BoxLayout(size_hint=(1, 0.2), spacing=10)
-    save_btn = Button(text="Сохранить", background_color=(0.2, 0.6, 0.2, 1))
-    cancel_btn = Button(text="Отмена", background_color=(0.6, 0.2, 0.2, 1))
+    # Кнопки
+    buttons_layout = BoxLayout(size_hint=(1, 0.2), spacing=15)
+
+    def styled_button(text, color):
+        btn = Button(text=text, font_size='18sp', background_normal='', background_color=color)
+        with btn.canvas.before:
+            Color(*color)
+            btn.rect = RoundedRectangle(size=btn.size, pos=btn.pos, radius=[12])
+            btn.bind(pos=lambda i, v: setattr(btn.rect, 'pos', v))
+            btn.bind(size=lambda i, v: setattr(btn.rect, 'size', v))
+        return btn
+
+    save_btn = styled_button("Сохранить", (0.2, 0.6, 0.2, 1))
+    cancel_btn = styled_button("Отмена", (0.6, 0.2, 0.2, 1))
     buttons_layout.add_widget(save_btn)
     buttons_layout.add_widget(cancel_btn)
 
-    # Заполнение макета
+    # Добавление элементов
     main_layout.add_widget(header)
     main_layout.add_widget(controls)
     main_layout.add_widget(ratio_layout)
     main_layout.add_widget(description)
     main_layout.add_widget(buttons_layout)
 
-    # Логика обновления
+    # Соотношения
     RATIOS = [(5, 2), (3, 2), (3, 1), (2, 1), (1, 1), (1, 2), (1, 3), (2, 3), (2, 5)]
 
     def update_display(instance, value):
@@ -1974,13 +1948,13 @@ def open_auto_build_popup(faction):
         ratio = RATIOS[idx]
         ratio_display.text = f"{ratio[0]}:{ratio[1]}"
         description.text = f"Строить: {ratio[0]} больниц и {ratio[1]} фабрик за ход"
-
         if ratio[0] > ratio[1]:
-            ratio_display.color = (0.8, 0.2, 0.2, 1)
+            ratio_display.color = (1, 0.4, 0.4, 1)
         elif ratio[1] > ratio[0]:
-            ratio_display.color = (0.2, 0.8, 0.2, 1)
+            ratio_display.color = (0.4, 1, 0.4, 1)
         else:
-            ratio_display.color = (1, 1, 0.5, 1)
+            ratio_display.color = (1, 1, 0.6, 1)
+
     if hasattr(faction, 'auto_build_ratio') and faction.auto_build_ratio in RATIOS:
         saved_index = RATIOS.index(faction.auto_build_ratio)
         slider.value = saved_index
@@ -1990,7 +1964,6 @@ def open_auto_build_popup(faction):
     left_btn.bind(on_press=lambda _: setattr(slider, 'value', max(slider.value - 1, 0)))
     right_btn.bind(on_press=lambda _: setattr(slider, 'value', min(slider.value + 1, 8)))
 
-    # Сохранение настроек
     def save_settings(instance):
         idx = int(slider.value)
         faction.auto_build_ratio = RATIOS[idx]
@@ -2004,6 +1977,7 @@ def open_auto_build_popup(faction):
 
     auto_popup.content = main_layout
     auto_popup.open()
+
 #--------------------------
 def start_economy_mode(faction, game_area):
     """Инициализация экономического режима для выбранной фракции"""
