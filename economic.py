@@ -7,7 +7,6 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
-from kivy.uix.dropdown import DropDown
 from kivy.graphics import Color, RoundedRectangle, Rectangle
 from kivy.core.window import Window
 from kivy.animation import Animation
@@ -15,7 +14,6 @@ from kivy.uix.floatlayout import FloatLayout
 
 import random
 import sqlite3
-import threading
 
 def format_number(number):
     """Форматирует число с добавлением приставок (тыс., млн., млрд., трлн., квадр., квинт., секст., септил., октил., нонил., децил., андец.)"""
@@ -1546,16 +1544,16 @@ def open_build_popup(faction):
         ("1 больница (за ход):",
          f"+500 рабочих / -{faction.buildings_info_fraction()} крон"),
         ("1 фабрика (за ход):", "+1000 сырья / -200 рабочих"),
-        ("Количество больниц:", faction.hospitals),
-        ("Количество фабрик:", faction.factories),
-        ("Количество рабочих на фабриках:", faction.work_peoples),
-        ("Чистый прирост рабочих:", faction.clear_up_peoples),
-        ("Потребление денег больницами:", faction.money_info),
-        ("Чистое производство сырья:", faction.food_info),
-        ("Чистый прирост денег:", faction.money_up),
-        ("Доход от налогов:", faction.taxes_info),
+        ("Количество больниц:", format_number(faction.hospitals)),
+        ("Количество фабрик:", format_number(faction.factories)),
+        ("Количество рабочих на фабриках:", format_number(faction.work_peoples)),
+        ("Чистый прирост рабочих:", format_number(faction.clear_up_peoples)),
+        ("Потребление денег больницами:", format_number(faction.money_info)),
+        ("Чистое производство сырья:", format_number(faction.food_info)),
+        ("Чистый прирост денег:", format_number(faction.money_up)),
+        ("Доход от налогов:", format_number(faction.taxes_info)),
         ("Эффект от налогов (Рост населения):",
-         faction.apply_tax_effect(int(faction.current_tax_rate[:-1])) if faction.tax_set else "Налог не установлен"),
+         format_number(faction.apply_tax_effect(int(faction.current_tax_rate[:-1])) if faction.tax_set else "Налог не установлен")),
     ]
 
     # Функция для расчета размера шрифта
@@ -1949,7 +1947,7 @@ def open_auto_build_popup(faction):
 
     # Описание
     description = Label(
-        text="Равное соотношение больниц и фабрик",
+        text="Соотношение больниц и фабрик для строительства",
         color=(0.7, 0.7, 0.7, 1),
         size_hint=(1, 0.2)
     )
@@ -1975,7 +1973,7 @@ def open_auto_build_popup(faction):
         idx = int(value)
         ratio = RATIOS[idx]
         ratio_display.text = f"{ratio[0]}:{ratio[1]}"
-        description.text = f"Строить: {ratio[0]} больниц и {ratio[1]} фабрик за цикл"
+        description.text = f"Строить: {ratio[0]} больниц и {ratio[1]} фабрик за ход"
 
         if ratio[0] > ratio[1]:
             ratio_display.color = (0.8, 0.2, 0.2, 1)
@@ -1983,6 +1981,10 @@ def open_auto_build_popup(faction):
             ratio_display.color = (0.2, 0.8, 0.2, 1)
         else:
             ratio_display.color = (1, 1, 0.5, 1)
+    if hasattr(faction, 'auto_build_ratio') and faction.auto_build_ratio in RATIOS:
+        saved_index = RATIOS.index(faction.auto_build_ratio)
+        slider.value = saved_index
+        update_display(slider, saved_index)
 
     slider.bind(value=update_display)
     left_btn.bind(on_press=lambda _: setattr(slider, 'value', max(slider.value - 1, 0)))

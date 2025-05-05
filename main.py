@@ -166,7 +166,8 @@ def clear_tables(conn):
         "units",
         "experience",
         "queries",
-        "results"
+        "results",
+        "auto_build_settings"
     ]
 
     cursor = conn.cursor()
