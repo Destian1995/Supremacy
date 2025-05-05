@@ -298,12 +298,8 @@ def fight(attacking_city, defending_city, defending_army, attacking_army,
 
     # Объединяем одинаковые юниты
     merged_attacking = merge_units(attacking_army)
-
-    # Загружаем гарнизон защитного города
-    garrison = load_garrison(defending_city, db_connection)
-    # Объединяем гарнизон с обороняющейся армией
-    full_defending_army = defending_army + garrison
-    merged_defending = merge_units(full_defending_army)
+    # Объединяем гарнизон
+    merged_defending = merge_units(defending_army)
 
     # Инициализируем счётчики для merged списков
     for u in merged_attacking + merged_defending:
@@ -342,7 +338,6 @@ def fight(attacking_city, defending_city, defending_army, attacking_army,
         attacking_army=merged_attacking,
         defending_army=merged_defending,
         attacking_fraction=attacking_fraction,
-        defending_fraction=defending_fraction,
         cursor=db_connection.cursor()
     )
 
@@ -414,7 +409,6 @@ def generate_battle_report(attacking_army, defending_army, winner, attacking_fra
     :param winner: Результат боя ('attacking' или 'defending').
     :param attacking_fraction: Название атакующей фракции.
     :param defending_fraction: Название обороняющейся фракции.
-    :param is_player_winner: Флаг, указывающий, выиграл ли игрок (True/False).
     :return: Отчет о бое (список словарей).
     """
     global attacking_result, defending_result
@@ -503,43 +497,6 @@ def calculate_unit_power(unit, is_attacking):
         defense = unit['units_stats']['Защита']
         return durability + defense
 
-def load_garrison(city_name, db_connection):
-    """
-    Загружает гарнизон города из базы данных.
-    :param city_name: Название города.
-    :param db_connection: Соединение с базой данных.
-    :return: Список юнитов гарнизона.
-    """
-    try:
-        cursor = db_connection.cursor()
-        cursor.execute("""
-            SELECT unit_name, unit_count, unit_image 
-            FROM garrisons 
-            WHERE city_id = ?
-        """, (city_name,))
-        rows = cursor.fetchall()
-        garrison = []
-        for row in rows:
-            unit_name, unit_count, unit_image = row
-            # Загрузка статистики юнита
-            cursor.execute("""
-                SELECT * 
-                FROM units_stats 
-                WHERE unit_name = ?
-            """, (unit_name,))
-            stats = cursor.fetchone()
-            if stats:
-                garrison.append({
-                    "unit_name": unit_name,
-                    "unit_count": unit_count,
-                    "unit_image": unit_image,
-                    "units_stats": dict(stats)
-                })
-        return garrison
-    except Exception as e:
-        print(f"Ошибка при загрузке гарнизона: {e}")
-        return []
-
 def battle_units(attacking_unit, defending_unit, city, user_faction):
     """
     Осуществляет бой между двумя юнитами.
@@ -578,7 +535,7 @@ def battle_units(attacking_unit, defending_unit, city, user_faction):
 
 def update_garrisons_after_battle(winner, attacking_city, defending_city,
                                   attacking_army, defending_army,
-                                  attacking_fraction, defending_fraction, cursor):
+                                  attacking_fraction, cursor):
     """
     Обновляет гарнизоны после боя.
     """
@@ -611,11 +568,9 @@ def update_garrisons_after_battle(winner, attacking_city, defending_city,
                 cursor.execute("""
                     UPDATE city SET kingdom = ? WHERE fortress_name = ?
                 """, (attacking_fraction, defending_city))
-                # Обновляем принадлежность города
                 cursor.execute("""
                     UPDATE cities SET faction = ? WHERE name = ?
                 """, (attacking_fraction, defending_city))
-                # Уцелевшие здания переходят под контроль захватчика
                 cursor.execute("""
                     UPDATE buildings
                     SET faction = ?
@@ -624,7 +579,10 @@ def update_garrisons_after_battle(winner, attacking_city, defending_city,
 
             else:
                 # Если победила обороняющаяся сторона
-                # Восстанавливаем оставшийся гарнизон обороняющейся стороны
+                # Сначала удаляем ВСЕ записи гарнизона обороняющегося города
+                cursor.execute("DELETE FROM garrisons WHERE city_id = ?", (defending_city,))
+
+                # Добавляем только оставшиеся юниты (unit_count > 0)
                 for unit in defending_army:
                     if unit['unit_count'] > 0:
                         cursor.execute("""
@@ -640,9 +598,8 @@ def update_garrisons_after_battle(winner, attacking_city, defending_city,
                             unit.get('unit_image', '')
                         ))
 
-            # Обновляем гарнизон атакующего города
+            # Обновляем гарнизон атакующего города (общий блок для обоих случаев)
             original_counts = {}
-            # Сначала получаем текущие количества юнитов в атакующем городе
             cursor.execute("""
                 SELECT unit_name, unit_count FROM garrisons WHERE city_id = ?
             """, (attacking_city,))
@@ -652,14 +609,12 @@ def update_garrisons_after_battle(winner, attacking_city, defending_city,
             for unit in attacking_army:
                 remaining_in_source = original_counts.get(unit['unit_name'], 0) - unit['initial_count']
                 if remaining_in_source > 0:
-                    # Обновляем количество, если остались юниты
                     cursor.execute("""
                         UPDATE garrisons 
                         SET unit_count = ? 
                         WHERE city_id = ? AND unit_name = ?
                     """, (remaining_in_source, attacking_city, unit['unit_name']))
                 else:
-                    # Удаляем юнит полностью, если не осталось
                     cursor.execute("""
                         DELETE FROM garrisons 
                         WHERE city_id = ? AND unit_name = ?

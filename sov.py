@@ -1092,7 +1092,7 @@ class AdvisorView(FloatLayout):
             print(f"Юниты фракции '{units}''.")
             for unit_id, current_attack, current_defense, unit_class in units:
                 # Определяем множитель для юнитов первого класса
-                multiplier = 0.01 if int(unit_class) == 1 else 1
+                multiplier = 0.075 if int(unit_class) == 1 else 1
 
                 # Применяем множитель к бонусам
                 new_attack = current_attack + int(attack_bonus * multiplier)
