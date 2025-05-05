@@ -810,7 +810,7 @@ class Faction:
             system = self.load_political_system()
             if system == "Капитализм":
                 # +255% Крон от общего прироста
-                crowns_bonus = int(self.money_up * 2.55)
+                crowns_bonus = int(self.money_up * 4.75)
                 self.money += crowns_bonus
             elif system == "Коммунизм":
                 # +365% Сырья от общего прироста
