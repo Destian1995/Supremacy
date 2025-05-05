@@ -18,32 +18,40 @@ import sqlite3
 
 def format_number(number):
     """Форматирует число с добавлением приставок (тыс., млн., млрд., трлн., квадр., квинт., секст., септил., октил., нонил., децил., андец.)"""
-    if number >= 1_000_000_000_000_000_000_000_000_000_000_000_000:  # 1e36
-        return f"{number / 1e36:.1f} андец."
-    elif number >= 1_000_000_000_000_000_000_000_000_000_000_000:  # 1e33
-        return f"{number / 1e33:.1f} децил."
-    elif number >= 1_000_000_000_000_000_000_000_000_000_000:  # 1e30
-        return f"{number / 1e30:.1f} нонил."
-    elif number >= 1_000_000_000_000_000_000_000_000_000:  # 1e27
-        return f"{number / 1e27:.1f} октил."
-    elif number >= 1_000_000_000_000_000_000_000_000:  # 1e24
-        return f"{number / 1e24:.1f} септил."
-    elif number >= 1_000_000_000_000_000_000_000:  # 1e21
-        return f"{number / 1e21:.1f} секст."
-    elif number >= 1_000_000_000_000_000_000:  # 1e18
-        return f"{number / 1e18:.1f} квинт."
-    elif number >= 1_000_000_000_000_000:  # 1e15
-        return f"{number / 1e15:.1f} квадр."
-    elif number >= 1_000_000_000_000:  # 1e12
-        return f"{number / 1e12:.1f} трлн."
-    elif number >= 1_000_000_000:  # 1e9
-        return f"{number / 1e9:.1f} млрд."
-    elif number >= 1_000_000:  # 1e6
-        return f"{number / 1e6:.1f} млн."
-    elif number >= 1_000:  # 1e3
-        return f"{number / 1e3:.1f} тыс."
-    else:
+    if not isinstance(number, (int, float)):
         return str(number)
+    if number == 0:
+        return "0"
+
+    absolute = abs(number)
+    sign = -1 if number < 0 else 1
+
+    if absolute >= 1_000_000_000_000_000_000_000_000_000_000_000_000:  # 1e36
+        return f"{sign * absolute / 1e36:.1f} андец."
+    elif absolute >= 1_000_000_000_000_000_000_000_000_000_000_000:  # 1e33
+        return f"{sign * absolute / 1e33:.1f} децил."
+    elif absolute >= 1_000_000_000_000_000_000_000_000_000_000:  # 1e30
+        return f"{sign * absolute / 1e30:.1f} нонил."
+    elif absolute >= 1_000_000_000_000_000_000_000_000_000:  # 1e27
+        return f"{sign * absolute / 1e27:.1f} октил."
+    elif absolute >= 1_000_000_000_000_000_000_000_000:  # 1e24
+        return f"{sign * absolute / 1e24:.1f} септил."
+    elif absolute >= 1_000_000_000_000_000_000_000:  # 1e21
+        return f"{sign * absolute / 1e21:.1f} секст."
+    elif absolute >= 1_000_000_000_000_000_000:  # 1e18
+        return f"{sign * absolute / 1e18:.1f} квинт."
+    elif absolute >= 1_000_000_000_000_000:  # 1e15
+        return f"{sign * absolute / 1e15:.1f} квадр."
+    elif absolute >= 1_000_000_000_000:  # 1e12
+        return f"{sign * absolute / 1e12:.1f} трлн."
+    elif absolute >= 1_000_000_000:  # 1e9
+        return f"{sign * absolute / 1e9:.1f} млрд."
+    elif absolute >= 1_000_000:  # 1e6
+        return f"{sign * absolute / 1e6:.1f} млн."
+    elif absolute >= 1_000:  # 1e3
+        return f"{sign * absolute / 1e3:.1f} тыс."
+    else:
+        return f"{number}"
 
 
 def save_building_change(faction_name, city, building_type, delta):
@@ -1557,7 +1565,7 @@ def open_build_popup(faction):
         ("Чистый прирост денег:", format_number(faction.money_up)),
         ("Доход от налогов:", format_number(faction.taxes_info)),
         ("Эффект от налогов (Рост населения):",
-         format_number(faction.apply_tax_effect(int(faction.current_tax_rate[:-1])) if faction.tax_set else "Налог не установлен")),
+         format_number(faction.apply_tax_effect(int(faction.current_tax_rate[:-1]))) if faction.tax_set else "Налог не установлен"),
     ]
 
     # Функция для расчета размера шрифта
